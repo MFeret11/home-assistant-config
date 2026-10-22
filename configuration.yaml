@@ -71,12 +71,6 @@ recorder:
   # No include list on purpose: with exclude-only filters HA records everything
   # not listed above, so the receiver and projector power state stay recorded.
 
-http:
-  use_x_forwarded_for: true
-  trusted_proxies:
-    - 127.0.0.1
-    - ::1
-
 rest:
   - resource: "http://127.0.0.1:8000/"
     scan_interval: 60
