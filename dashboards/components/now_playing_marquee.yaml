@@ -1,0 +1,317 @@
+type: conditional
+conditions:
+  - condition: state
+    entity: binary_sensor.theater_in_use
+    state: "on"
+  - condition: state
+    entity: sensor.theater_mode
+    state: [game, movie, sports, music]
+card:
+  type: markdown
+  content: >-
+    {%- set mode = states('sensor.theater_mode') -%}
+    {%- set eagles_state = states('sensor.philadelphia_eagles') -%}
+    {%- if mode == 'sports' and eagles_state == 'IN' -%}
+      {%- set team_logo = state_attr('sensor.philadelphia_eagles', 'team_logo') | default(state_attr('sensor.theater_current_poster', 'team_logo') | default('https://a.espncdn.com/i/teamlogos/nfl/500/phi.png', true), true) -%}
+      {%- set opp_logo = state_attr('sensor.philadelphia_eagles', 'opponent_logo') | default(state_attr('sensor.theater_current_poster', 'opponent_logo'), true) -%}
+      {%- set team_score = state_attr('sensor.philadelphia_eagles', 'team_score') | default(state_attr('sensor.theater_current_poster', 'team_score') | default('0', true), true) -%}
+      {%- set opp_score = state_attr('sensor.philadelphia_eagles', 'opponent_score') | default(state_attr('sensor.theater_current_poster', 'opponent_score') | default('0', true), true) -%}
+      {%- set opp_abbr = state_attr('sensor.philadelphia_eagles', 'opponent_abbr') | default(state_attr('sensor.theater_current_poster', 'opponent_abbr') | default(state_attr('sensor.philadelphia_eagles', 'opponent_name') | default('OPP', true), true), true) -%}
+      {%- set quarter = state_attr('sensor.philadelphia_eagles', 'quarter') | default(state_attr('sensor.theater_current_poster', 'quarter'), true) -%}
+      {%- set clock = state_attr('sensor.philadelphia_eagles', 'clock') | default(state_attr('sensor.theater_current_poster', 'clock'), true) -%}
+      {%- set down_dist = state_attr('sensor.philadelphia_eagles', 'down_distance_text') | default(state_attr('sensor.theater_current_poster', 'down_distance_text'), true) -%}
+      {%- set last_play = state_attr('sensor.philadelphia_eagles', 'last_play') | default(state_attr('sensor.theater_current_poster', 'last_play'), true) -%}
+      {%- set game_state = states('sensor.philadelphia_eagles') -%}
+      {%- set trim = states('input_number.theater_announcer_volume') | default('0.0', true) -%}
+      {%- set backdrop = state_attr('sensor.theater_current_poster', 'backdrop_url') | default('/src/assets/images/stadium_broadcast_backdrop_1792095435540.jpg', true) -%}
+      <div class="theater-marquee-hero sports-hero">
+        <div class="marquee-backdrop" style="background-image: url('{{ backdrop }}');"></div>
+        <div class="marquee-scrim"></div>
+        <div class="marquee-badge">
+          <span class="mode-tag">{{ 'LIVE BROADCAST' if game_state == 'IN' else ('FINAL' if game_state == 'POST' else 'GAME DAY') }}</span>
+        </div>
+        <div class="scoreboard-container">
+          <div class="scoreboard-team left-team">
+            <img class="team-logo-img" src="{{ team_logo }}" alt="PHI" />
+            <span class="team-code">PHI</span>
+          </div>
+          <div class="scoreboard-middle">
+            <div class="score-numbers">
+              <span class="num">{{ team_score }}</span>
+              <span class="sep">-</span>
+              <span class="num">{{ opp_score }}</span>
+            </div>
+            <div class="game-status-pill">
+              {%- if quarter and clock -%}
+                Q{{ quarter }} &bull; {{ clock }}
+              {%- elif game_state == 'POST' -%}
+                FINAL
+              {%- else -%}
+                KICKOFF
+              {%- endif -%}
+            </div>
+            <div class="game-extra-stats">
+              {{ down_dist if down_dist else ('Stadium Surround • Trim: ' ~ trim ~ ' dB') }}
+            </div>
+            {%- if last_play and last_play not in ['none', 'None', 'unknown', 'unavailable', ''] -%}
+            <div class="game-last-play">
+              {{ last_play }}
+            </div>
+            {%- endif -%}
+          </div>
+          <div class="scoreboard-team right-team">
+            {%- if opp_logo and opp_logo not in ['none', 'None', 'unknown', 'unavailable', ''] -%}
+              <img class="team-logo-img" src="{{ opp_logo }}" alt="{{ opp_abbr }}" />
+            {%- else -%}
+              <div class="team-logo-fallback">{{ opp_abbr[:3] }}</div>
+            {%- endif -%}
+            <span class="team-code">{{ opp_abbr }}</span>
+          </div>
+        </div>
+      </div>
+    {%- else -%}
+      {%- set backdrop = state_attr('sensor.theater_current_poster', 'backdrop_url') -%}
+      {%- set poster = states('sensor.theater_current_poster') -%}
+      {%- set title = state_attr('sensor.theater_current_poster', 'title') | default('Basement Theater', true) -%}
+      {%- set subtitle = state_attr('sensor.theater_current_poster', 'subtitle') | default('Active Session', true) -%}
+      {%- set bg_img = backdrop if backdrop and backdrop not in ['none', 'None', 'unknown', 'unavailable', ''] else (poster if poster and poster not in ['none', 'None', 'unknown', 'unavailable', ''] else '/src/assets/images/theater_cinematic_backdrop_1792095433713.jpg') -%}
+      {%- set poster_img = poster if poster and poster not in ['none', 'None', 'unknown', 'unavailable', ''] else '/src/assets/images/theatrical_movie_poster_1792095434475.jpg' -%}
+      <div class="theater-marquee-hero">
+        <div class="marquee-backdrop" style="background-image: url('{{ bg_img }}');"></div>
+        <div class="marquee-scrim"></div>
+        <div class="marquee-content-split">
+          {%- if poster_img and poster_img not in ['none', 'None', 'unknown', 'unavailable', ''] -%}
+            <div class="theatrical-poster-frame">
+              <img class="theatrical-poster-img" src="{{ poster_img }}" alt="{{ title }}" />
+            </div>
+          {%- endif -%}
+          <div class="marquee-info-pane">
+            <div class="marquee-badge-inline">
+              <span class="mode-tag">{{ mode | upper }}</span>
+            </div>
+            <div class="marquee-title">{{ title }}</div>
+            <div class="marquee-subtitle">{{ subtitle }}</div>
+          </div>
+        </div>
+      </div>
+    {%- endif -%}
+  card_mod:
+    style: |
+      {% set mode = states('sensor.theater_mode') %}
+      {% set rgb = {
+        'game':   ['76, 175, 80',  '27, 94, 32',  '129, 199, 132'],
+        'music':  ['30, 215, 96',  '15, 100, 45', '30, 215, 96'],
+        'sports': ['0, 170, 35',   '0, 95, 20',   '50, 205, 50'],
+      }.get(mode, ['33, 150, 243', '13, 71, 161', '66, 165, 245']) %}
+      ha-card {
+        contain: content !important;
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin: 0 0 10px 0 !important;
+        border-radius: 20px !important;
+        overflow: hidden !important;
+      }
+      ha-markdown {
+        padding: 0 !important;
+      }
+      .theater-marquee-hero {
+        position: relative;
+        width: 100%;
+        min-height: 320px;
+        height: 320px;
+        border-radius: 20px;
+        overflow: hidden;
+        box-shadow: 0 14px 36px rgba(0, 0, 0, 0.9), 0 0 28px rgba({{ rgb[0] }}, 0.45);
+        border: 1.5px solid rgba({{ rgb[2] }}, 0.65);
+        background: linear-gradient(90deg, #0b0f19 0%, #151c2e 50%, #0b0f19 100%);
+        background-size: 200% 100%;
+        animation: marqueeSkeleton 2.5s infinite linear;
+      }
+      @keyframes marqueeSkeleton {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
+      .marquee-backdrop {
+        position: absolute;
+        inset: 0;
+        background-size: cover;
+        background-position: center center;
+        filter: blur(14px) brightness(0.40);
+        transform: scale(1.08);
+      }
+      .marquee-scrim {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(135deg, rgba(0, 0, 0, 0.8) 0%, rgba(5, 7, 12, 0.5) 50%, rgba(0, 0, 0, 0.85) 100%);
+        pointer-events: none;
+      }
+      .marquee-content-split {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        padding: 20px 24px;
+        gap: 22px;
+        z-index: 2;
+      }
+      .theatrical-poster-frame {
+        flex-shrink: 0;
+        height: 275px;
+        width: 185px;
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.95), 0 0 24px rgba({{ rgb[0] }}, 0.55);
+        border: 1.5px solid rgba({{ rgb[2] }}, 0.85);
+        background: #000000;
+      }
+      .theatrical-poster-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .marquee-info-pane {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 10px;
+      }
+      .marquee-badge-inline {
+        display: flex;
+      }
+      .marquee-badge {
+        position: absolute;
+        top: 14px;
+        left: 14px;
+        z-index: 3;
+      }
+      .mode-tag {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba({{ rgb[2] }}, 0.8);
+        color: #ffffff;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+      }
+      .marquee-title {
+        font-size: 1.75rem;
+        font-weight: 900;
+        color: #ffffff;
+        text-shadow: 0 2px 14px rgba(0, 0, 0, 0.98);
+        line-height: 1.15;
+        letter-spacing: -0.02em;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .marquee-subtitle {
+        font-size: 1.05rem;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.9);
+        text-shadow: 0 1px 8px rgba(0, 0, 0, 0.95);
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .scoreboard-container {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 30px 24px 16px 24px;
+        z-index: 2;
+      }
+      .scoreboard-team {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        width: 80px;
+      }
+      .team-logo-img {
+        width: 74px;
+        height: 74px;
+        object-fit: contain;
+        filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.9));
+      }
+      .team-logo-fallback {
+        width: 70px;
+        height: 70px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.12);
+        border: 2px solid rgba(255, 255, 255, 0.35);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        font-weight: 900;
+        color: #ffffff;
+      }
+      .team-code {
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 1.5px;
+        color: #ffffff;
+        text-shadow: 0 2px 8px rgba(0,0,0,0.95);
+      }
+      .scoreboard-middle {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        text-align: center;
+      }
+      .score-numbers {
+        font-size: 2.8rem;
+        font-weight: 900;
+        font-family: monospace;
+        color: #ffffff;
+        letter-spacing: 3px;
+        text-shadow: 0 4px 18px rgba(0, 0, 0, 0.98);
+        line-height: 1;
+      }
+      .score-numbers .sep {
+        color: rgba(255, 255, 255, 0.45);
+        margin: 0 6px;
+      }
+      .game-status-pill {
+        display: inline-block;
+        padding: 3px 12px;
+        border-radius: 20px;
+        background: rgba(0, 170, 35, 0.4);
+        border: 1px solid rgba(0, 200, 45, 0.7);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 1px;
+        color: #a7f3d0;
+        text-transform: uppercase;
+      }
+      .game-extra-stats {
+        font-size: 12px;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.9);
+        text-shadow: 0 1px 6px rgba(0, 0, 0, 0.95);
+      }
+      .game-last-play {
+        font-size: 11px;
+        font-weight: 500;
+        color: rgba(255, 255, 255, 0.75);
+        max-width: 260px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        text-shadow: 0 1px 4px rgba(0, 0, 0, 0.95);
+      }

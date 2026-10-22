@@ -1,0 +1,220 @@
+# Loads default set of integrations. Do not remove.
+default_config:
+
+# Load frontend themes from the themes folder
+frontend:
+  themes: !include_dir_merge_named themes
+
+# Core Packages Loader
+homeassistant:
+  packages: !include_dir_named packages
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+
+pyscript:
+  allow_all_imports: true
+  hass_is_global: true
+  
+recorder:
+  purge_keep_days: 7
+  commit_interval: 15
+  auto_purge: true
+  auto_repack: true
+  exclude:
+    domains:
+      - update
+      - button
+      - scene
+      - script
+      - camera
+      - image
+    entity_globs:
+      - sensor.system_monitor_*
+      - sensor.office_creality_printer_*
+      - sensor.avr_*
+      - sensor.*_linkquality
+      - sensor.*_last_seen
+      - sensor.*_voltage*
+      - sensor.verizon_router_*
+      - sensor.bias_lights_*
+      - sensor.theater_3rd_reality_plug_*     
+      - sensor.tuner*_network_rate
+      - sensor.tuner*_signal_*
+      - sensor.tuner*_symbol_quality
+      - sensor.tuner*_frequency
+      - sensor.desktop_rspn8nu_*
+      - sensor.pixel_8_*
+      - device_tracker.pixel_8*
+      - sensor.all_standby_energy*
+      - switch.adaptive_lighting_*
+      - switch.basement_adaptive_lighting_*
+    entities:
+      - sun.sun
+      - media_player.onn_pro_2
+      - media_player.whole_house_spotify
+      - sensor.mediasession2mqtt_1_playback_position
+      - sensor.projector_current
+      - sensor.batocera_current
+      - sensor.theater_total_power
+      - sensor.small_pad_charger_type
+      - sensor.septa_commute
+  # No include list on purpose: with exclude-only filters HA records everything
+  # not listed above, so the receiver and projector power state stay recorded.
+
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 127.0.0.1
+    - ::1
+
+rest:
+  - resource: "http://127.0.0.1:8000/"
+    scan_interval: 60
+    timeout: 5
+    binary_sensor:
+      - name: "Transit Microservice"
+        device_class: connectivity
+        value_template: "{{ value_json is defined and value_json.get('status') == 'ok' }}"
+
+lovelace:
+  dashboards:
+    basement-yaml:
+      mode: yaml
+      title: Basement
+      icon: mdi:home-floor-b
+      show_in_sidebar: true
+      filename: dashboards/basement.yaml
+    dashboard-home:
+      mode: yaml
+      title: Home
+      icon: mdi:home
+      show_in_sidebar: true
+      filename: dashboards/home.yaml
+    dashboard-home2:
+      mode: yaml
+      title: Bedroom
+      icon: mdi:bed
+      show_in_sidebar: true
+      filename: dashboards/bedroom.yaml
+    kitchen-kiosk:
+      mode: yaml
+      title: Kitchen
+      icon: mdi:silverware-fork-knife
+      show_in_sidebar: true
+      filename: dashboards/kitchen.yaml
+    activity-log:
+      mode: yaml
+      title: Activity Log
+      icon: mdi:history
+      show_in_sidebar: true
+      filename: dashboards/activitylog.yaml
+    dashboard-diagnostics:
+      mode: yaml
+      title: Diagnostics
+      icon: mdi:wrench-cog
+      show_in_sidebar: true
+      filename: dashboards/diagnostics.yaml
+
+# -- ROG Gaming PC Configuration -- 
+# Enable Wake-on-LAN integration
+wake_on_lan:
+
+# Fast ping sensor to verify if the PC is actually awake on the network
+command_line:
+  - binary_sensor:
+      name: "Gaming PC Online"
+      unique_id: gaming_pc_online
+      device_class: connectivity
+      command: "ping -c 2 -W 1 192.168.1.205 > /dev/null 2>&1 && echo on || echo off"
+      payload_on: "on"
+      payload_off: "off"
+      scan_interval: 10
+# Unified Power Toggle
+template:
+  #  ROG Gaming PC
+  - switch:
+      - name: "Gaming PC"
+        unique_id: gaming_pc
+        icon: >-
+          {{ 'mdi:desktop-tower' if is_state('binary_sensor.gaming_pc_online', 'on') else 'mdi:desktop-tower-off' }}
+        state: "{{ is_state('binary_sensor.gaming_pc_online', 'on') }}"
+        turn_on:
+          - action: wake_on_lan.send_magic_packet
+            data:
+              mac: "a8:5e:45:d2:7a:91"
+              broadcast_address: "192.168.1.255"
+        turn_off:
+          - action: button.press
+            target:
+              entity_id: button.desktop_rspn8nu_shutdown
+  # HASS.Agent ROG Gaming PC Active Game & GPU Telemetry
+  - sensor:
+      - name: "Gaming PC Active Game"
+        unique_id: gaming_pc_active_game
+        icon: mdi:gamepad-variant
+        state: >-
+          {% set win = states('sensor.desktop_rspn8nu_activewindow') %}
+          {% if win in ['unknown', 'unavailable', 'None', '', 'Desktop', 'task switching'] %}
+            Idle / Desktop
+          {% elif 'Steam Big Picture' in win %}
+            Steam Big Picture
+          {% else %}
+            {{ win }}
+          {% endif %}
+      - name: "Gaming PC GPU Temperature"
+        unique_id: gaming_pc_gpu_temperature
+        icon: mdi:thermometer
+        unit_of_measurement: "°C"
+        device_class: temperature
+        state: >-
+          {% set temp = states('sensor.desktop_rspn8nu_gputemperature') %}
+          {{ temp if temp not in ['unknown', 'unavailable', 'None', ''] else 0 }}
+  # BATOCERA CONSOLE
+  - switch:
+      - name: "Batocera Console"
+        unique_id: batocera_console_switch
+        icon: >-
+          {{ 'mdi:gamepad-variant' if states('sensor.batocera_state') in ['playing', 'idle'] else 'mdi:gamepad-variant-outline' }}
+        state: "{{ states('sensor.batocera_state') in ['playing', 'idle'] }}"
+        turn_on:
+          - action: switch.turn_on
+            target:
+              entity_id: switch.batocera
+        turn_off:
+          - action: button.press
+            target:
+              entity_id: button.batocera_shutdown_2
+
+input_select:
+  basement_lighting_mode:
+    name: "Basement Lighting Mode"
+    icon: mdi:tune-vertical
+    initial: "Daily Driver"
+    options:
+      - "Daily Driver"
+      - "Social Mode"
+  basement_drawer:
+    name: "Basement Active Drawer"
+    icon: mdi:view-dashboard
+    initial: "theater"
+    options:
+      - "none"
+      - "theater"
+      - "ambience"
+      - "lighting"
+
+mqtt:
+  sensor:
+    - name: "Batocera State"
+      state_topic: "batocera/state"
+      unique_id: batocera_state
+
+    - name: "Batocera Current Game"
+      state_topic: "batocera/current_game"
+      unique_id: batocera_current_game
+
+    - name: "Batocera System"
+      state_topic: "batocera/system"
+      unique_id: batocera_system

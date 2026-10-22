@@ -1,0 +1,83 @@
+graph TD
+    subgraph "Attic / 3rd Floor"
+        ANT["ClearStream 2MAX Antenna"]
+    end
+
+    subgraph "Local LAN (192.168.1.0/24)"
+        COAX["RG6 Coax"]
+        HDHR["HDHomeRun FLEX DUO<br/>192.168.1.221"]
+        ROUTER["Main Gateway / Router"]
+        
+        %% Theater Gear
+        AVR["Yamaha RX-V673<br/>192.168.1.250"]
+        ONN["Onn 4K Pro (Android TV)<br/>192.168.1.216"]
+        BATO["Batocera x86 PC<br/>192.168.1.220 / .190"]
+        ASUS["ASUS ROG Gaming PC<br/>192.168.1.205"]
+        OPTOMA["Optoma HD146X Projector"]
+        
+        %% Peripherals
+        ENDER["Creality Ender-3 V3 KE<br/>(Moonraker :7125)"]
+        DREAME["Dreame Robot Vacuum<br/>(Local MIoT)"]
+    end
+
+    subgraph "Docker Host: RPi 4 (100.82.195.2)"
+        DOCKER["Docker Engine"]
+        ZIG_DONGLE["Sonoff MG24 USB Dongle<br/>(/dev/ttyUSB0)"]
+        
+        subgraph "Docker Stack"
+            HA["Home Assistant Core<br/>(:8123 Host Net)"]
+            XTEVE["xTeVe M3U Proxy<br/>(:34400)"]
+            MOSQ["Mosquitto MQTT<br/>(:1883 Host Net)"]
+            MATTER["Matter-JS Server<br/>(Host Net)"]
+            TRANSIT["Transit API Microservice<br/>(:8000)"]
+            PORT["Portainer<br/>(:9000)"]
+        end
+    end
+
+    subgraph "Zigbee Mesh (Third Reality Plugs)"
+        subgraph "Dual Plug 1"
+            P1_OUT1["Relay: AVR"]
+            P1_OUT2["Relay: switch.bias_lights"]
+        end
+        
+        subgraph "Dual Plug 2"
+            P2_OUT1["switch.batocera<br/>(sensor.batocera_current)"]
+            P2_OUT2["switch.projector<br/>(sensor.projector_current)"]
+        end
+
+        ZIG_BULBS["9x Basement Bulbs<br/>(Bar, Lounge, Flanks)"]
+        STAIR_SENS["Stair Motion & Door Contact"]
+    end
+
+    subgraph "Tailscale WAN"
+        REMOTE_USERS["Remote Viewers (family)<br/>TiviMate / VLC Clients"]
+    end
+
+    %% Wiring Links
+    ANT -->|RF| COAX --> HDHR
+    HDHR -->|Gigabit Eth| ROUTER
+    ROUTER --> DOCKER
+    ROUTER --> AVR
+    ROUTER --> ONN
+    ROUTER --> BATO
+    ROUTER --> ASUS
+    ROUTER --> ENDER
+    ROUTER --> DREAME
+
+    %% HDMI Connections
+    ONN -->|HDMI 1| AVR
+    BATO -->|HDMI 2| AVR
+    AVR -->|HDMI Out| OPTOMA
+
+    %% Zigbee Wireless
+    ZIG_DONGLE -.-> P1_OUT1
+    ZIG_DONGLE -.-> P1_OUT2
+    ZIG_DONGLE -.-> P2_OUT1
+    ZIG_DONGLE -.-> P2_OUT2
+    ZIG_DONGLE -.-> ZIG_BULBS
+    ZIG_DONGLE -.-> STAIR_SENS
+
+    %% Live TV Streams
+    HDHR -->|Tuner 1: Direct Stream| ONN
+    HDHR -->|Tuner 2: Raw MPEG-2| XTEVE
+    XTEVE -->|Zero-Transcode Stream / M3U| REMOTE_USERS

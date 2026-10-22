@@ -1,0 +1,59 @@
+type: conditional
+grid_options:
+  columns: full
+conditions:
+  - condition: state
+    entity: binary_sensor.theater_in_use
+    state: "on"
+  - condition: or
+    conditions:
+      - condition: state
+        entity: sensor.theater_mode
+        state: sports
+      - condition: state
+        entity: sensor.mediasession2mqtt_1_application_id
+        state:
+          - com.silicondust.view
+          - com.armata.televizio
+          - ar.tvplayer.tv
+          - com.espn.score_center
+          - com.foxsports.videogo
+card:
+  type: horizontal-stack
+  cards:
+    - type: custom:decluttering-card
+      template: announcer_preset_button
+      variables:
+        - primary: "Crowd Only"
+        - secondary: "-10.0 dB"
+        - icon: mdi:stadium
+        - icon_color: teal
+        - preset: "Stadium Crowd"
+        - active_bg: "linear-gradient(135deg, rgba(0, 150, 136, 0.35), rgba(0, 77, 64, 0.25))"
+        - active_border: "rgba(38, 166, 154, 0.9)"
+        - active_glow: "rgba(0, 150, 136, 0.45)"
+
+    - type: custom:decluttering-card
+      template: announcer_preset_button
+      variables:
+        - primary: "Broadcast Ref"
+        - secondary: "0.0 dB"
+        - icon: mdi:account-voice
+        - icon_color: blue
+        - preset: "Broadcast Ref"
+        - active_bg: "linear-gradient(135deg, rgba(3, 169, 244, 0.35), rgba(1, 87, 155, 0.25))"
+        - active_border: "rgba(3, 169, 244, 0.9)"
+        - active_glow: "rgba(3, 169, 244, 0.45)"
+
+    - type: custom:decluttering-card
+      template: announcer_preset_button
+      variables:
+        - primary: "Dialogue Boost"
+        - secondary: "+3.0 dB"
+        - icon: mdi:volume-plus
+        - icon_color: amber
+        - preset: "Dialogue Boost"
+        - active_bg: "linear-gradient(135deg, rgba(255, 152, 0, 0.35), rgba(230, 81, 0, 0.25))"
+        - active_border: "rgba(255, 152, 0, 0.9)"
+        - active_glow: "rgba(255, 152, 0, 0.45)"
+

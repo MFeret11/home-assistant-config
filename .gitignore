@@ -1,0 +1,45 @@
+# Secrets and certs - never commit
+secrets.yaml
+.env
+tailscale_certs/
+ssh/
+*.key
+*.crt
+*.pem
+
+# Databases and runtime state
+*.db
+*.db-*
+.storage/
+.cloud/
+.HA_VERSION
+.ha_run.lock
+
+# Logs
+*.log
+home-assistant.log*
+
+# Caches and compiled bytecode
+.cache/
+deps/
+__pycache__/
+*.pyc
+
+# Installed by HACS - reproducible, not config
+custom_components/
+www/community/
+themes/*/
+!themes/themes.yaml
+
+# TTS/media cache
+tts/
+image/
+
+# Backups (HA backups go to Google Drive; host_backup/ holds the ~/docker
+# tarball from ~/docker/backup_to_ha.sh, which includes .env secrets)
+backups/
+host_backup/
+
+# Local tooling
+.claude/
+context.md

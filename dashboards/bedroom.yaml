@@ -1,0 +1,202 @@
+title: Bedroom
+views:
+  - title: Bedroom
+    path: bedroom
+    icon: mdi:bed
+    type: sections
+    max_columns: 2
+    sections:
+      - type: grid
+        cards:
+          - type: custom:mushroom-chips-card
+            alignment: justify
+            card_mod:
+              style: |
+                ha-card {
+                  --chip-height: 44px;
+                  --chip-icon-size: 22px;
+                  margin-bottom: 8px !important;
+                }
+            chips:
+              - type: template
+                icon: mdi:arrow-left
+                content: Home
+                icon_color: blue
+                tap_action:
+                  action: navigate
+                  navigation_path: /dashboard-home/home
+                  haptic: light
+                card_mod:
+                  style: |
+                    ha-card {
+                      background: rgba(33, 150, 243, 0.12) !important;
+                      border: 1px solid rgba(33, 150, 243, 0.35) !important;
+                      border-radius: 20px !important;
+                    }
+                    ha-card:active { transform: scale(0.95); }
+              - type: template
+                icon: mdi:moon-waning-crescent
+                content: Goodnight
+                icon_color: purple
+                tap_action:
+                  action: perform-action
+                  perform_action: light.turn_off
+                  target:
+                    entity_id: light.zigbee_bedroom_lights
+                  data:
+                    transition: 3
+                  haptic: medium
+                card_mod:
+                  style: |
+                    ha-card {
+                      background: linear-gradient(135deg, rgba(156, 39, 176, 0.25), rgba(74, 20, 140, 0.12)) !important;
+                      border: 1px solid rgba(156, 39, 176, 0.5) !important;
+                      border-radius: 20px !important;
+                      box-shadow: 0 4px 16px rgba(156, 39, 176, 0.25);
+                    }
+                    ha-card:active { transform: scale(0.95); }
+          - type: custom:mushroom-light-card
+            entity: light.zigbee_bedroom_lights
+            name: Bedroom (Both Lamps)
+            icon: mdi:bed-double-outline
+            show_brightness_control: true
+            show_color_control: false
+            collapsible_controls: false
+            layout: horizontal
+            tap_action:
+              action: toggle
+              haptic: light
+            hold_action:
+              action: more-info
+              haptic: medium
+            card_mod:
+              style: |
+                ha-card {
+                  background: rgba(255, 255, 255, 0.04) !important;
+                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                  border-radius: 20px !important;
+                  padding: 8px 12px !important;
+                }
+          - type: horizontal-stack
+            cards:
+              - type: custom:mushroom-template-card
+                primary: Wind Down
+                secondary: 5% Warm
+                icon: mdi:weather-night
+                icon_color: amber
+                layout: vertical
+                tap_action:
+                  action: perform-action
+                  perform_action: light.turn_on
+                  target:
+                    entity_id: light.zigbee_bedroom_lights
+                  data:
+                    brightness_pct: 5
+                    color_temp_kelvin: 2200
+                    transition: 2
+                  haptic: light
+                card_mod:
+                  style: |
+                    ha-card {
+                      background: rgba(255, 179, 0, 0.08) !important;
+                      border: 1px solid rgba(255, 179, 0, 0.25) !important;
+                      border-radius: 18px !important;
+                      padding: 10px 4px !important;
+                    }
+                    ha-card:active { transform: scale(0.94); }
+              - type: custom:mushroom-template-card
+                primary: Reading
+                secondary: 45% Warm
+                icon: mdi:book-open-variant
+                icon_color: blue
+                layout: vertical
+                tap_action:
+                  action: perform-action
+                  perform_action: light.turn_on
+                  target:
+                    entity_id: light.bedroom_lamp_1
+                  data:
+                    brightness_pct: 45
+                    color_temp_kelvin: 2700
+                    transition: 2
+                  haptic: light
+                card_mod:
+                  style: |
+                    ha-card {
+                      background: rgba(33, 150, 243, 0.08) !important;
+                      border: 1px solid rgba(33, 150, 243, 0.25) !important;
+                      border-radius: 18px !important;
+                      padding: 10px 4px !important;
+                    }
+                    ha-card:active { transform: scale(0.94); }
+              - type: custom:mushroom-template-card
+                primary: Bright
+                secondary: 100% Day
+                icon: mdi:white-balance-sunny
+                icon_color: green
+                layout: vertical
+                tap_action:
+                  action: perform-action
+                  perform_action: light.turn_on
+                  target:
+                    entity_id: light.zigbee_bedroom_lights
+                  data:
+                    brightness_pct: 100
+                    color_temp_kelvin: 3500
+                    transition: 2
+                  haptic: light
+                card_mod:
+                  style: |
+                    ha-card {
+                      background: rgba(76, 175, 80, 0.08) !important;
+                      border: 1px solid rgba(76, 175, 80, 0.25) !important;
+                      border-radius: 18px !important;
+                      padding: 10px 4px !important;
+                    }
+                    ha-card:active { transform: scale(0.94); }
+          - type: horizontal-stack
+            cards:
+              - type: custom:mushroom-light-card
+                entity: light.bedroom_lamp_1
+                name: Reading Light
+                icon: mdi:lamp
+                show_brightness_control: true
+                show_color_temp_control: false
+                collapsible_controls: false
+                layout: vertical
+                tap_action:
+                  action: toggle
+                  haptic: light
+                hold_action:
+                  action: more-info
+                  haptic: medium
+                card_mod:
+                  style: |
+                    ha-card {
+                      background: rgba(255, 255, 255, 0.04) !important;
+                      border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                      border-radius: 20px !important;
+                      padding: 12px 8px !important;
+                    }
+              - type: custom:mushroom-light-card
+                entity: light.bedroom_light_2
+                name: Matt's Light
+                icon: mdi:lamp
+                show_brightness_control: true
+                show_color_temp_control: false
+                collapsible_controls: false
+                layout: vertical
+                tap_action:
+                  action: toggle
+                  haptic: light
+                hold_action:
+                  action: more-info
+                  haptic: medium
+                card_mod:
+                  style: |
+                    ha-card {
+                      background: rgba(255, 255, 255, 0.04) !important;
+                      border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                      border-radius: 20px !important;
+                      padding: 12px 8px !important;
+                    }

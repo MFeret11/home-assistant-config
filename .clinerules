@@ -1,0 +1,32 @@
+# Home Assistant Basement Theater & Broadcast Automation Rules
+
+## 1. System & File Modifications
+- **Secrets Management**: Never inline API keys or credentials in code or dashboards. Always reference `secrets.yaml`.
+- **Database Health**: The system runs on a DRAM-less SSD via USB. Do NOT remove exclusions for micro-jitter sensors (e.g., `sensor.projector_current`, `sensor.batocera_current`, `sensor.mediasession2mqtt_1_playback_position`) from the recorder. Keep database writes to a minimum.
+- **PyScript Conventions**: 
+  - Always `await` async functions (especially metadata/art lookups like `_fetch_movie_or_tv_art()`).
+  - Use `@state_trigger` for debounced automations alongside raw service entry points.
+
+## 2. Hardware Safety Interlocks (CRITICAL)
+- **Projector (`switch.projector`)**: Never cut power directly. Always use `safe_projector_cooldown()` which enforces a 90s cooldown and mandates 2 consecutive `sensor.projector_current` reads `<= 0.06A`.
+- **Batocera (`switch.batocera`)**: Clean shutdown via `button.batocera_shutdown_2` first. Only open relay when `sensor.batocera_current < 0.05A` holds continuously for 12 seconds.
+- **HDHomeRun Tuners**: Honor `ensure_hdhomerun_tuner_available` to prevent broadcast lockout. Respect 1-tuner reservation and execute `pyscript.preempt_tuner_for_theater` when required.
+
+## 3. Audio & Receiver Constraints
+- **Yamaha RX-V673 (`media_player.theater_receiver`)**: 
+  - Master DSP modes must be from the supported network list (e.g., `Standard`, `Surround Decoder`, `7ch Stereo`, `Straight`, `Sports`).
+  - **Center Channel Limit**: Speaker trim is strictly between `-10.0 dB` and `+10.0 dB`. Never use `None` (forces downmixing).
+- **Spotify**: `media_player.whole_house_spotify` drives Spotify state, not the Onn media player. Always check `supported_features` before calling `media_pause`.
+
+## 4. Lighting State Machine
+- **Theater Governs Basement**: When `binary_sensor.theater_in_use` is `on`, the theater logic dictates `light.theater_dimmer` and `light.zigbee_basement_lights`.
+  - *Movie/Game Playing*: Blackout + bias lights ON.
+  - *Paused/Idle*: 1% dimmer glow + bias lights ON.
+  - *Music*: Full blackout (no glow) + bias lights ON.
+  - *Sports*: Auto-engages Social Mode and uses 100% team color.
+- **Stairway Topology**: Use `_trigger_stealth_red_stairs` (2% warm candlelight) during active theater sessions (if Social Mode is off) to preserve night vision and avoid screen washout.
+- **Eagles Chant / Sports**: Team color defaults to true Kelly Green (`[0, 170, 35]`). Flash animations must pulse brightness between 100% and 15% (holding solid RGB) to prevent Zigbee mesh congestion.
+
+## 5. UI & Dashboards
+- **Keep it DRY**: Maintain `decluttering_templates` for repeated cards in `basement.yaml`.
+- **App Launching**: Rely on explicit deep links (e.g., `stremio://`, `hdhomerun://`) and package names with a 1.0s wake delay, rather than `media_player.select_source`.

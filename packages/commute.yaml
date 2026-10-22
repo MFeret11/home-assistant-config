@@ -1,0 +1,71 @@
+# ==============================================================================
+# PACKAGE: COMMUTE & TRANSIT TELEMETRY
+# ==============================================================================
+
+rest:
+  - resource: "http://127.0.0.1:8000/api/dashboard"
+    scan_interval: 30
+    sensor:
+      - name: "SEPTA Commute"
+        value_template: "{{ value_json.overall_status }}"
+        json_attributes_path: "$.commute"
+        json_attributes:
+          - trip_type
+          - origin_train
+          - origin_line
+          - origin_departure_time
+          - origin_actual_departure_time
+          - origin_track
+          - origin_delay_minutes
+          - is_cancelled
+          - is_stalled
+          - stall_minutes
+          - walk_time_minutes
+          - leave_by_time
+          - minutes_until_leave_by
+          - leave_now
+          - already_departed
+          - at_risk
+          - delayed
+          - connection_station
+          - connection_train
+          - connection_line
+          - connection_departure_time
+          - connection_actual_departure_time
+          - connection_track
+          - connection_delay_minutes
+          - connection_is_stalled
+          - connection_cancelled
+          - transfer_buffer_minutes
+          - arrival_time
+          - actual_arrival_time
+          - total_delay_minutes
+          - missed_connection
+          - backup_train_departure
+
+  - resource: "http://127.0.0.1:8000/api/weather"
+    scan_interval: 300
+    sensor:
+      - name: "Commute Weather"
+        value_template: "{{ value_json.attire_suggestion }}"
+        json_attributes:
+          - high_f
+          - low_f
+          - morning_temp_f
+          - evening_temp_f
+          - condition
+          - needs_umbrella
+          - current_temp_f
+          - precip_chance
+          - commute_warnings
+
+template:
+  - binary_sensor:
+      - name: "Septa Display Window"
+        state: "{{ now().hour in [6, 7, 16, 17] }}"
+      - name: "Drive Display Window"
+        state: "{{ now().hour == 8 }}"
+      - name: "Septa AM Window"
+        state: "{{ now().hour in [6, 7] }}"
+      - name: "Septa PM Window"
+        state: "{{ now().hour in [16, 17] }}"

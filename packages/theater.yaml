@@ -1,0 +1,190 @@
+# ==============================================================================
+# PACKAGE: HOME THEATER & MEDIA SUBSYSTEM
+# ==============================================================================
+
+media_player:
+  - platform: yamaha
+    host: 192.168.1.250
+    name: Theater Receiver
+
+input_select:
+  basement_theater_mode:
+    name: Basement Theater Mode
+    options: ["Off", Movie, Game, Music, Sports]
+    initial: "Off"
+    icon: mdi:theater
+
+  theater_announcer_preset:
+    name: "Announcer Voice Preset"
+    options:
+      - "Stadium Crowd"
+      - "Broadcast Ref"
+      - "Dialogue Boost"
+    initial: "Stadium Crowd"
+    icon: mdi:account-voice
+
+input_text:
+  theater_movie_search:
+    name: "Movie Search"
+    initial: ""
+    icon: mdi:movie-search
+
+input_boolean:
+  xteve_tuner_reservation:
+    name: "xTeVe Tuner Reservation (Basement Priority)"
+    initial: "on"
+    icon: mdi:television-guide
+
+  
+# ==============================================================================
+# SPORTS AUDIO & ANNOUNCER DUCKING (YAMAHA RX-V673)
+# ==============================================================================
+
+input_number:
+  theater_announcer_volume:
+    name: "Announcer Volume (Center Channel)"
+    min: -10
+    max: 10
+    step: 0.5
+    initial: -10.0
+    unit_of_measurement: "dB"
+    icon: mdi:account-voice
+
+rest_command:
+  yamaha_set_center_trim:
+    url: "http://192.168.1.250/YamahaRemoteControl/ctrl"
+    method: POST
+    headers:
+      Content-Type: "text/xml; charset=utf-8"
+    payload: >-
+      {% set target_level = level if level is defined else states('input_number.theater_announcer_volume') | default(-10.0, true) %}
+      {% set clamped = [[target_level | float(-10.0), -10.0] | max, 10.0] | min %}
+      <YAMAHA_AV cmd="PUT"><System><Speaker_Preout><Pattern_1><Lvl><Center><Val>{{ (clamped * 10) | int }}</Val><Exp>1</Exp><Unit>dB</Unit></Center></Lvl></Pattern_1></Speaker_Preout></System></YAMAHA_AV>
+
+  yamaha_master_volume_step:
+    url: "http://192.168.1.250/YamahaRemoteControl/ctrl"
+    method: POST
+    headers:
+      Content-Type: "text/xml; charset=utf-8"
+    payload: >-
+      <YAMAHA_AV cmd="PUT"><Main_Zone><Volume><Lvl><Val>{{ step | default('Up 1 dB', true) }}</Val></Lvl></Volume></Main_Zone></YAMAHA_AV>
+
+shell_command:
+  batocera_shutdown: "ssh -o StrictHostKeyChecking=no -i /config/ssh/id_ed25519 root@192.168.1.220 'batocera-es-swissknife --shutdown'"
+
+template:
+  - button:
+      - name: "Batocera Shutdown"
+        unique_id: batocera_shutdown
+        icon: mdi:power
+        press:
+          - action: shell_command.batocera_shutdown
+
+  - sensor:
+      - name: "Projector Current (Rounded)"
+        unique_id: projector_current_rounded
+        unit_of_measurement: "A"
+        device_class: current
+        state_class: measurement
+        state: >-
+          {{ states('sensor.projector_current') | float(0) | round(1) }}
+        icon: mdi:current-ac
+
+      - name: "Projector Power State"
+        unique_id: projector_power_state
+        state: >-
+          {% set curr = states('sensor.projector_current') | float(0) %}
+          {% if curr > 0.8 %}
+            active
+          {% elif curr > 0.06 %}
+            cooling
+          {% else %}
+            standby
+          {% endif %}
+        icon: >-
+          {% set curr = states('sensor.projector_current') | float(0) %}
+          {% if curr > 0.8 %}
+            mdi:projector
+          {% elif curr > 0.06 %}
+            mdi:fan
+          {% else %}
+            mdi:power-sleep
+          {% endif %}
+
+      - name: "Batocera Current (Rounded)"
+        unique_id: batocera_current_rounded
+        unit_of_measurement: "A"
+        device_class: current
+        state_class: measurement
+        state: >-
+          {{ states('sensor.batocera_current') | float(0) | round(1) }}
+        icon: mdi:current-ac
+
+      - name: "Batocera Power State"
+        unique_id: batocera_power_state
+        state: >-
+          {% set curr = states('sensor.batocera_current') | float(0) %}
+          {% if curr > 0.3 %}
+            gaming
+          {% elif curr > 0.05 %}
+            idle
+          {% else %}
+            standby
+          {% endif %}
+        icon: mdi:gamepad-variant
+
+      - name: "Theater Total Power"
+        unique_id: theater_total_power
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        state: >-
+          {% set proj = (states('sensor.projector_current') | float(0) * 120) | round(0) %}
+          {% set bato = (states('sensor.batocera_current') | float(0) * 120) | round(0) %}
+          {% set avr = 55 if is_state('media_player.theater_receiver', 'on') else 2 %}
+          {{ proj + bato + avr }}
+        icon: mdi:lightning-bolt
+
+      - name: "HDHomeRun Tuner Allocation"
+        unique_id: hdhomerun_tuner_allocation
+        state: >-
+          {% set t0 = states('sensor.tuner0') | default('idle', true) | lower %}
+          {% set t1 = states('sensor.tuner1') | default('idle', true) | lower %}
+          {% set t0_act = t0 not in ['idle', 'off', 'unavailable', 'unknown', 'none', ''] %}
+          {% set t1_act = t1 not in ['idle', 'off', 'unavailable', 'unknown', 'none', ''] %}
+          {% if t0_act and t1_act %}
+            2/2 saturated
+          {% elif t0_act or t1_act %}
+            1/2 active
+          {% else %}
+            0/2 active (idle)
+          {% endif %}
+        attributes:
+          tuner0_channel: "{{ states('sensor.tuner0') | default('idle', true) }}"
+          tuner1_channel: "{{ states('sensor.tuner1') | default('idle', true) }}"
+        icon: mdi:broadcast
+
+  - binary_sensor:
+      - name: "HDHomeRun Contention Risk"
+        unique_id: hdhomerun_contention_risk
+        state: >-
+          {% set t0 = states('sensor.tuner0') | default('idle', true) | lower %}
+          {% set t1 = states('sensor.tuner1') | default('idle', true) | lower %}
+          {% set t0_act = t0 not in ['idle', 'off', 'unavailable', 'unknown', 'none', ''] %}
+          {% set t1_act = t1 not in ['idle', 'off', 'unavailable', 'unknown', 'none', ''] %}
+          {% set theater_sports = is_state('sensor.theater_mode', 'sports') %}
+          {% if t0_act and t1_act and not theater_sports %}
+            on
+          {% else %}
+            off
+          {% endif %}
+        icon: mdi:alert-circle-outline
+
+intent_script:
+  PlayMovieIntent:
+    speech:
+      text: "Powering on the theater and starting {{ movie }} on Stremio."
+    action:
+      - action: pyscript.search_and_play_movie
+        data:
+          query: "{{ movie }}"

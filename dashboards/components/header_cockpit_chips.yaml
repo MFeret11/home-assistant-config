@@ -1,0 +1,220 @@
+type: horizontal-stack
+grid_options:
+  columns: full
+card_mod:
+  style: |
+    #root {
+      display: grid !important;
+      grid-template-columns: 1fr auto 1fr !important;
+      align-items: center !important;
+      width: 100% !important;
+    }
+    #root > *:nth-child(1) { justify-self: start !important; }
+    #root > *:nth-child(2) { justify-self: center !important; }
+    #root > *:nth-child(3) { justify-self: end !important; }
+cards:
+  # ---------------------------------------------------
+  # ZONE 1: LEFT PINNED (NAVIGATION)
+  # ---------------------------------------------------
+  - type: custom:mushroom-chips-card
+    alignment: start
+    card_mod:
+      style: |
+        :host { flex: 0 0 auto !important; }
+        ha-card {
+          --chip-height: 52px;
+          --chip-icon-size: 26px;
+          background: transparent !important;
+          border: none !important;
+          box-shadow: none !important;
+        }
+    chips:
+      - type: template
+        icon: mdi:arrow-left
+        icon_color: blue
+        tap_action:
+          action: navigate
+          navigation_path: /dashboard-home/home
+          haptic: light
+        card_mod:
+          style: |
+            ha-card {
+              width: 52px !important;
+              height: 52px !important;
+              padding: 0 !important;
+              border-radius: 16px !important;
+              background: rgba(33, 150, 243, 0.12) !important;
+              border: 1.5px solid rgba(33, 150, 243, 0.4) !important;
+              box-shadow: 0 4px 16px rgba(33, 150, 243, 0.25) !important;
+              transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1) !important;
+            }
+            ha-card:active { transform: scale(0.90) !important; }
+
+  # ---------------------------------------------------
+  # ZONE 2: CENTER (1-TAP LIGHTING MODE TOGGLE)
+  # ---------------------------------------------------
+  - type: custom:mushroom-chips-card
+    alignment: center
+    card_mod:
+      style: |
+        :host {
+          flex: 1 1 auto !important;
+          min-width: 0 !important;
+        }
+        ha-card {
+          --chip-height: 52px;
+          --chip-icon-size: 26px;
+          background: transparent !important;
+          border: none !important;
+          box-shadow: none !important;
+        }
+        .chip-container {
+          flex-wrap: nowrap !important;
+          justify-content: center !important;
+        }
+    chips:
+      - type: template
+        icon: >-
+          {% set m = states('input_select.basement_lighting_mode') %}
+          {{ 'mdi:palette' if m == 'Social Mode' else 'mdi:sun-clock' }}
+        icon_color: >-
+          {% set m = states('input_select.basement_lighting_mode') %}
+          {{ 'purple' if m == 'Social Mode' else 'amber' }}
+        tap_action:
+          action: perform-action
+          perform_action: pyscript.toggle_lighting_mode
+          haptic: light
+        hold_action:
+          action: perform-action
+          perform_action: pyscript.mood_reset_normal
+          haptic: medium
+        card_mod:
+          style: |
+            ha-card {
+              width: 52px !important;
+              height: 52px !important;
+              padding: 0 !important;
+              border-radius: 16px !important;
+              {% set m = states('input_select.basement_lighting_mode') %}
+              {% set is_party = m == 'Social Mode' %}
+              {% set col = '156, 39, 176' if is_party else '255, 193, 7' %}
+              background: linear-gradient(135deg, rgba({{col}}, 0.32), rgba({{col}}, 0.14)) !important;
+              border: 1.5px solid rgba({{col}}, 0.65) !important;
+              box-shadow: 0 6px 20px rgba({{col}}, 0.35) !important;
+              transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1) !important;
+            }
+            ha-card:active { transform: scale(0.90) !important; }
+
+  # ---------------------------------------------------
+  # ZONE 3: RIGHT PINNED (ACTIVE UTILITIES ONLY)
+  # ---------------------------------------------------
+  - type: custom:mushroom-chips-card
+    alignment: end
+    card_mod:
+      style: |
+        :host { flex: 0 0 auto !important; }
+        ha-card {
+          --chip-height: 52px;
+          --chip-icon-size: 26px;
+          --chip-spacing: 6px;
+          background: transparent !important;
+          border: none !important;
+          box-shadow: none !important;
+        }
+    chips:
+      # 1. Play / Pause Control
+      #    Uses the unified pyscript transport so music mode targets
+      #    media_player.whole_house_spotify instead of onn_pro.
+      #    Visible only when theater is in use and not in gaming mode.
+      - type: conditional
+        conditions:
+          - condition: state
+            entity: binary_sensor.theater_in_use
+            state: "on"
+          - condition: state
+            entity: sensor.theater_mode
+            state_not: "game"
+        chip:
+          type: template
+          icon: >-
+            {% set is_play = is_state('media_player.whole_house_spotify', 'playing') if is_state('sensor.theater_mode', 'music') else is_state('sensor.mediasession2mqtt_1_playback_state', 'playing') %}
+            {{ 'mdi:pause' if is_play else 'mdi:play' }}
+          icon_color: >-
+            {% set is_play = is_state('media_player.whole_house_spotify', 'playing') if is_state('sensor.theater_mode', 'music') else is_state('sensor.mediasession2mqtt_1_playback_state', 'playing') %}
+            {{ 'amber' if is_play else 'green' }}
+          tap_action:
+            action: perform-action
+            perform_action: pyscript.theater_media_play_pause
+            haptic: medium
+          card_mod:
+            style: |
+              ha-card {
+                width: 52px !important;
+                height: 52px !important;
+                padding: 0 !important;
+                border-radius: 16px !important;
+                {% set is_play = is_state('media_player.whole_house_spotify', 'playing') if is_state('sensor.theater_mode', 'music') else is_state('sensor.mediasession2mqtt_1_playback_state', 'playing') %}
+                {% set c = '255, 179, 0' if is_play else '76, 175, 80' %}
+                background: linear-gradient(135deg, rgba({{c}}, 0.32), rgba({{c}}, 0.16)) !important;
+                border: 1.5px solid rgba({{c}}, 0.65) !important;
+                box-shadow: 0 6px 20px rgba({{c}}, 0.35) !important;
+                transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1) !important;
+              }
+              ha-card:active { transform: scale(0.90) !important; }
+
+      # 2. Theater Remote Launcher (Visible when Theater is In Use)
+      - type: conditional
+        conditions:
+          - condition: state
+            entity: binary_sensor.theater_in_use
+            state: "on"
+        chip:
+          type: template
+          icon: mdi:remote
+          icon_color: blue
+          tap_action:
+            action: navigate
+            navigation_path: "#remote"
+            haptic: light
+          card_mod:
+            style: |
+              ha-card {
+                width: 52px !important;
+                height: 52px !important;
+                padding: 0 !important;
+                border-radius: 16px !important;
+                background: linear-gradient(135deg, rgba(33, 150, 243, 0.32), rgba(13, 71, 161, 0.16)) !important;
+                border: 1.5px solid rgba(66, 165, 245, 0.65) !important;
+                box-shadow: 0 6px 20px rgba(33, 150, 243, 0.35) !important;
+                transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1) !important;
+              }
+              ha-card:active { transform: scale(0.90) !important; }
+
+      # 3. Master Basement Lights Blackout
+      - type: conditional
+        conditions:
+          - condition: state
+            entity: binary_sensor.basement_lights_active
+            state: "on"
+        chip:
+          type: template
+          icon: mdi:lightbulb-multiple-off
+          icon_color: red
+          tap_action:
+            action: perform-action
+            perform_action: pyscript.basement_all_off
+            haptic: medium
+          card_mod:
+            style: |
+              ha-card {
+                width: 52px !important;
+                height: 52px !important;
+                padding: 0 !important;
+                border-radius: 16px !important;
+                background: linear-gradient(135deg, rgba(244, 67, 54, 0.35), rgba(183, 28, 28, 0.18)) !important;
+                border: 1.5px solid rgba(244, 67, 54, 0.7) !important;
+                box-shadow: 0 6px 22px rgba(244, 67, 54, 0.4) !important;
+                transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1) !important;
+              }
+              ha-card:active { transform: scale(0.90) !important; }
+

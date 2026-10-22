@@ -1,0 +1,32 @@
+title: Basement
+decluttering_templates: !include components/decluttering_templates.yaml
+
+views:
+  - title: Basement
+    path: basement
+    icon: mdi:home-floor-b
+    type: sections
+    max_columns: 2
+    sections:
+      # HEADER: full width across the top
+      - type: grid
+        column_span: 2
+        cards:
+          - !include components/header_cockpit_chips.yaml
+          - !include components/header_avr_volume.yaml
+          - !include components/header_booth_announcer.yaml
+
+      # LEFT: cinema, sports, arcade
+      - type: grid
+        cards:
+          - !include components/now_playing_marquee.yaml
+          - !include components/eagles_team_tracker.yaml
+          - !include components/theater_stage.yaml
+          - !include components/theater_remote_popup.yaml
+
+      # RIGHT: lighting
+      - type: grid
+        cards:
+          - !include components/zone_lighting.yaml
+
+

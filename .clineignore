@@ -1,0 +1,30 @@
+# Block Secrets and Security
+secrets.yaml
+tailscale_certs/
+*.key
+*.crt
+
+# Block Heavy Database/Runtime State (Stops token usage explosion)
+*.db
+*.db-*
+.storage/
+.cloud/
+.ha_run.lock
+*.db-shm
+*.db-wal
+
+# Block System Logs and Caches
+*.log
+home-assistant.log*
+.cache/
+deps/
+**/__pycache__/
+*.pyc
+__pycache__/
+
+# Block Large Generated/Media Folders
+tts/
+image/
+backups/
+ssh/
+www/community/host_backup/

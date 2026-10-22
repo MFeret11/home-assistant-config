@@ -1,0 +1,327 @@
+kiosk_mode:
+  user_settings:
+    - users:
+        - Kitchen Display
+      hide_header: true
+      hide_sidebar: true
+views:
+  - title: Kitchen Kiosk
+    path: kitchen-kiosk
+    type: sections
+    max_columns: 2
+    sections:
+      - type: grid
+        cards:
+          - type: custom:mushroom-title-card
+            title: "{{ now().strftime('%-I:%M %p') }}"
+            subtitle: "{{ now().strftime('%A, %B %-d') }}"
+            grid_options:
+              rows: auto
+              columns: full
+            alignment: center
+            card_mod:
+              style: |
+                ha-card {
+                  padding: 16px 0 6px 0;
+                }
+                ha-card h1.title {
+                  font-size: 84px !important;
+                  line-height: 1.05 !important;
+                  font-weight: 700;
+                  letter-spacing: -0.03em;
+                }
+                ha-card h2.subtitle {
+                  font-size: 26px !important;
+                  line-height: 1.2 !important;
+                  opacity: 0.85;
+                  font-weight: 500;
+                }
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: binary_sensor.septa_am_window
+                state: "on"
+            card:
+              type: markdown
+              content: >-
+                {% set c = states.sensor.septa_commute.attributes if
+                states.sensor.septa_commute is not none else {} %}
+
+                {% set w = states.sensor.commute_weather.attributes if
+                states.sensor.commute_weather is not none else {} %}
+
+                {% set cancelled = c.get('is_cancelled', false) %}
+
+                {% set stalled = c.get('is_stalled', false) %}
+
+                {% set leave_now = c.get('leave_now', false) %}
+
+                {% set orig_track = c.get('origin_track') %}
+
+                {% set track = (' · Track ' ~ orig_track) if (orig_track and
+                orig_track != 'TBD') else '' %}
+
+
+                {% if cancelled %}
+                  # ❌ TRAIN CANCELLED
+
+                  ### Next backup departs at **{{ c.get('backup_train_departure', 'Check SEPTA') }}**
+                {% elif stalled %}
+                  # ⚠️ TRAIN STALLED
+
+                  ### Train {{ c.get('origin_train', '—') }} stopped at {{ c.get('origin_current_stop', 'en route') }} (~{{ c.get('stall_minutes', 0) }}m)
+                {% elif leave_now %}
+                  # 🚨 LEAVE NOW
+
+                  ### Train {{ c.get('origin_train', '—') }}{{ track }} departs at **{{ c.get('origin_actual_departure_time', '—') }}**
+                {% else %}
+                  # 🕐 Leave by **{{ c.get('leave_by_time', '—') }}**
+
+                  ### Train {{ c.get('origin_train', '—') }}{{ track }} · Departs **{{ c.get('origin_actual_departure_time', '—') }}**
+                {% endif %}
+
+
+                ---
+
+
+                🌡️ **{{ w.get('current_temp_f', '—') }}°F** now · AM {{
+                w.get('morning_temp_f', '—') }}° / PM {{ w.get('evening_temp_f',
+                '—') }}° · {{ states('sensor.commute_weather') | default('Check
+                forecast', true) }}
+              grid_options:
+                columns: full
+                rows: 5
+              card_mod:
+                style: >
+                  ha-card {
+                    font-size: 22px;
+                    line-height: 1.35;
+                    text-align: center;
+                    border-radius: 22px;
+                    padding: 18px 14px;
+                    backdrop-filter: blur(16px);
+                    {% set c = states.sensor.septa_commute.attributes if states.sensor.septa_commute is not none else {} %}
+                    {% set is_alert = c.get('leave_now', false) or c.get('is_cancelled', false) %}
+                    background: {{ 'linear-gradient(135deg, rgba(244, 67, 54, 0.4), rgba(183, 28, 28, 0.2))' if is_alert else 'rgba(255, 255, 255, 0.04)' }} !important;
+                    border: {{ '2px solid rgba(244, 67, 54, 0.8)' if is_alert else '1px solid rgba(255, 255, 255, 0.1)' }} !important;
+                    box-shadow: {{ '0 6px 24px rgba(244, 67, 54, 0.35)' if is_alert else '0 6px 20px rgba(0, 0, 0, 0.2)' }};
+                    color: var(--primary-text-color);
+                  }
+
+                  ha-card h1 { font-size: 34px !important; margin: 0 0 6px 0
+                  !important; font-weight: 700; }
+
+                  ha-card h3 { font-size: 22px !important; margin: 0 0 8px 0
+                  !important; opacity: 0.9; }
+
+                  ha-card hr { border: none; border-top: 1px solid rgba(255,
+                  255, 255, 0.12); margin: 10px 0; }
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: binary_sensor.drive_display_window
+                state: "on"
+            card:
+              type: markdown
+              content: >-
+                # 🚗 Matt's Drive: **{{
+                state_attr('sensor.commute_drive_time',
+                'duration_in_traffic') | default('Calculating...', true) }}**
+
+
+                {{ state_attr('sensor.commute_drive_time',
+                'distance') | default('—', true) }} · normally {{
+                state_attr('sensor.commute_drive_time', 'duration')
+                | default('—', true) }}
+              grid_options:
+                columns: full
+                rows: 3
+              card_mod:
+                style: >
+                  ha-card {
+                    font-size: 22px;
+                    line-height: 1.35;
+                    text-align: center;
+                    border-radius: 22px;
+                    padding: 16px;
+                    background: rgba(255, 255, 255, 0.04) !important;
+                    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+                    backdrop-filter: blur(16px);
+                  }
+
+                  ha-card h1 { font-size: 30px !important; margin: 0 0 6px 0
+                  !important; }
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: binary_sensor.septa_pm_window
+                state: "on"
+            card:
+              type: markdown
+              content: >-
+                {% set c = states.sensor.septa_commute.attributes if
+                states.sensor.septa_commute is not none else {} %}
+
+                {% set origin = c.get('origin_line') %}
+
+                {% if origin is none %}
+                  # No Active Commute
+                {% else %}
+                  {% set missed = c.get('missed_connection', false) %}
+                  {% set stalled = c.get('is_stalled', false) or c.get('connection_is_stalled', false) %}
+                  {% set delay = c.get('total_delay_minutes', 0) %}
+                  {% set conn_track = c.get('connection_track') %}
+                  {% set track_str = (' · Track ' ~ conn_track) if (conn_track and conn_track != 'TBD') else '' %}
+
+                  {% if c.get('is_cancelled', false) or c.get('connection_cancelled', false) %}
+                    # ❌ RETURN TRAIN CANCELLED
+
+                    ### Check backup options at {{ c.get('connection_station', 'Jefferson') }}
+                  {% elif stalled %}
+                    # ⚠️ TRAIN STALLED
+
+                    ### Holding at {{ c.get('connection_current_stop', 'Jefferson') }}
+                  {% elif missed %}
+                    # 🚨 MISSED CONNECTION
+
+                    ### Re-planning arrival via {{ c.get('connection_station', 'Jefferson') }}
+                  {% elif delay > 10 %}
+                    # 🔴 Delayed {{ delay }} min
+                  {% elif delay > 0 %}
+                    # 🟡 Delayed {{ delay }} min
+                  {% else %}
+                    # 🟢 On Time
+                  {% endif %}
+
+                  {{ origin }} → {{ c.get('connection_line', 'Media') }} via {{ c.get('connection_station', 'Jefferson') }}{{ track_str }}
+
+                  ---
+
+                  🏡 **Home by {{ c.get('actual_arrival_time', '—') }}**
+                {% endif %}
+              grid_options:
+                columns: full
+                rows: 5
+              card_mod:
+                style: >
+                  ha-card {
+                    font-size: 22px;
+                    line-height: 1.35;
+                    text-align: center;
+                    border-radius: 22px;
+                    padding: 18px 14px;
+                    backdrop-filter: blur(16px);
+                    {% set c = states.sensor.septa_commute.attributes if states.sensor.septa_commute is not none else {} %}
+                    {% set is_danger = c.get('missed_connection', false) or (c.get('total_delay_minutes', 0) > 10) or c.get('is_cancelled', false) %}
+                    {% set is_warn = (c.get('total_delay_minutes', 0) > 0) %}
+                    background: {{ 'linear-gradient(135deg, rgba(244, 67, 54, 0.4), rgba(183, 28, 28, 0.2))' if is_danger else ('linear-gradient(135deg, rgba(255, 179, 0, 0.35), rgba(255, 111, 0, 0.18))' if is_warn else 'rgba(255, 255, 255, 0.04)') }} !important;
+                    border: {{ '2px solid rgba(244, 67, 54, 0.8)' if is_danger else ('1.5px solid rgba(255, 179, 0, 0.7)' if is_warn else '1px solid rgba(255, 255, 255, 0.1)') }} !important;
+                    color: var(--primary-text-color);
+                  }
+
+                  ha-card h1 { font-size: 32px !important; margin: 0 0 6px 0
+                  !important; font-weight: 700; }
+
+                  ha-card h3 { font-size: 22px !important; margin: 0 0 8px 0
+                  !important; opacity: 0.9; }
+
+                  ha-card hr { border: none; border-top: 1px solid rgba(255,
+                  255, 255, 0.12); margin: 10px 0; }
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: binary_sensor.septa_am_window
+                state: "off"
+              - condition: state
+                entity: binary_sensor.drive_display_window
+                state: "off"
+              - condition: state
+                entity: binary_sensor.septa_pm_window
+                state: "off"
+            card:
+              type: markdown
+              content: >-
+                {% set w = states.sensor.commute_weather.attributes if
+                states.sensor.commute_weather is not none else {} %}
+
+                # Have a great day!
+
+
+                ### {{ states('sensor.commute_weather') | default('Enjoy your
+                day', true) }}
+
+
+                🌡️ **{{ w.get('current_temp_f', '—') }}°F** · High {{
+                w.get('high_f', '—') }}° / Low {{ w.get('low_f', '—') }}°
+              grid_options:
+                columns: full
+                rows: 3
+              card_mod:
+                style: >
+                  ha-card {
+                    font-size: 22px;
+                    line-height: 1.4;
+                    text-align: center;
+                    border-radius: 22px;
+                    padding: 16px;
+                    background: rgba(255, 255, 255, 0.04) !important;
+                    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                    backdrop-filter: blur(16px);
+                  }
+
+                  ha-card h1 { font-size: 32px !important; margin: 0 0 4px 0
+                  !important; font-weight: 600; }
+
+                  ha-card h3 { font-size: 22px !important; margin: 0 0 6px 0
+                  !important; opacity: 0.85; }
+      - type: grid
+        cards:
+          - type: weather-forecast
+            entity: weather.whole_house_national_weather_service_kphl
+            forecast_type: twice_daily
+            forecast_slots: 4
+            show_current: true
+            show_forecast: true
+            grid_options:
+              rows: auto
+              columns: full
+            name: " "
+            theme: Kitchen Dark
+            card_mod:
+              style: |
+                ha-card {
+                  border-radius: 22px !important;
+                  background: rgba(255, 255, 255, 0.04) !important;
+                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                  backdrop-filter: blur(16px);
+                  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+                }
+          - type: calendar
+            initial_view: dayGridWeek
+            entities:
+              - calendar.matt
+              - calendar.partner
+            grid_options:
+              columns: full
+              rows: 6
+            theme: Kitchen Dark
+            card_mod:
+              style: >
+                ha-card {
+                  --fc-event-text-color: #ffffff;
+                  border-radius: 22px !important;
+                  background: rgba(255, 255, 255, 0.04) !important;
+                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                  backdrop-filter: blur(16px);
+                  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+                  padding: 8px 12px;
+                }
+
+                .fc { font-size: 18px; }
+
+                .fc-col-header-cell-cushion { font-size: 20px; font-weight: 700;
+                color: var(--primary-text-color); }
+
+                .fc-daygrid-day-number { font-size: 18px; font-weight: 600; }
+
+                .fc-event-title { font-size: 16px; font-weight: 500; }

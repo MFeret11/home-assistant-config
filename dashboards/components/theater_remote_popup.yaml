@@ -1,0 +1,319 @@
+type: custom:bubble-card
+card_type: pop-up
+hash: '#remote'
+name: Theater Remote
+icon: mdi:remote
+show_header: true
+bg_color: rgba(10, 15, 26, 0.96)
+bg_blur: 24
+shadow_opacity: 0.8
+cards:
+
+  # --- 1. Quick Mode & Session Controls ---
+  - type: custom:mushroom-chips-card
+    alignment: justify
+    chips:
+      - type: template
+        icon: mdi:movie-open
+        content: Movie
+        icon_color: blue
+        tap_action:
+          action: perform-action
+          perform_action: pyscript.play_movie
+          haptic: light
+      - type: template
+        icon: mdi:football
+        content: Sports
+        icon_color: green
+        tap_action:
+          action: perform-action
+          perform_action: pyscript.play_sports
+          haptic: light
+      - type: template
+        icon: mdi:music
+        content: Music
+        icon_color: green
+        tap_action:
+          action: perform-action
+          perform_action: pyscript.play_music
+          haptic: light
+      - type: template
+        icon: mdi:gamepad-variant
+        content: Arcade
+        icon_color: purple
+        tap_action:
+          action: perform-action
+          perform_action: pyscript.play_game
+          haptic: light
+      - type: template
+        icon: mdi:power
+        content: Off
+        icon_color: red
+        tap_action:
+          action: perform-action
+          perform_action: pyscript.session_end_house_lights
+          confirmation:
+            text: Power down theater and turn on house lights?
+          haptic: medium
+
+  # --- 2. Directional Touch D-Pad (Up, Down, Left, Right, OK) ---
+  - type: grid
+    square: true
+    columns: 3
+    cards:
+      - type: custom:decluttering-card
+        template: spacer_card
+      - type: custom:decluttering-card
+        template: remote_dpad_button
+        variables:
+          - icon: mdi:arrow-up-bold
+          - command: DPAD_UP
+      - type: custom:decluttering-card
+        template: spacer_card
+      - type: custom:decluttering-card
+        template: remote_dpad_button
+        variables:
+          - icon: mdi:arrow-left-bold
+          - command: DPAD_LEFT
+      - type: custom:mushroom-template-card
+        icon: mdi:circle
+        icon_color: green
+        layout: vertical
+        tap_action:
+          action: perform-action
+          perform_action: remote.send_command
+          target:
+            entity_id: remote.onn_pro
+          data:
+            command: DPAD_CENTER
+          haptic: medium
+        hold_action:
+          action: perform-action
+          perform_action: remote.send_command
+          target:
+            entity_id: remote.onn_pro
+          data:
+            command: DPAD_CENTER
+            hold_secs: 0.5
+          haptic: heavy
+        card_mod:
+          style: |
+            ha-card {
+              background: linear-gradient(135deg, rgba(76, 175, 80, 0.35), rgba(27, 94, 32, 0.2)) !important;
+              border: 1.5px solid rgba(76, 175, 80, 0.65) !important;
+              border-radius: 50%;
+              box-shadow: 0 4px 16px rgba(76, 175, 80, 0.3);
+            }
+            ha-card:active { transform: scale(0.90); }
+      - type: custom:decluttering-card
+        template: remote_dpad_button
+        variables:
+          - icon: mdi:arrow-right-bold
+          - command: DPAD_RIGHT
+      - type: custom:decluttering-card
+        template: remote_dpad_button
+        variables:
+          - icon: mdi:arrow-left
+          - icon_color: amber
+          - command: BACK
+          - radius: 20px
+      - type: custom:decluttering-card
+        template: remote_dpad_button
+        variables:
+          - icon: mdi:arrow-down-bold
+          - command: DPAD_DOWN
+      - type: custom:decluttering-card
+        template: remote_dpad_button
+        variables:
+          - icon: mdi:home-outline
+          - command: HOME
+          - radius: 20px
+
+  # --- 3. Unified Media Transport Controls ---
+  - type: horizontal-stack
+    cards:
+      - type: custom:decluttering-card
+        template: remote_transport_button
+        variables:
+          - icon: mdi:skip-previous
+          - icon_color: purple
+          - action: pyscript.theater_media_previous
+          - bg_color: "rgba(255, 255, 255, 0.05)"
+          - border_color: "rgba(255, 255, 255, 0.1)"
+          - haptic: light
+      - type: custom:decluttering-card
+        template: remote_transport_button
+        variables:
+          - icon: mdi:play-pause
+          - icon_color: green
+          - action: pyscript.theater_media_play_pause
+          - bg_color: "rgba(76, 175, 80, 0.18)"
+          - border_color: "rgba(76, 175, 80, 0.45)"
+          - haptic: medium
+      - type: custom:decluttering-card
+        template: remote_transport_button
+        variables:
+          - icon: mdi:skip-next
+          - icon_color: purple
+          - action: pyscript.theater_media_next
+          - bg_color: "rgba(255, 255, 255, 0.05)"
+          - border_color: "rgba(255, 255, 255, 0.1)"
+          - haptic: light
+
+  # --- 4. Direct App Launching & Deep-Linking Dock ---
+  - type: horizontal-stack
+    cards:
+      - type: custom:decluttering-card
+        template: remote_app_button
+        variables:
+          - icon: mdi:movie-play
+          - primary: Stremio
+          - icon_color: purple
+          - app: stremio
+          - bg_color: "rgba(156, 39, 176, 0.18)"
+          - border_color: "rgba(156, 39, 176, 0.45)"
+      - type: custom:decluttering-card
+        template: remote_app_button
+        variables:
+          - icon: mdi:television-classic
+          - primary: Live TV
+          - icon_color: teal
+          - app: hdhomerun
+          - bg_color: "rgba(0, 150, 136, 0.18)"
+          - border_color: "rgba(0, 150, 136, 0.45)"
+      - type: custom:decluttering-card
+        template: remote_app_button
+        variables:
+          - icon: mdi:youtube
+          - primary: YouTube
+          - icon_color: red
+          - app: youtube
+          - bg_color: "rgba(244, 67, 54, 0.18)"
+          - border_color: "rgba(244, 67, 54, 0.45)"
+      - type: custom:decluttering-card
+        template: remote_app_button
+        variables:
+          - icon: mdi:spotify
+          - primary: Spotify
+          - icon_color: green
+          - app: spotify
+          - bg_color: "rgba(76, 175, 80, 0.18)"
+          - border_color: "rgba(76, 175, 80, 0.45)"
+      - type: custom:decluttering-card
+        template: remote_app_button
+        variables:
+          - icon: mdi:gamepad-variant
+          - primary: Batocera
+          - icon_color: amber
+          - app: batocera
+          - bg_color: "rgba(255, 193, 7, 0.18)"
+          - border_color: "rgba(255, 193, 7, 0.45)"
+
+  # --- 4B. Yamaha RX-V673 DSP Sound Profile Selector ---
+  #     Active mode is highlighted via the receiver's sound_mode attribute.
+  - type: custom:mushroom-chips-card
+    alignment: justify
+    chips:
+      - type: template
+        icon: mdi:surround-sound
+        content: Standard
+        icon_color: blue
+        tap_action:
+          action: perform-action
+          perform_action: media_player.select_sound_mode
+          target:
+            entity_id: media_player.theater_receiver
+          data:
+            sound_mode: Standard
+          haptic: light
+        card_mod:
+          style: |
+            ha-card {
+              {% set on = state_attr('media_player.theater_receiver', 'sound_mode') == 'Standard' %}
+              background: {{ 'rgba(255, 255, 255, 0.18)' if on else 'var(--chip-background, rgba(255, 255, 255, 0.05))' }} !important;
+              border: {{ '1.5px solid rgba(255, 255, 255, 0.8)' if on else '1px solid transparent' }} !important;
+            }
+      - type: template
+        icon: mdi:account-voice
+        content: PLII Movie
+        icon_color: cyan
+        tap_action:
+          action: perform-action
+          perform_action: media_player.select_sound_mode
+          target:
+            entity_id: media_player.theater_receiver
+          data:
+            sound_mode: PLII Movie
+          haptic: light
+        card_mod:
+          style: |
+            ha-card {
+              {% set on = state_attr('media_player.theater_receiver', 'sound_mode') == 'PLII Movie' %}
+              background: {{ 'rgba(255, 255, 255, 0.18)' if on else 'var(--chip-background, rgba(255, 255, 255, 0.05))' }} !important;
+              border: {{ '1.5px solid rgba(255, 255, 255, 0.8)' if on else '1px solid transparent' }} !important;
+            }
+      - type: template
+        icon: mdi:stadium
+        content: Sports
+        icon_color: green
+        tap_action:
+          action: perform-action
+          perform_action: media_player.select_sound_mode
+          target:
+            entity_id: media_player.theater_receiver
+          data:
+            sound_mode: Sports
+          haptic: light
+        card_mod:
+          style: |
+            ha-card {
+              {% set on = state_attr('media_player.theater_receiver', 'sound_mode') == 'Sports' %}
+              background: {{ 'rgba(255, 255, 255, 0.18)' if on else 'var(--chip-background, rgba(255, 255, 255, 0.05))' }} !important;
+              border: {{ '1.5px solid rgba(255, 255, 255, 0.8)' if on else '1px solid transparent' }} !important;
+            }
+      - type: template
+        icon: mdi:speaker-multiple
+        content: 7ch Stereo
+        icon_color: purple
+        tap_action:
+          action: perform-action
+          perform_action: media_player.select_sound_mode
+          target:
+            entity_id: media_player.theater_receiver
+          data:
+            sound_mode: 7ch Stereo
+          haptic: light
+        card_mod:
+          style: |
+            ha-card {
+              {% set on = state_attr('media_player.theater_receiver', 'sound_mode') == '7ch Stereo' %}
+              background: {{ 'rgba(255, 255, 255, 0.18)' if on else 'var(--chip-background, rgba(255, 255, 255, 0.05))' }} !important;
+              border: {{ '1.5px solid rgba(255, 255, 255, 0.8)' if on else '1px solid transparent' }} !important;
+            }
+      - type: template
+        icon: mdi:music-circle
+        content: Straight
+        icon_color: amber
+        tap_action:
+          action: perform-action
+          perform_action: media_player.select_sound_mode
+          target:
+            entity_id: media_player.theater_receiver
+          data:
+            sound_mode: Straight
+          haptic: light
+        card_mod:
+          style: |
+            ha-card {
+              {% set on = state_attr('media_player.theater_receiver', 'sound_mode') == 'Straight' %}
+              background: {{ 'rgba(255, 255, 255, 0.18)' if on else 'var(--chip-background, rgba(255, 255, 255, 0.05))' }} !important;
+              border: {{ '1.5px solid rgba(255, 255, 255, 0.8)' if on else '1px solid transparent' }} !important;
+            }
+
+  # --- 5. Master Theater Audio Slider (shared template) ---
+  - type: custom:decluttering-card
+    template: avr_volume_slider
+    variables:
+      - name: Theater Volume
+      - icon: mdi:volume-high
+      - margin: 2px 0

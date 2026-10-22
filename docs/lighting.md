@@ -1,0 +1,37 @@
+# Basement Lighting & Sports Reactions
+
+_Moved verbatim from AGENTS.md. "§N" references point to the old AGENTS.md sections (§4 lighting/sports now live in docs/lighting.md)._
+
+## 3. Spatial Topology & Photometric Constraints
+- **Orientation**: East wall hosts staircase landing and theater projection screen. Open path runs North to South.
+- **Invariants & Photometrics**:
+  - **Stairs -> Theater**: Walking down stairs faces theater seating directly. `_trigger_stealth_red_stairs()` fades `light.stairlights` up to subtle 2% warm candlelight (`2000K`) for 60s when theater is active and Social Mode is not active, providing safe footing without washing out the projection screen.
+  - **Lounge 2 Flank Spill**: Directly flanks theater seating; must remain OFF during theater use in Daily Driver.
+
+### Basement Lighting Controller (`basement.py`)
+- **Social Mode**: Theater state never touches lights here, full stop. `input_select.basement_lighting_mode` is the only Social flag. Entering Social (via `toggle_lighting_mode`, a palette pick, or automatically on game day) no longer auto-applies any color — a palette/effect only changes lights when explicitly selected via `select_palette`/`select_effect_modifier`. This lets Social Mode be used for anything (e.g. cards night during a movie) without inheriting theater's dark-room rules or an unwanted color. In Social Mode, the system defaults to lights ON: opening the basement stair door (`binary_sensor.basement_stairs_door_sensor`) turns on `light.stairlights` (matching the active mood palette, sports green, or circadian warm white) and leaves them on permanently with zero automated timeouts, door-close shutoffs, or vacancy shutoffs. A manual Social survives starting a movie or game; Social engaged by sports (`pyscript.basement_social_source == sports`) drops back to Daily when the theater switches away from sports. Session end always returns to Daily.
+- **4 AM reset (`safe_nightly_social_reset`)**: switches to Daily Driver. If lights are on, the theater is not in use, and `bottom_stairs` has seen no motion for 2 hours (`NIGHTLY_IDLE_OFF_S`), it runs `basement_all_off()` instead, so a forgotten Social session doesn't burn all night. The idle clock starts at boot, so a restart never counts as idle.
+- **Daily Driver + `binary_sensor.theater_in_use` ON**: Theater governs the *entire* basement (`light.theater_dimmer` + `light.zigbee_basement_lights`), not just the dimmer — one flat "theater in use" behavior, distinct from Social/party use of the same room:
+  - **Movie/Game — actively playing**: Full blackout (dimmer + lounge/bar OFF), `switch.bias_lights` ON.
+  - **Movie — paused** (4.0s debounce before committing, to avoid flicker on menu blips): 1% glow on dimmer, lounge/bar OFF, bias ON.
+  - **Music (any playback state)**: Full blackout (dimmer + lounge/bar OFF), bias ON — deliberately no glow state; kept fully dark by design.
+  - **Pre-show / menus / game idle**: 1% glow on dimmer, lounge/bar OFF, bias ON.
+  - **Sports**: Exception to all of the above — auto-engages Social Mode and paints `light.zigbee_basement_lights` + `light.stairlights` solid team color (via `get_team_rgb()`) at 100%, same as a manual palette pick.
+- **Daily Driver + theater NOT in use**: Adaptive CCT/brightness active across master groups (unchanged).
+- **`theater_lighting_sync()` trigger list** includes `binary_sensor.theater_in_use` directly — a prior gap here (relying only on `sensor.theater_mode` changing value) meant re-entering the theater in the same mode as last time could silently fail to re-sync lights, since `theater_mode` doesn't always change value on re-entry.
+- **`_trigger_stealth_red_stairs()`**: Fires only when theater is in use and Social Mode is not active (checked on entry via `stair_door_opened`/`motion_at_foot_of_stairs`, and again on its own 120s re-check before restoring stairlights to off). The re-check's `theater_active` condition must include `"sports"` alongside `movie`/`game`/`music` — a prior mismatch (missing `"sports"`) meant stairlights could stay stuck lit if the 120s timer expired mid-game.
+- **Direction of Travel Detection** (Daily Driver only, theater not in use):
+  - `basement_stairs_door_sensor` ON -> `bottom_stairs` ON within 18s => Downward entry.
+  - `bottom_stairs` ON -> `basement_stairs_door_sensor` ON within 25s => Upward exit (calibrated from 18s to 25s to reliably capture slow/deliberate ascents such as the 18.76s traversal recorded in real hardware telemetry, ensuring instant 1.5s walkout shutoff).
+  - Upward exit in `Daily Driver` shuts down all room lights after a 20s confirmation window (`WALKOUT_CONFIRM_S`). New `bottom_stairs` motion or the door reopening during the window cancels it, so someone still downstairs isn't blacked out. The sensor clears within ~7–11s, so a person left near the stairs re-trips it in time.
+  - Door left open while downstairs: there is no "open" event on the way up, so a door **close** within 25s (`EXIT_WINDOW_S`) of `bottom_stairs` motion starting or clearing also counts as an upward exit. On entry the close comes before motion, so it is not misread.
+  - Vacancy: If `bottom_stairs` holds `off` for 14400s (4 hours) with no theater activity, cut room lights.
+
+### Sports & Game-Day Reaction Engine (`sports.py`)
+- **Kelly Green Primary Color**: Live team color defaults to authentic Philadelphia Eagles Kelly Green (`[0, 170, 35]`) rather than dark teal Midnight Green (`[0, 76, 84]`) or cyan-tinted green.
+- **Kickoff** (`sensor.philadelphia_eagles == 'IN'`): disengages Adaptive Lighting, paints `light.zigbee_basement_lights` + `light.stairlights` solid Kelly Green (`get_team_rgb()`) at 100%.
+- **Zigbee-Safe Score flash** (`eagles_score_flash`): both touchdown (`delta >= 6`) and field-goal (`delta < 6`) paths pulse brightness between 100% and a shared `DIM_FLOOR_PCT = 15` in pure solid Kelly Green — never altering RGB color back and forth to silver/white mid-chant, preventing Zigbee mesh congestion, frame drops, or desync on 3rd Reality bulbs. Touchdown: 6 deliberate, stadium-cadence surges (0.65s hold at 100% / 0.45s hold at 15%), 0.55s anticipation breath, then two powerful green surges ("EA-GLES!") ending solid 100% Kelly Green. Field goal: 3 reps, 0.55s high / 0.40s low hold.
+- Both paths **end holding solid team Kelly Green**, not a scene-snapshot restore and not a handoff to whatever ambient palette/effect was previously running — the game is still live, so team green is the correct persistent state.
+- **Game over** (`POST`): calls `pyscript.mood_reset_normal()`, unchanged.
+- `effect_eagles_chant()` (in `basement.py`) remains as a separate **manual/dashboard-button** version, wired to the Ambience drawer's "Eagles Chant" tile — operator-triggered, not tied to a live scoring event. Shares `get_team_rgb()` and the same Zigbee-safe solid Kelly Green brightness pulsing pattern.
+

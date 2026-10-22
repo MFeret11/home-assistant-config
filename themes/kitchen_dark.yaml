@@ -1,0 +1,21 @@
+Kitchen Dark:
+  modes:
+    dark:
+      primary-background-color: "#14161a"
+      secondary-background-color: "#1c1f24"
+      card-background-color: "#20232a"
+
+      primary-text-color: "#f2f0eb"
+      secondary-text-color: "#9a9ea6"
+
+      primary-color: "#e8a33d"
+      accent-color: "#e8a33d"
+
+      ha-card-background: "#20232a"
+      ha-card-border-radius: "18px"
+      ha-card-border-width: "0px"
+      ha-card-box-shadow: "0px 4px 12px rgba(0, 0, 0, 0.35)"
+
+      mush-card-primary-font-weight: "600"
+      mush-card-secondary-font-weight: "400"
+    light: {}

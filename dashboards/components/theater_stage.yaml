@@ -1,0 +1,411 @@
+type: vertical-stack
+card_mod:
+  style: |
+    #root > * { margin-bottom: 8px !important; }
+    #root {
+      background: rgba(33, 150, 243, 0.08) !important;
+      border: 1px solid rgba(33, 150, 243, 0.3) !important;
+      border-radius: 24px !important;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+      padding: 12px !important;
+      transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1) !important;
+    }
+cards:
+  # Theater Conduction Section Header
+  - type: custom:mushroom-template-card
+    primary: Theater
+    secondary: >-
+      {% if is_state('binary_sensor.theater_in_use', 'on') %}{{ states('sensor.theater_mode') | title }} active{% else %}Off{% endif %}
+    icon: mdi:theater
+    icon_color: blue
+    layout: horizontal
+    card_mod:
+      style: |
+        ha-card {
+          background: none !important;
+          border: none !important;
+          box-shadow: none !important;
+          padding: 0 4px !important;
+          margin: 0 0 2px 0 !important;
+        }
+        ha-card .primary {
+          font-size: 0.78rem !important;
+          font-weight: 700 !important;
+          letter-spacing: 1.2px !important;
+          text-transform: uppercase !important;
+          opacity: 0.85 !important;
+        }
+        ha-card .secondary { font-size: 0.7rem !important; opacity: 0.6 !important; }
+        ha-card mushroom-shape-icon {
+          --shape-size: 24px !important;
+          --icon-size: 16px !important;
+          --shape-color: transparent !important;
+        }
+
+  # --- ROW 1: CINEMA & SPORTS ---
+  - type: horizontal-stack
+    cards:
+      - type: custom:decluttering-card
+        template: theater_mode_button
+        variables:
+          - primary: Cinema
+          - secondary: Movie Night
+          - icon: mdi:movie-open
+          - icon_color: blue
+          - action: pyscript.play_movie
+          - mode: movie
+          - bg_gradient: "linear-gradient(145deg, rgba(33, 150, 243, 0.55), rgba(13, 71, 161, 0.25))"
+          - glow_color: "rgba(33, 150, 243, 0.8)"
+      - type: custom:decluttering-card
+        template: theater_mode_button
+        variables:
+          - primary: Sports
+          - secondary: Stadium Sound
+          - icon: mdi:football
+          - icon_color: teal
+          - action: pyscript.play_sports
+          - mode: sports
+          - bg_gradient: "linear-gradient(145deg, rgba(0, 150, 136, 0.55), rgba(0, 77, 64, 0.25))"
+          - glow_color: "rgba(0, 150, 136, 0.8)"
+
+  # --- ROW 2: ARCADE & HI-FI LOUNGE ---
+  - type: horizontal-stack
+    cards:
+      - type: custom:decluttering-card
+        template: theater_mode_button
+        variables:
+          - primary: Arcade
+          - secondary: Batocera Retro
+          - icon: mdi:gamepad-variant
+          - icon_color: green
+          - action: pyscript.play_game
+          - mode: game
+          - bg_gradient: "linear-gradient(145deg, rgba(76, 175, 80, 0.55), rgba(27, 94, 32, 0.25))"
+          - glow_color: "rgba(76, 175, 80, 0.8)"
+      - type: custom:decluttering-card
+        template: theater_mode_button
+        variables:
+          - primary: Hi-Fi Lounge
+          - secondary: Multi-Stereo
+          - icon: mdi:music-note-eighth
+          - icon_color: purple
+          - action: pyscript.play_music
+          - mode: music
+          - bg_gradient: "linear-gradient(145deg, rgba(156, 39, 176, 0.55), rgba(74, 20, 140, 0.25))"
+          - glow_color: "rgba(156, 39, 176, 0.8)"
+
+  # --- ROW 3: YAMAHA AVR HARDWARE MIXER (MINI-MEDIA-PLAYER) ---
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: binary_sensor.theater_in_use
+        state: "on"
+    card:
+      type: custom:mini-media-player
+      entity: media_player.theater_receiver
+      name: Yamaha RX-V673
+      icon: mdi:audio-video
+      sound_mode: full
+      source: full
+      volume_stat: true
+      # Shortcut buttons use type/id (not action: perform-action)
+      shortcuts:
+        columns: 3
+        buttons:
+          - name: Onn 4K
+            icon: mdi:television
+            type: source
+            id: HDMI1
+          - name: Batocera
+            icon: mdi:gamepad-variant
+            type: source
+            id: HDMI2
+          - name: Switch
+            icon: mdi:nintendo-switch
+            type: source
+            id: HDMI3
+      card_mod:
+        style: |
+          ha-card {
+            contain: content !important;
+            border-radius: 20px !important;
+            background: rgba(255, 255, 255, 0.04) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            margin: 2px 0 !important;
+          }
+
+  # --- ROW 4: CURTAIN CALL ---
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: binary_sensor.theater_in_use
+        state: "on"
+    card:
+      type: custom:mushroom-template-card
+      primary: Curtain Call
+      secondary: Power Down Theater & Restore House Lights
+      icon: mdi:power
+      icon_color: red
+      layout: horizontal
+      tap_action:
+        action: perform-action
+        perform_action: pyscript.session_end_house_lights
+        confirmation:
+          text: Power down theater and turn on house lights?
+        haptic: medium
+      card_mod:
+        style: |
+          ha-card {
+            background: linear-gradient(145deg, rgba(244, 67, 54, 0.35), rgba(183, 28, 28, 0.15)) !important;
+            border: 1.5px solid rgba(244, 67, 54, 0.65) !important;
+            border-radius: 20px;
+            padding: 10px 14px !important;
+            margin: 2px 0 0 0 !important;
+            transition: all 0.25s ease !important;
+          }
+          ha-card:active { transform: scale(0.96); }
+          ha-card .primary { font-weight: 700 !important; }
+
+  # --- CONDITIONAL BATOCERA & GAMING TELEMETRY ---
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: sensor.theater_mode
+        state: "game"
+    card:
+      type: vertical-stack
+      cards:
+        - type: custom:mushroom-template-card
+          primary: >
+            {% if is_state('sensor.batocera_state', 'playing') %}
+              {{ state_attr('sensor.theater_current_boxart', 'title') | default(states('sensor.batocera_current_game'), true) }}
+            {% else %}
+              EmulationStation Menu
+            {% endif %}
+          secondary: >
+            {% if is_state('sensor.batocera_state', 'playing') %}
+              System: {{ states('sensor.batocera_system') | upper }} • In-Game
+            {% else %}
+              System Ready • Select a Game
+            {% endif %}
+          picture: >
+            {% set boxart = states('sensor.theater_current_boxart') %}
+            {% if is_state('sensor.batocera_state', 'playing') and boxart and boxart not in ['none', 'None', 'unknown', 'unavailable', ''] %}
+              {{ boxart }}
+            {% endif %}
+          icon: >
+            {% set boxart = states('sensor.theater_current_boxart') %}
+            {% if not (is_state('sensor.batocera_state', 'playing') and boxart and boxart not in ['none', 'None', 'unknown', 'unavailable', '']) %}
+              {{ 'mdi:nintendo-game-boy' if is_state('sensor.batocera_state', 'playing') else 'mdi:view-carousel' }}
+            {% endif %}
+          icon_color: green
+          card_mod:
+            style: |
+              ha-card {
+                margin: 6px 0 2px 0 !important;
+                border-radius: 18px !important;
+                background: linear-gradient(135deg, rgba(76, 175, 80, 0.20), rgba(27, 94, 32, 0.10)) !important;
+                border: 1px solid rgba(129, 199, 132, 0.4) !important;
+              }
+
+        # Batocera Console Safe Switch
+        - type: custom:bubble-card
+          card_type: button
+          button_type: switch
+          entity: switch.batocera_console
+          name: Batocera Linux
+          icon: mdi:gamepad-variant
+          show_state: true
+          sub_button:
+            - icon: mdi:power
+              tap_action:
+                action: perform-action
+                perform_action: button.press
+                target:
+                  entity_id: button.batocera_shutdown_2
+                confirmation:
+                  text: Cleanly shut down Batocera?
+              haptic: heavy
+          card_mod:
+            style: |
+              ha-card {
+                margin: 2px 0 !important;
+                border-radius: 18px !important;
+                background: rgba(255, 255, 255, 0.03) !important;
+                border: 1px solid rgba(255, 255, 255, 0.08) !important;
+              }
+
+        # ASUS ROG Gaming PC Power Switch
+        - type: custom:bubble-card
+          card_type: button
+          button_type: switch
+          entity: switch.gaming_pc
+          name: ASUS ROG Gaming PC
+          icon: mdi:desktop-tower
+          show_state: true
+          sub_button:
+            - icon: mdi:power
+              tap_action:
+                action: perform-action
+                perform_action: button.press
+                target:
+                  entity_id: button.desktop_rspn8nu_shutdown
+                confirmation:
+                  text: Cleanly shut down ASUS ROG Gaming PC?
+              haptic: heavy
+          card_mod:
+            style: |
+              ha-card {
+                margin: 2px 0 !important;
+                border-radius: 18px !important;
+                background: rgba(255, 255, 255, 0.03) !important;
+                border: 1px solid rgba(255, 255, 255, 0.08) !important;
+              }
+
+        # Live Steam Game & GPU Telemetry (Visible when PC is on)
+        - type: conditional
+          conditions:
+            - condition: state
+              entity: switch.gaming_pc
+              state: "on"
+          card:
+            type: custom:mushroom-template-card
+            primary: >-
+              {% set win = states('sensor.desktop_rspn8nu_activewindow') %}
+              {{ win if win not in ['unknown', 'unavailable', 'None', ''] else 'PC Online' }}
+            secondary: >-
+              {% set temp = states('sensor.desktop_rspn8nu_gputemperature') %}
+              {{ ('GPU: ' ~ temp ~ '°C • ') if temp not in ['unknown', 'unavailable', 'None', ''] else '' }}Tap to stream via Moonlight
+            icon: mdi:steam
+            icon_color: purple
+            tap_action:
+              action: perform-action
+              perform_action: pyscript.play_pc_game
+              haptic: light
+            card_mod:
+              style: |
+                ha-card {
+                  margin: 2px 0 6px 0 !important;
+                  border-radius: 16px !important;
+                  background: linear-gradient(135deg, rgba(147, 51, 234, 0.18), rgba(88, 28, 135, 0.08)) !important;
+                  border: 1px solid rgba(147, 51, 234, 0.40) !important;
+                }
+
+  # --- CONDITIONAL SPOTIFY JUKEBOX (HI-FI LOUNGE) ---
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: sensor.theater_mode
+        state: "music"
+    card:
+      type: vertical-stack
+      cards:
+        - type: custom:mushroom-template-card
+          primary: Spotify Hi-Fi Jukebox
+          secondary: Tap to cast directly to Yamaha AVR (7ch Stereo)
+          icon: mdi:spotify
+          icon_color: green
+          card_mod:
+            style: |
+              ha-card {
+                margin: 6px 0 4px 0 !important;
+                border-radius: 18px !important;
+                background: linear-gradient(135deg, rgba(30, 215, 96, 0.20), rgba(15, 100, 45, 0.10)) !important;
+                border: 1px solid rgba(30, 215, 96, 0.4) !important;
+              }
+        # Quick Presets (1-Tap Cast via Spotcast)
+        - type: grid
+          columns: 2
+          square: false
+          cards:
+            - type: custom:mushroom-template-card
+              primary: Chill Lounge
+              secondary: Lofi & Downtempo
+              icon: mdi:coffee
+              icon_color: green
+              layout: horizontal
+              tap_action:
+                action: perform-action
+                perform_action: pyscript.theater_play_spotify_playlist
+                data:
+                  uri: "spotify:playlist:37i9dQZF1DXdLEN7aqioXM"
+                haptic: medium
+              card_mod:
+                style: |
+                  ha-card {
+                    border-radius: 16px !important;
+                    background: rgba(255, 255, 255, 0.04) !important;
+                    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                  }
+            - type: custom:mushroom-template-card
+              primary: Synthwave
+              secondary: Retrowave / Neon
+              icon: mdi:sine-wave
+              icon_color: purple
+              layout: horizontal
+              tap_action:
+                action: perform-action
+                perform_action: pyscript.theater_play_spotify_playlist
+                data:
+                  uri: "spotify:playlist:37i9dQZF1DXdLEN7aqioXM"
+                haptic: medium
+              card_mod:
+                style: |
+                  ha-card {
+                    border-radius: 16px !important;
+                    background: rgba(255, 255, 255, 0.04) !important;
+                    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                  }
+            - type: custom:mushroom-template-card
+              primary: Classic Rock
+              secondary: Stadium Anthems
+              icon: mdi:guitar-electric
+              icon_color: amber
+              layout: horizontal
+              tap_action:
+                action: perform-action
+                perform_action: pyscript.theater_play_spotify_playlist
+                data:
+                  uri: "spotify:playlist:37i9dQZF1DX1rVvRgjXZwF"
+                haptic: medium
+              card_mod:
+                style: |
+                  ha-card {
+                    border-radius: 16px !important;
+                    background: rgba(255, 255, 255, 0.04) !important;
+                    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                  }
+            - type: custom:mushroom-template-card
+              primary: Party Hits
+              secondary: High Energy
+              icon: mdi:party-popper
+              icon_color: red
+              layout: horizontal
+              tap_action:
+                action: perform-action
+                perform_action: pyscript.theater_play_spotify_playlist
+                data:
+                  uri: "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M"
+                haptic: medium
+              card_mod:
+                style: |
+                  ha-card {
+                    border-radius: 16px !important;
+                    background: rgba(255, 255, 255, 0.04) !important;
+                    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                  }
+        # Interactive Spotify Library Browser Card
+        - type: custom:spotify-card
+          account: default
+          spotify_entity: media_player.whole_house_spotify
+          display_style: list
+          card_mod:
+            style: |
+              ha-card {
+                contain: content !important;
+                border-radius: 18px !important;
+                background: rgba(255, 255, 255, 0.03) !important;
+                border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                margin-top: 4px !important;
+              }

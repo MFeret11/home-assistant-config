@@ -1,0 +1,17 @@
+# Basement Dashboard
+
+_Moved verbatim from AGENTS.md. "§N" references point to the old AGENTS.md sections (§4 lighting/sports now live in docs/lighting.md)._
+
+### Basement Dashboard (Lovelace, `basement.yaml`)
+- **Structure**: Sections-view dashboard (`path: basement`) built on `custom:mushroom-template-card` / `custom:bubble-card` primitives with heavy `card_mod` styling, plus a `decluttering_templates` block (`bubble_light_slider`, `theater_mode_button`, `media_control_btn`, `media_nav_btn`, `quick_mood_pill`, `bubble_switch_card`, `remote_transport_button`) to keep repeated card shapes DRY.
+- **Header cockpit**: 3-zone chip row (left: home nav; center: 1-tap lighting-mode toggle; right: conditional utility chips — play/pause, remote launcher, blackout, guest lock) plus AVR master volume and (conditional on sports/theater) booth announcer volume sliders.
+- **"Now Playing" hero card** (Section 2): conditional on `binary_sensor.theater_in_use == on` and `sensor.theater_mode` in `[game, movie, sports, music]`.
+  - **Large Rectangular Poster Format**: Upgraded to a 320px theatrical hero marquee. Features an uncropped 275px x 185px prominent vertical theatrical poster standing on the left with 3D drop-shadow and mode ambient glow, beside a full widescreen blurred backdrop with bold title and metadata typography. Movie search has been removed to keep the interface and remote modal clean and clutter-free.
+- **Zone Lighting & Quick Moods**:
+  - **5-Pill Quick Mood Ribbon**: Inline tactile 1-tap swatches & celebration triggers (Synthwave [favorite primary], Speakeasy, Cyberpunk, Toast Flash [amber bar & stairs], Eagles Chant [Kelly Green touchdown surge]) situated directly above the 3 master zone sliders (Lounge & Bar 9-bulb group, Theater zone with ceiling dimmer and screen bias sub-buttons, Stairlights), with the wheel and redundant active loads dropdown removed for an ultra-clean, immediate interface.
+- **Retro Game Box Art (Libretro Open Scraper)**: In addition to SteamGridDB and RAWG, `_fetch_game_art_from_secrets` now directly queries the official `libretro-thumbnails` repository (`Nintendo_-_Nintendo_64`, `Sony_-_PlayStation`, `Sega_-_Dreamcast`, etc.) with zero API key dependencies. Games like *NFL Blitz 2000* resolve authentic high-res box art and in-game snapshots rather than generic system clip art.
+- **Spotify Art Stale Cache Fix**: In `update_theater_media_art()`, sports mode no longer falls back to `onn_art` (which held stale Spotify album art), and movie mode actively purges lingering Spotify media sessions. Mode initiations immediately clear previous session artwork with mode-specific theatrical art.
+- **App Launching**: `launch_onn_app()` now utilizes URL schemes/deep links (`stremio://`, `hdhomerun://`), standard package names, and explicit MainActivity components, preceded by a 1.0s wake delay to ensure the Android TV Remote connection is established before launching. (The unsupported `media_player.select_source` fallback on the Onn was removed.)
+- **Music Mode Conduction**: `play_music()` engages Yamaha **7ch Stereo** directly and no longer launches the Spotify TV app on Onn, honoring mobile-driven Spotify Connect phone control.
+- **This dashboard is tracked here rather than in a separate file** since it's the most significant/actively-iterated dashboard; if other dashboards (bedroom, kitchen/good-morning, diagnostics) grow to a comparable level of detail and churn, consider splitting each into its own file at that point rather than growing this one further.
+

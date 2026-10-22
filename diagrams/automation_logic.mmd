@@ -1,0 +1,65 @@
+flowchart TD
+    subgraph TRIGGERS["1. Inputs"]
+        THEATER_SELECT["input_select.basement_theater_mode<br/>+ dashboard play_* buttons"]
+        FOREGROUND["Onn foreground app_id (HDMI 1)<br/>+ Batocera state (HDMI 2)"]
+        SPORTS_SCORE["sensor.philadelphia_eagles<br/>(kickoff / score / final)"]
+        STAIR_SENSORS["Stair door + motion sensors<br/>(direction of travel)"]
+        CURRENTS["Plug current sensors<br/>(projector & Batocera)"]
+        STARTUP["HA startup<br/>(Pi uptime < 15 min)"]
+    end
+
+    subgraph ENGINES["2. pyscript engines"]
+        AV_MGR["theater.py<br/>mode resolver, AVR input + DSP, app launch, artwork"]
+        MODE["sensor.theater_mode<br/>binary_sensor.theater_in_use"]
+        LIGHT_MGR["basement.py<br/>lighting state machine"]
+        GAME_DAY["sports.py<br/>score flashes"]
+        WATCHDOG["watchdog.py / health_check.py<br/>host + service health"]
+    end
+
+    subgraph GATES["3. Safety interlocks"]
+        GATE_AUTO{"basement_automation_allowed?"}
+        GATE_TUNER{"Both HDHomeRun<br/>tuners busy?"}
+        GATE_PROJ{"Projector cold?<br/>90 s cooldown, then 2 reads <= 0.06 A"}
+        GATE_BATO{"Batocera halted?<br/>< 0.05 A for 12 s"}
+        GATE_SWEEP{"Basement vacant<br/>after power cut?"}
+    end
+
+    subgraph OUTPUTS["4. Hardware & alerts"]
+        LIGHTS["Zigbee bulbs, dimmer, bias lights"]
+        AVR["Yamaha RX-V673<br/>(input, DSP, center trim)"]
+        ONN["Onn 4K Pro<br/>(apps, CEC sleep)"]
+        RELAYS["Smart plug relays<br/>(projector & Batocera mains)"]
+        TUNER["HDHomeRun TCP control<br/>(release Tuner 1)"]
+        NTFY["notify.ntfy"]
+    end
+
+    THEATER_SELECT --> AV_MGR
+    FOREGROUND --> MODE
+    AV_MGR --> MODE
+    MODE --> LIGHT_MGR
+    STAIR_SENSORS --> LIGHT_MGR
+    SPORTS_SCORE --> GATE_AUTO
+    GATE_AUTO -->|Yes| GAME_DAY
+    GAME_DAY --> LIGHTS
+    LIGHT_MGR --> LIGHTS
+
+    AV_MGR --> AVR
+    AV_MGR --> ONN
+    AV_MGR --> GATE_TUNER
+    GATE_TUNER -->|Yes| TUNER
+    TUNER --> NTFY
+
+    %% Session end: Onn sleep, receiver off, lights reset, then cooldown
+    AV_MGR --> GATE_PROJ
+    CURRENTS --> GATE_PROJ
+    GATE_PROJ -->|Confirmed cold| RELAYS
+    GATE_PROJ -->|Sensor unavailable / timeout:<br/>mains stay on| NTFY
+    AV_MGR --> GATE_BATO
+    CURRENTS --> GATE_BATO
+    GATE_BATO -->|Confirmed halt| RELAYS
+
+    STARTUP --> GATE_SWEEP
+    GATE_SWEEP -->|Yes| LIGHTS
+    GATE_SWEEP --> NTFY
+
+    WATCHDOG --> NTFY

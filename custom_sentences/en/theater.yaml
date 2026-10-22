@@ -1,0 +1,14 @@
+language: "en"
+intents:
+  PlayMovieIntent:
+    data:
+      - sentences:
+          - "play [movie] {movie}"
+          - "play {movie} in [the] theater"
+          - "play {movie} in [the] basement"
+          - "watch [movie] {movie}"
+          - "watch {movie} in [the] theater"
+          - "watch {movie} in [the] basement"
+          - "start [movie] {movie}"
+          - "put on {movie}"
+          - "put on {movie} in [the] theater"

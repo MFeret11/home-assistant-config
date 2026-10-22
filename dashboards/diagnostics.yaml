@@ -1,0 +1,451 @@
+title: Diagnostics
+views:
+  - title: Diagnostics
+    path: diagnostics
+    icon: mdi:wrench-cog
+    type: sections
+    max_columns: 4
+    sections:
+      # Top Navigation Header Row
+      - type: grid
+        column_span: 4
+        cards:
+          - type: custom:mushroom-chips-card
+            alignment: start
+            card_mod:
+              style: |
+                ha-card {
+                  --chip-height: 42px;
+                  --chip-icon-size: 20px;
+                  margin-bottom: 4px !important;
+                }
+            chips:
+              - type: template
+                icon: mdi:arrow-left
+                content: Home
+                icon_color: blue
+                tap_action:
+                  action: navigate
+                  navigation_path: /dashboard-home/home
+                  haptic: light
+                card_mod:
+                  style: |
+                    ha-card {
+                      background: rgba(33, 150, 243, 0.12) !important;
+                      border: 1px solid rgba(33, 150, 243, 0.35) !important;
+                      border-radius: 20px !important;
+                    }
+                    ha-card:active { transform: scale(0.95); }
+              - type: template
+                icon: mdi:home-floor-b
+                content: Basement
+                icon_color: amber
+                tap_action:
+                  action: navigate
+                  navigation_path: /basement-yaml/basement
+                  haptic: light
+                card_mod:
+                  style: |
+                    ha-card {
+                      background: rgba(255, 179, 0, 0.12) !important;
+                      border: 1px solid rgba(255, 179, 0, 0.35) !important;
+                      border-radius: 20px !important;
+                    }
+                    ha-card:active { transform: scale(0.95); }
+              - type: template
+                icon: mdi:history
+                content: Activity Log
+                icon_color: purple
+                tap_action:
+                  action: navigate
+                  navigation_path: /activity-log/activity-log
+                  haptic: light
+                card_mod:
+                  style: |
+                    ha-card {
+                      background: rgba(156, 39, 176, 0.12) !important;
+                      border: 1px solid rgba(156, 39, 176, 0.35) !important;
+                      border-radius: 20px !important;
+                    }
+                    ha-card:active { transform: scale(0.95); }
+          # Executive Infrastructure KPI Bar
+          - type: horizontal-stack
+            cards:
+              - type: custom:mushroom-template-card
+                primary: CPU
+                secondary: "{{ states('sensor.system_monitor_processor_use') | round(0, default='—') }}%"
+                icon: mdi:cpu-64-bit
+                icon_color: >-
+                  {{ 'red' if states('sensor.system_monitor_processor_use') | float(0) > 75 else 'green' }}
+                layout: horizontal
+                card_mod:
+                  style: |
+                    ha-card {
+                      background: rgba(255, 255, 255, 0.04) !important;
+                      border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                      border-radius: 20px !important;
+                      padding: 6px 10px !important;
+                    }
+              - type: custom:mushroom-template-card
+                primary: RAM
+                secondary: "{{ states('sensor.system_monitor_memory_usage') | round(0, default='—') }}%"
+                icon: mdi:memory
+                icon_color: blue
+                layout: horizontal
+                card_mod:
+                  style: |
+                    ha-card {
+                      background: rgba(255, 255, 255, 0.04) !important;
+                      border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                      border-radius: 20px !important;
+                      padding: 6px 10px !important;
+                    }
+              - type: custom:mushroom-template-card
+                primary: SSD Storage
+                secondary: "{{ states('sensor.system_monitor_disk_usage') | round(0, default='—') }}%"
+                icon: mdi:harddisk
+                icon_color: teal
+                layout: horizontal
+                card_mod:
+                  style: |
+                    ha-card {
+                      background: rgba(255, 255, 255, 0.04) !important;
+                      border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                      border-radius: 20px !important;
+                      padding: 6px 10px !important;
+                    }
+              - type: custom:mushroom-template-card
+                primary: Tuners
+                secondary: "{{ states('sensor.hdhomerun_tuner_allocation') }}"
+                icon: mdi:antenna
+                icon_color: >-
+                  {{ 'amber' if is_state('binary_sensor.hdhomerun_contention_risk', 'on') else 'green' }}
+                layout: horizontal
+                card_mod:
+                  style: |
+                    ha-card {
+                      background: rgba(255, 255, 255, 0.04) !important;
+                      border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                      border-radius: 20px !important;
+                      padding: 6px 10px !important;
+                    }
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Host & Infrastructure (RPi 4)
+            icon: mdi:raspberry-pi
+          - type: entities
+            entities:
+              - entity: sensor.system_monitor_processor_use
+                name: CPU Utilization
+                icon: mdi:cpu-64-bit
+              - entity: sensor.system_monitor_memory_usage
+                name: RAM Utilization
+                icon: mdi:memory
+              - entity: sensor.system_monitor_swap_usage
+                name: Swap Utilization
+                icon: mdi:server
+              - entity: sensor.system_monitor_disk_usage
+                name: SSD Storage Used (/)
+                icon: mdi:harddisk
+              - entity: binary_sensor.transit_microservice
+                name: FastAPI Transit Service (:8000)
+                icon: mdi:server-network
+              - entity: sensor.watchdog_system_health
+                name: Watchdog Infrastructure Health
+                icon: mdi:shield-check
+              - entity: sensor.basement_automation_health
+                name: Preflight Automation Health
+                icon: mdi:check-decagram
+              - entity: sensor.system_monitor_uptime
+                name: System Uptime
+                icon: mdi:clock-outline
+            card_mod:
+              style: |
+                ha-card {
+                  border-radius: 20px !important;
+                  background: rgba(255, 255, 255, 0.03) !important;
+                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                }
+          - type: custom:mini-graph-card
+            name: Host Compute & Memory (24h)
+            icon: mdi:chart-timeline-variant
+            entities:
+              - entity: sensor.system_monitor_processor_use
+                name: CPU %
+                color: "#4caf50"
+              - entity: sensor.system_monitor_memory_usage
+                name: RAM %
+                color: "#ab47bc"
+            hours_to_show: 24
+            points_per_hour: 4
+            line_width: 2
+            animate: true
+            show:
+              graph: line
+              fill: fade
+              legend: true
+              average: true
+              extrema: true
+            card_mod:
+              style: |
+                ha-card {
+                  border-radius: 20px !important;
+                  background: rgba(255, 255, 255, 0.03) !important;
+                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                }
+          - type: heading
+            heading: Theater & AV Hardware
+            icon: mdi:theater
+          - type: entities
+            entities:
+              - entity: sensor.theater_mode
+                name: Resolved Theater Mode
+              - entity: binary_sensor.theater_in_use
+                name: Theater In-Use Flag
+              - entity: media_player.theater_receiver
+                name: Yamaha AVR (IP .250)
+              - entity: media_player.onn_pro
+                name: Onn 4K Pro (Android TV)
+              - entity: media_player.onn_pro_2
+                name: Onn 4K Pro (Cast Feed)
+              - entity: remote.onn_pro
+                name: Onn Remote Bridge
+              - entity: switch.batocera
+                name: Batocera PC Relay
+              - entity: sensor.batocera_current
+                name: Batocera Current Draw
+              - entity: sensor.projector_power_state
+                name: Projector State Machine
+              - entity: sensor.projector_current_rounded
+                name: Projector Filtered Current (A)
+              - entity: sensor.batocera_current_rounded
+                name: Batocera Filtered Current (A)
+              - entity: sensor.theater_total_power
+                name: Theater Total Power (W)
+              - entity: switch.projector
+                name: Optoma Projector Relay
+                confirmation:
+                  text: >-
+                    DANGER: Cutting mains power bypasses fan cooldown. Confirm
+                    projector lamp is cool!
+              - entity: sensor.projector_current
+                name: Projector Current Draw (Raw)
+            card_mod:
+              style: |
+                ha-card {
+                  border-radius: 20px !important;
+                  background: rgba(255, 255, 255, 0.03) !important;
+                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                }
+          - type: custom:mini-graph-card
+            name: Theater Power & Cooldown (24h)
+            icon: mdi:lightning-bolt
+            entities:
+              - entity: sensor.theater_total_power
+                name: Total Watts
+                color: "#2196f3"
+              - entity: sensor.projector_current_rounded
+                name: Projector (A)
+                color: "#ff9800"
+                y_axis: secondary
+            hours_to_show: 24
+            points_per_hour: 4
+            line_width: 2
+            animate: true
+            show:
+              graph: line
+              fill: fade
+              legend: true
+              average: true
+              extrema: true
+            card_mod:
+              style: |
+                ha-card {
+                  border-radius: 20px !important;
+                  background: rgba(255, 255, 255, 0.03) !important;
+                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                }
+      - type: grid
+        cards:
+          - type: heading
+            heading: Modes & Lighting Engine
+            icon: mdi:tune
+          - type: entities
+            entities:
+              - entity: sensor.basement_palette
+                name: Active Spatial Palette
+              - entity: sensor.basement_effect
+                name: Active Lighting Modifier
+              - entity: binary_sensor.basement_lights_active
+                name: Any Lights Active Resolver
+              - entity: input_select.basement_theater_mode
+                name: Theater Activity Select
+              - entity: binary_sensor.basement_automation_allowed
+                name: Automation Allowed Flag
+              - entity: >-
+                  switch.basement_adaptive_lighting_adaptive_lighting_basement_adaptive_lighting
+                name: Master Adaptive Lighting Engine
+              - entity: >-
+                  switch.adaptive_lighting_basement_adaptive_lighting_adaptive_lighting_sleep_mode_basement_adaptive_lighting
+                name: Adaptive Sleep Mode
+              - entity: >-
+                  switch.adaptive_lighting_basement_adaptive_lighting_adaptive_lighting_adapt_brightness_basement_adaptive_lighting
+                name: Adapt Brightness
+              - entity: >-
+                  switch.adaptive_lighting_basement_adaptive_lighting_adaptive_lighting_adapt_color_basement_adaptive_lighting
+                name: Adapt Color
+            card_mod:
+              style: |
+                ha-card {
+                  border-radius: 20px !important;
+                  background: rgba(255, 255, 255, 0.03) !important;
+                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                }
+      - type: grid
+        cards:
+          - type: heading
+            heading: Sensors & Zone Bulbs
+            icon: mdi:door
+          - type: entities
+            entities:
+              - entity: binary_sensor.basement_stairs_door_sensor
+                name: Top Stair Door Sensor
+              - entity: binary_sensor.bottom_stairs
+                name: Foot of Stairs Motion
+              - entity: light.stairlights
+                name: Stairlights (3 Bulbs)
+              - entity: light.theater_dimmer
+                name: Matter Theater Dimmer
+              - entity: switch.bias_lights
+                name: Screen Bias Lights
+              - entity: light.zigbee_bar_lights
+                name: "Bar Zone (North: 2 Bulbs)"
+              - entity: light.zigbee_lounge_lights_1
+                name: "Lounge Front (Center: 3 Bulbs)"
+              - entity: light.zigbee_lounge_lights_2
+                name: "Lounge Mid (South: 2 Bulbs)"
+              - entity: light.zigbee_lounge_lights_3
+                name: "Lounge Rear (Screen: 2 Bulbs)"
+              - entity: light.zigbee_lounge_lights
+                name: Master Lounge Zigbee Group
+              - entity: light.zigbee_basement_lights
+                name: Master Basement Zigbee Group
+            card_mod:
+              style: |
+                ha-card {
+                  border-radius: 20px !important;
+                  background: rgba(255, 255, 255, 0.03) !important;
+                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                }
+      - type: grid
+        cards:
+          - type: heading
+            heading: Antenna Tuners
+            icon: mdi:antenna
+          - type: entities
+            entities:
+              - entity: sensor.hdhomerun_tuner_allocation
+                name: Tuner Allocation
+              - entity: binary_sensor.hdhomerun_contention_risk
+                name: Contention Risk
+              - entity: input_boolean.xteve_tuner_reservation
+                name: xTeVe Tuner Reservation
+              - type: section
+                label: Tuner 0
+              - entity: sensor.tuner0
+                name: Channel
+              - type: conditional
+                conditions:
+                  - entity: sensor.tuner0_target_ip
+                    state_not: unknown
+                  - entity: sensor.tuner0_target_ip
+                    state_not: unavailable
+                row:
+                  entity: sensor.tuner0_target_ip
+                  name: Client
+              - type: conditional
+                conditions:
+                  - entity: sensor.tuner0_signal_quality
+                    state_not: unknown
+                  - entity: sensor.tuner0_signal_quality
+                    state_not: unavailable
+                row:
+                  entity: sensor.tuner0_signal_quality
+                  name: Signal Quality
+              - type: conditional
+                conditions:
+                  - entity: sensor.tuner0_network_rate
+                    state_not: unknown
+                  - entity: sensor.tuner0_network_rate
+                    state_not: unavailable
+                row:
+                  entity: sensor.tuner0_network_rate
+                  name: Stream Rate
+              - type: section
+                label: Tuner 1
+              - entity: sensor.tuner1
+                name: Channel
+              - type: conditional
+                conditions:
+                  - entity: sensor.tuner1_target_ip
+                    state_not: unknown
+                  - entity: sensor.tuner1_target_ip
+                    state_not: unavailable
+                row:
+                  entity: sensor.tuner1_target_ip
+                  name: Client
+              - type: conditional
+                conditions:
+                  - entity: sensor.tuner1_signal_quality
+                    state_not: unknown
+                  - entity: sensor.tuner1_signal_quality
+                    state_not: unavailable
+                row:
+                  entity: sensor.tuner1_signal_quality
+                  name: Signal Quality
+              - type: conditional
+                conditions:
+                  - entity: sensor.tuner1_network_rate
+                    state_not: unknown
+                  - entity: sensor.tuner1_network_rate
+                    state_not: unavailable
+                row:
+                  entity: sensor.tuner1_network_rate
+                  name: Stream Rate
+            card_mod:
+              style: |
+                ha-card {
+                  border-radius: 20px !important;
+                  background: rgba(255, 255, 255, 0.03) !important;
+                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                }
+      - type: grid
+        cards:
+          - type: heading
+            heading: Engine State History (48h)
+            icon: mdi:history
+          - type: logbook
+            entities:
+              - sensor.theater_mode
+              - binary_sensor.theater_in_use
+              - sensor.basement_palette
+              - sensor.basement_effect
+              - binary_sensor.basement_lights_active
+              - binary_sensor.basement_stairs_door_sensor
+              - binary_sensor.bottom_stairs
+              - switch.batocera
+              - light.theater_dimmer
+              - light.stairlights
+            hours_to_show: 48
+            grid_options:
+              columns: full
+              rows: auto
+            card_mod:
+              style: |
+                ha-card {
+                  border-radius: 20px !important;
+                  background: rgba(255, 255, 255, 0.03) !important;
+                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                }

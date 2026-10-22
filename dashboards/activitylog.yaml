@@ -1,0 +1,211 @@
+title: Activity Log
+views:
+  - title: Activity Log
+    path: activity-log
+    icon: mdi:history
+    type: sections
+    max_columns: 4
+    sections:
+      # Top navigation header row
+      - type: grid
+        column_span: 4
+        cards:
+          - type: custom:mushroom-chips-card
+            alignment: start
+            card_mod:
+              style: |
+                ha-card {
+                  --chip-height: 42px;
+                  --chip-icon-size: 20px;
+                  margin-bottom: 4px !important;
+                }
+            chips:
+              - type: template
+                icon: mdi:arrow-left
+                content: Home
+                icon_color: blue
+                tap_action:
+                  action: navigate
+                  navigation_path: /dashboard-home/home
+                  haptic: light
+                card_mod:
+                  style: |
+                    ha-card {
+                      background: rgba(33, 150, 243, 0.12) !important;
+                      border: 1px solid rgba(33, 150, 243, 0.35) !important;
+                      border-radius: 20px !important;
+                    }
+                    ha-card:active { transform: scale(0.95); }
+              - type: template
+                icon: mdi:home-floor-b
+                content: Basement
+                icon_color: amber
+                tap_action:
+                  action: navigate
+                  navigation_path: /basement-yaml/basement
+                  haptic: light
+                card_mod:
+                  style: |
+                    ha-card {
+                      background: rgba(255, 179, 0, 0.12) !important;
+                      border: 1px solid rgba(255, 179, 0, 0.35) !important;
+                      border-radius: 20px !important;
+                    }
+                    ha-card:active { transform: scale(0.95); }
+              - type: template
+                icon: mdi:wrench-cog
+                content: Diagnostics
+                icon_color: teal
+                tap_action:
+                  action: navigate
+                  navigation_path: /dashboard-diagnostics
+                  haptic: light
+                card_mod:
+                  style: |
+                    ha-card {
+                      background: rgba(0, 150, 136, 0.12) !important;
+                      border: 1px solid rgba(0, 150, 136, 0.35) !important;
+                      border-radius: 20px !important;
+                    }
+                    ha-card:active { transform: scale(0.95); }
+
+      # Section 1: 24h Activity Log
+      - type: grid
+        cards:
+          - type: heading
+            heading: Past 24 Hours
+            icon: mdi:calendar-today
+          - type: logbook
+            title: ""
+            entities:
+              - binary_sensor.basement_stairs_door_sensor
+              - binary_sensor.bottom_stairs
+              - binary_sensor.basement_lights_active
+              - input_select.basement_lighting_mode
+              - sensor.basement_palette
+              - sensor.basement_effect
+              - sensor.theater_mode
+              - binary_sensor.theater_in_use
+              - sensor.projector_power_state
+              - switch.batocera_console
+              - media_player.theater_receiver
+            hours_to_show: 24
+            grid_options:
+              columns: full
+              rows: auto
+            card_mod:
+              style: |
+                ha-card {
+                  border-radius: 20px !important;
+                  background: rgba(255, 255, 255, 0.03) !important;
+                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                }
+
+      # Section 2: Theater History (48 Hours)
+      - type: grid
+        cards:
+          - type: heading
+            heading: Theater History (48h)
+            icon: mdi:theater
+          - type: logbook
+            title: ""
+            entities:
+              - sensor.theater_mode
+              - binary_sensor.theater_in_use
+              - sensor.projector_power_state
+              - media_player.theater_receiver
+              - media_player.onn_pro
+              - switch.batocera_console
+              - switch.batocera
+              - sensor.philadelphia_eagles
+            hours_to_show: 48
+            grid_options:
+              columns: full
+              rows: auto
+            card_mod:
+              style: |
+                ha-card {
+                  border-radius: 20px !important;
+                  background: rgba(255, 255, 255, 0.03) !important;
+                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                }
+
+      # Section 3: Lighting & Presence (48 Hours)
+      - type: grid
+        cards:
+          - type: heading
+            heading: Lighting & Presence (48h)
+            icon: mdi:lightbulb-multiple
+          - type: logbook
+            title: ""
+            entities:
+              - input_select.basement_lighting_mode
+              - binary_sensor.basement_lights_active
+              - sensor.basement_palette
+              - sensor.basement_effect
+              - binary_sensor.basement_stairs_door_sensor
+              - binary_sensor.bottom_stairs
+              - light.theater_dimmer
+            hours_to_show: 48
+            grid_options:
+              columns: full
+              rows: auto
+            card_mod:
+              style: |
+                ha-card {
+                  border-radius: 20px !important;
+                  background: rgba(255, 255, 255, 0.03) !important;
+                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                }
+
+      # Section 4: Recent Room Milestones (48h, Limit 12)
+      - type: grid
+        cards:
+          - type: heading
+            heading: Recent Milestones
+            icon: mdi:timeline-clock-outline
+          - type: custom:timeline-card
+            hours: 48
+            limit: 12
+            relative_time: true
+            entities:
+              - entity: sensor.theater_mode
+                name: Theater Mode Changed
+                icon: mdi:theater
+              - entity: binary_sensor.theater_in_use
+                name: Cinema Session Active
+                icon: mdi:filmstrip
+              - entity: sensor.projector_power_state
+                name: Projector Power State
+                icon: mdi:projector
+              - entity: switch.batocera_console
+                name: Batocera Arcade PC
+                icon: mdi:gamepad-variant
+              - entity: media_player.theater_receiver
+                name: Yamaha AVR
+                icon: mdi:speaker-wireless
+              - entity: input_select.basement_lighting_mode
+                name: Room Lighting Mode
+                icon: mdi:tune-vertical
+              - entity: binary_sensor.basement_lights_active
+                name: Basement Lights Toggled
+                icon: mdi:lightbulb-multiple
+              - entity: sensor.basement_palette
+                name: Palette Selected
+                icon: mdi:palette
+              - entity: binary_sensor.basement_stairs_door_sensor
+                name: Stair Door Opened
+                icon: mdi:door
+              - entity: binary_sensor.bottom_stairs
+                name: Motion at Stairs Foot
+                icon: mdi:motion-sensor
+            grid_options:
+              columns: full
+              rows: auto
+            card_mod:
+              style: |
+                ha-card {
+                  border-radius: 20px !important;
+                  background: rgba(255, 255, 255, 0.03) !important;
+                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                }

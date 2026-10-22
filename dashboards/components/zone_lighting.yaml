@@ -1,0 +1,392 @@
+type: vertical-stack
+card_mod:
+  style: |
+    #root > * { margin-bottom: 8px !important; }
+    #root {
+      background: rgba(255, 193, 7, 0.08) !important;
+      border: 1px solid rgba(255, 193, 7, 0.3) !important;
+      border-radius: 24px !important;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+      padding: 12px !important;
+      transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1) !important;
+    }
+cards:
+  # Zone Lighting Section Header
+  - type: custom:mushroom-template-card
+    primary: Lighting
+    secondary: >-
+      {{ 'Social' if is_state('input_select.basement_lighting_mode', 'Social Mode') else 'Daily Driver' }} • {{ 'Lights on' if is_state('binary_sensor.basement_lights_active', 'on') else 'Lights off' }}
+    icon: mdi:lightbulb-multiple
+    icon_color: amber
+    layout: horizontal
+    card_mod:
+      style: |
+        ha-card {
+          background: none !important;
+          border: none !important;
+          box-shadow: none !important;
+          padding: 0 4px !important;
+          margin: 0 0 2px 0 !important;
+        }
+        ha-card .primary {
+          font-size: 0.78rem !important;
+          font-weight: 700 !important;
+          letter-spacing: 1.2px !important;
+          text-transform: uppercase !important;
+          opacity: 0.85 !important;
+        }
+        ha-card .secondary { font-size: 0.7rem !important; opacity: 0.6 !important; }
+        ha-card mushroom-shape-icon {
+          --shape-size: 24px !important;
+          --icon-size: 16px !important;
+          --shape-color: transparent !important;
+        }
+
+  # --- QUICK MOOD & SHIFTING COLORS CONTROLLER ---
+  - type: horizontal-stack
+    card_mod:
+      style: |
+        #root {
+          gap: 6px !important;
+          margin-top: 4px !important;
+          margin-bottom: 2px !important;
+        }
+    cards:
+      - type: custom:mushroom-template-card
+        primary: Room Ambience
+        secondary: >-
+          {% if is_state('input_select.basement_lighting_mode', 'Social Mode') %}
+            {{ states('sensor.basement_palette') | title }} • {{ '22s Wave' if is_state('sensor.basement_effect', 'drift') else 'Static Lock' }}
+          {% else %}
+            Daily Driver (Adaptive)
+          {% endif %}
+        icon: mdi:palette-swatch
+        icon_color: >-
+          {% if is_state('sensor.basement_effect', 'drift') %}
+            purple
+          {% elif is_state('input_select.basement_lighting_mode', 'Social Mode') %}
+            amber
+          {% else %}
+            grey
+          {% endif %}
+        layout: horizontal
+        tap_action:
+          action: perform-action
+          perform_action: pyscript.toggle_lighting_mode
+          haptic: light
+        card_mod:
+          style: |
+            ha-card {
+              background: rgba(255, 255, 255, 0.05) !important;
+              border: 1px solid rgba(255, 255, 255, 0.1) !important;
+              border-radius: 14px !important;
+              padding: 4px 10px !important;
+            }
+            ha-card .primary { font-weight: 700 !important; font-size: 0.85rem !important; }
+            ha-card .secondary { font-size: 0.70rem !important; opacity: 0.8 !important; }
+            ha-card mushroom-shape-icon { --shape-size: 28px !important; --icon-size: 16px !important; }
+      - type: custom:mushroom-template-card
+        primary: >-
+          {{ 'Shifting ON' if is_state('sensor.basement_effect', 'drift') else 'Shifting OFF' }}
+        secondary: >-
+          {{ '22s Wave Active' if is_state('sensor.basement_effect', 'drift') else 'Tap for Shifting' }}
+        icon: mdi:waves
+        icon_color: >-
+          {{ 'cyan' if is_state('sensor.basement_effect', 'drift') else 'disabled' }}
+        layout: horizontal
+        tap_action:
+          action: perform-action
+          perform_action: pyscript.toggle_ambient_drift
+          haptic: medium
+        card_mod:
+          style: |
+            {% set on = is_state('sensor.basement_effect', 'drift') %}
+            ha-card {
+              background: {{ 'rgba(6, 182, 212, 0.18)' if on else 'rgba(255, 255, 255, 0.05)' }} !important;
+              border: 1px solid {{ 'rgba(6, 182, 212, 0.6)' if on else 'rgba(255, 255, 255, 0.12)' }} !important;
+              border-radius: 14px !important;
+              padding: 4px 10px !important;
+            }
+            ha-card:active { transform: scale(0.96); }
+            ha-card .primary { font-weight: 700 !important; font-size: 0.82rem !important; }
+            ha-card .secondary { font-size: 0.70rem !important; opacity: 0.75 !important; }
+            ha-card mushroom-shape-icon { --shape-size: 28px !important; --icon-size: 16px !important; }
+
+  # --- QUICK MOOD RIBBON (1-TAP ROOM COLOR SWATCHES & CELEBRATIONS) ---
+  - type: grid
+    square: false
+    columns: 3
+    card_mod:
+      style: |
+        :host {
+          margin: 0 0 6px 0 !important;
+          display: block !important;
+        }
+        #root { gap: 4px !important; }
+    cards:
+      - type: custom:decluttering-card
+        template: quick_mood_pill
+        variables:
+          - name: Speakeasy
+          - icon: mdi:glass-cocktail
+          - color: amber
+          - palette_id: speakeasy
+          - active_bg: "linear-gradient(135deg, rgba(245, 158, 11, 0.40), rgba(180, 83, 9, 0.22))"
+          - active_border: "rgba(245, 158, 11, 0.95)"
+          - glow: "rgba(245, 158, 11, 0.45)"
+      - type: custom:decluttering-card
+        template: quick_mood_pill
+        variables:
+          - name: Synthwave
+          - icon: mdi:sine-wave
+          - color: purple
+          - palette_id: synthwave
+          - active_bg: "linear-gradient(135deg, rgba(217, 70, 239, 0.45), rgba(134, 25, 143, 0.25))"
+          - active_border: "rgba(217, 70, 239, 0.95)"
+          - glow: "rgba(217, 70, 239, 0.55)"
+      - type: custom:decluttering-card
+        template: quick_mood_pill
+        variables:
+          - name: Cyberpunk
+          - icon: mdi:lightning-bolt
+          - color: cyan
+          - palette_id: cyberpunk
+          - active_bg: "linear-gradient(135deg, rgba(6, 182, 212, 0.40), rgba(14, 116, 144, 0.22))"
+          - active_border: "rgba(6, 182, 212, 0.95)"
+          - glow: "rgba(6, 182, 212, 0.45)"
+      - type: custom:mushroom-template-card
+        primary: Toast
+        icon: mdi:glass-flute
+        icon_color: amber
+        layout: horizontal
+        tap_action:
+          action: perform-action
+          perform_action: pyscript.effect_bar_toast
+          haptic: medium
+        card_mod:
+          style: |
+            ha-card {
+              height: 36px !important;
+              min-height: 36px !important;
+              padding: 0 8px !important;
+              --spacing: 0px !important;
+              --mush-spacing: 0px !important;
+              border-radius: 14px !important;
+              display: flex !important;
+              align-items: center !important;
+              justify-content: center !important;
+              background: rgba(245, 158, 11, 0.15) !important;
+              border: 1px solid rgba(245, 158, 11, 0.5) !important;
+              transition: all 0.2s ease !important;
+            }
+            ha-card:active { transform: scale(0.94); }
+            ha-card .container {
+              padding: 0 !important;
+              margin: 0 !important;
+              width: 100% !important;
+              gap: 6px !important;
+              justify-content: center !important;
+              align-items: center !important;
+            }
+            ha-card mushroom-shape-icon {
+              --shape-size: 24px !important;
+              --icon-size: 16px !important;
+              margin: 0 !important;
+            }
+            ha-card mushroom-state-info {
+              flex: 0 1 auto !important;
+              min-width: 0 !important;
+              padding: 0 !important;
+            }
+            ha-card .primary {
+              font-size: 0.74rem !important;
+              font-weight: 700 !important;
+              color: #fbbf24 !important;
+            }
+      - type: custom:mushroom-template-card
+        primary: Eagles
+        icon: mdi:football
+        icon_color: green
+        layout: horizontal
+        tap_action:
+          action: perform-action
+          perform_action: pyscript.effect_eagles_chant
+          haptic: medium
+        card_mod:
+          style: |
+            ha-card {
+              height: 36px !important;
+              min-height: 36px !important;
+              padding: 0 8px !important;
+              --spacing: 0px !important;
+              --mush-spacing: 0px !important;
+              border-radius: 14px !important;
+              display: flex !important;
+              align-items: center !important;
+              justify-content: center !important;
+              {% set active = is_state('sensor.philadelphia_eagles', 'IN') or (is_state('sensor.theater_mode', 'sports') and is_state('input_select.basement_lighting_mode', 'Social Mode')) %}
+              background: {{ 'linear-gradient(135deg, rgba(0, 170, 35, 0.45), rgba(0, 95, 20, 0.25))' if active else 'rgba(0, 170, 35, 0.15)' }} !important;
+              border: {{ '1.5px solid rgba(0, 170, 35, 0.95)' if active else '1px solid rgba(0, 170, 35, 0.45)' }} !important;
+              box-shadow: {{ '0 0 14px rgba(0, 170, 35, 0.5)' if active else 'none' }} !important;
+              transition: all 0.2s ease !important;
+            }
+            ha-card:active { transform: scale(0.94); }
+            ha-card .container {
+              padding: 0 !important;
+              margin: 0 !important;
+              width: 100% !important;
+              gap: 6px !important;
+              justify-content: center !important;
+              align-items: center !important;
+            }
+            ha-card mushroom-shape-icon {
+              --shape-size: 24px !important;
+              --icon-size: 16px !important;
+              margin: 0 !important;
+            }
+            ha-card mushroom-state-info {
+              flex: 0 1 auto !important;
+              min-width: 0 !important;
+              padding: 0 !important;
+            }
+            ha-card .primary {
+              font-size: 0.74rem !important;
+              font-weight: 700 !important;
+              color: #4ade80 !important;
+            }
+      - type: custom:decluttering-card
+        template: quick_mood_pill
+        variables:
+          - name: Nordic
+          - icon: mdi:snowflake
+          - color: light-blue
+          - palette_id: nordic
+          - active_bg: "linear-gradient(135deg, rgba(56, 189, 248, 0.40), rgba(3, 105, 161, 0.22))"
+          - active_border: "rgba(56, 189, 248, 0.95)"
+          - glow: "rgba(56, 189, 248, 0.45)"
+
+  # 1. Lounge & Bar Master (9 Bulbs ZHA Group)
+  - type: custom:bubble-card
+    card_type: button
+    button_type: slider
+    entity: light.zigbee_basement_lights
+    name: Lounge & Bar (9 Bulbs)
+    icon: mdi:sofa
+    show_state: true
+    hold_action:
+      action: more-info
+      haptic: medium
+    sub_button:
+      - entity: light.zigbee_bar_lights
+        icon: mdi:glass-cocktail
+        show_state: false
+        show_background: true
+        tap_action:
+          action: toggle
+          haptic: light
+        hold_action:
+          action: more-info
+          haptic: medium
+      - entity: light.zigbee_lounge_lights
+        icon: mdi:sofa
+        show_state: false
+        show_background: true
+        tap_action:
+          action: toggle
+          haptic: light
+        hold_action:
+          action: more-info
+          haptic: medium
+    card_mod:
+      style: |
+        ha-card { border: none !important; background: none !important;}
+        .bubble-container {
+          border: 1px solid rgba(255, 193, 7, 0.45) !important;
+          border-radius: 20px !important;
+          background: linear-gradient(135deg, rgba(255, 193, 7, 0.16), rgba(255, 111, 0, 0.08)) !important;
+        }
+
+  # 2. Theater Zone Master
+  - type: custom:bubble-card
+    card_type: button
+    button_type: slider
+    entity: light.theater_lights
+    name: Theater Lights
+    icon: mdi:theater
+    show_state: true
+    sub_button:
+      - entity: light.theater_dimmer
+        icon: mdi:ceiling-light
+        show_state: false
+        show_background: true
+        tap_action:
+          action: toggle
+          haptic: light
+        hold_action:
+          action: more-info
+          haptic: medium
+      - entity: switch.bias_lights
+        icon: mdi:led-strip
+        show_state: false
+        show_background: true
+        tap_action:
+          action: toggle
+          haptic: light
+        hold_action:
+          action: more-info
+          haptic: medium
+    card_mod:
+      style: |
+        ha-card { border: none !important; background: none !important;}
+        .bubble-container {
+          border: 1px solid rgba(255, 193, 7, 0.45) !important;
+          border-radius: 20px !important;
+          background: linear-gradient(135deg, rgba(255, 193, 7, 0.16), rgba(255, 111, 0, 0.08)) !important;
+        }
+        .bubble-sub-button-2 {
+          font-weight: 800 !important;
+          font-size: 11px !important;
+        }
+
+  # 3. Stairlights
+  - type: custom:bubble-card
+    card_type: button
+    button_type: slider
+    entity: light.stairlights
+    name: Stairlights (3 Bulbs)
+    icon: mdi:stairs
+    show_state: true
+    hold_action:
+      action: more-info
+      haptic: medium
+    sub_button:
+      - icon: mdi:candle
+        show_background: true
+        tap_action:
+          action: perform-action
+          perform_action: light.turn_on
+          target:
+            entity_id: light.stairlights
+          data:
+            brightness_pct: 2
+            color_temp_kelvin: 2000
+          haptic: light
+      - icon: mdi:lightbulb-on
+        show_background: true
+        tap_action:
+          action: perform-action
+          perform_action: light.turn_on
+          target:
+            entity_id: light.stairlights
+          data:
+            brightness_pct: 100
+          haptic: light
+    card_mod:
+      style: |
+        ha-card { border: none !important; background: none !important;}
+        .bubble-container {
+          border: 1px solid rgba(255, 193, 7, 0.45) !important;
+          border-radius: 20px !important;
+          background: linear-gradient(135deg, rgba(255, 193, 7, 0.16), rgba(255, 111, 0, 0.08)) !important;
+        }

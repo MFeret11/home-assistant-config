@@ -1,0 +1,14 @@
+# ==============================================================================
+# PACKAGE: BASEMENT LIGHTING & STAIRS SUBSYSTEM
+# ==============================================================================
+
+input_boolean:
+  sandbox_mode:
+    name: "Dashboard Sandbox Mode"
+    icon: mdi:flask-outline
+    
+template:
+  - binary_sensor:
+      - name: "Basement Automation Allowed"
+        unique_id: basement_automation_allowed
+        state: "{{ is_state('binary_sensor.theater_in_use', 'on') }}"

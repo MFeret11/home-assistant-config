@@ -1,0 +1,14 @@
+type: conditional
+grid_options:
+  columns: full
+conditions:
+  - condition: state
+    entity: binary_sensor.theater_in_use
+    state: "on"
+card:
+  type: custom:decluttering-card
+  template: avr_volume_slider
+  variables:
+    - name: Master Audio
+    - icon: mdi:surround-sound
+    - margin: 4px 0 2px 0
