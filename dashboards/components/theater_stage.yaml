@@ -226,8 +226,8 @@ cards:
                   entity_id: button.batocera_shutdown_2
                 confirmation:
                   text: Cleanly shut down Batocera?
-              haptic: heavy
-          card_mod:
+                haptic: heavy
+          card_mod: &stage_power_style
             style: |
               ha-card {
                 margin: 2px 0 !important;
@@ -253,15 +253,8 @@ cards:
                   entity_id: button.desktop_rspn8nu_shutdown
                 confirmation:
                   text: Cleanly shut down ASUS ROG Gaming PC?
-              haptic: heavy
-          card_mod:
-            style: |
-              ha-card {
-                margin: 2px 0 !important;
-                border-radius: 18px !important;
-                background: rgba(255, 255, 255, 0.03) !important;
-                border: 1px solid rgba(255, 255, 255, 0.08) !important;
-              }
+                haptic: heavy
+          card_mod: *stage_power_style
 
         # Live Steam Game & GPU Telemetry (Visible when PC is on)
         - type: conditional
@@ -319,82 +312,30 @@ cards:
           columns: 2
           square: false
           cards:
-            - type: custom:mushroom-template-card
-              primary: Chill Lounge
-              secondary: Lofi & Downtempo
-              icon: mdi:coffee
-              icon_color: green
-              layout: horizontal
-              tap_action:
-                action: perform-action
-                perform_action: pyscript.theater_play_spotify_playlist
-                data:
-                  uri: "spotify:playlist:37i9dQZF1DXdLEN7aqioXM"
-                haptic: medium
-              card_mod:
-                style: |
-                  ha-card {
-                    border-radius: 16px !important;
-                    background: rgba(255, 255, 255, 0.04) !important;
-                    border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                  }
-            - type: custom:mushroom-template-card
-              primary: Synthwave
-              secondary: Retrowave / Neon
-              icon: mdi:sine-wave
-              icon_color: purple
-              layout: horizontal
-              tap_action:
-                action: perform-action
-                perform_action: pyscript.theater_play_spotify_playlist
-                data:
-                  uri: "spotify:playlist:37i9dQZF1DXdLEN7aqioXM"
-                haptic: medium
-              card_mod:
-                style: |
-                  ha-card {
-                    border-radius: 16px !important;
-                    background: rgba(255, 255, 255, 0.04) !important;
-                    border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                  }
-            - type: custom:mushroom-template-card
-              primary: Classic Rock
-              secondary: Stadium Anthems
-              icon: mdi:guitar-electric
-              icon_color: amber
-              layout: horizontal
-              tap_action:
-                action: perform-action
-                perform_action: pyscript.theater_play_spotify_playlist
-                data:
-                  uri: "spotify:playlist:37i9dQZF1DX1rVvRgjXZwF"
-                haptic: medium
-              card_mod:
-                style: |
-                  ha-card {
-                    border-radius: 16px !important;
-                    background: rgba(255, 255, 255, 0.04) !important;
-                    border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                  }
-            - type: custom:mushroom-template-card
-              primary: Party Hits
-              secondary: High Energy
-              icon: mdi:party-popper
-              icon_color: red
-              layout: horizontal
-              tap_action:
-                action: perform-action
-                perform_action: pyscript.theater_play_spotify_playlist
-                data:
-                  uri: "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M"
-                haptic: medium
-              card_mod:
-                style: |
-                  ha-card {
-                    border-radius: 16px !important;
-                    background: rgba(255, 255, 255, 0.04) !important;
-                    border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                  }
+            - type: custom:decluttering-card
+              template: spotify_preset_button
+              variables:
+                - primary: Chill Lounge
+                - secondary: Lofi & Downtempo
+                - icon: mdi:coffee
+                - icon_color: green
+                - uri: "spotify:playlist:37i9dQZF1DXdLEN7aqioXM"
+            - type: custom:decluttering-card
+              template: spotify_preset_button
+              variables:
+                - primary: Classic Rock
+                - secondary: Stadium Anthems
+                - icon: mdi:guitar-electric
+                - icon_color: amber
+                - uri: "spotify:playlist:37i9dQZF1DX1rVvRgjXZwF"
+            - type: custom:decluttering-card
+              template: spotify_preset_button
+              variables:
+                - primary: Party Hits
+                - secondary: High Energy
+                - icon: mdi:party-popper
+                - icon_color: red
+                - uri: "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M"
         # Interactive Spotify Library Browser Card
         - type: custom:spotify-card
           account: default

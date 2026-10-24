@@ -20,7 +20,6 @@ views:
       - type: grid
         cards:
           - !include components/now_playing_marquee.yaml
-          - !include components/eagles_team_tracker.yaml
           - !include components/theater_stage.yaml
           - !include components/theater_remote_popup.yaml
 

@@ -179,7 +179,8 @@ def audit_all_dashboards():
                 file_warnings.append(f"Unregistered entity: '{ent}'")
 
         # 2. ACTION / SERVICE CALL AUDIT
-        found_actions = set(re.findall(r"(?:perform_action:\s*|service:\s*)([\w\.]+)", raw_text))
+        # "- action: x.y" catches services passed to decluttering templates as a variable.
+        found_actions = set(re.findall(r"(?:perform_action:\s*|service:\s*|-\s+action:\s*)([\w\.]+)", raw_text))
         for act in sorted(found_actions):
             if "." in act and act not in REGISTERED_SERVICES:
                 file_defects.append(f"Unregistered action/service call: '{act}'")

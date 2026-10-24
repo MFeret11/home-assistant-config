@@ -155,106 +155,30 @@ cards:
           - active_bg: "linear-gradient(135deg, rgba(6, 182, 212, 0.40), rgba(14, 116, 144, 0.22))"
           - active_border: "rgba(6, 182, 212, 0.95)"
           - glow: "rgba(6, 182, 212, 0.45)"
-      - type: custom:mushroom-template-card
-        primary: Toast
-        icon: mdi:glass-flute
-        icon_color: amber
-        layout: horizontal
-        tap_action:
-          action: perform-action
-          perform_action: pyscript.effect_bar_toast
-          haptic: medium
-        card_mod:
-          style: |
-            ha-card {
-              height: 36px !important;
-              min-height: 36px !important;
-              padding: 0 8px !important;
-              --spacing: 0px !important;
-              --mush-spacing: 0px !important;
-              border-radius: 14px !important;
-              display: flex !important;
-              align-items: center !important;
-              justify-content: center !important;
-              background: rgba(245, 158, 11, 0.15) !important;
-              border: 1px solid rgba(245, 158, 11, 0.5) !important;
-              transition: all 0.2s ease !important;
-            }
-            ha-card:active { transform: scale(0.94); }
-            ha-card .container {
-              padding: 0 !important;
-              margin: 0 !important;
-              width: 100% !important;
-              gap: 6px !important;
-              justify-content: center !important;
-              align-items: center !important;
-            }
-            ha-card mushroom-shape-icon {
-              --shape-size: 24px !important;
-              --icon-size: 16px !important;
-              margin: 0 !important;
-            }
-            ha-card mushroom-state-info {
-              flex: 0 1 auto !important;
-              min-width: 0 !important;
-              padding: 0 !important;
-            }
-            ha-card .primary {
-              font-size: 0.74rem !important;
-              font-weight: 700 !important;
-              color: #fbbf24 !important;
-            }
-      - type: custom:mushroom-template-card
-        primary: Eagles
-        icon: mdi:football
-        icon_color: green
-        layout: horizontal
-        tap_action:
-          action: perform-action
-          perform_action: pyscript.effect_eagles_chant
-          haptic: medium
-        card_mod:
-          style: |
-            ha-card {
-              height: 36px !important;
-              min-height: 36px !important;
-              padding: 0 8px !important;
-              --spacing: 0px !important;
-              --mush-spacing: 0px !important;
-              border-radius: 14px !important;
-              display: flex !important;
-              align-items: center !important;
-              justify-content: center !important;
-              {% set active = is_state('sensor.philadelphia_eagles', 'IN') or (is_state('sensor.theater_mode', 'sports') and is_state('input_select.basement_lighting_mode', 'Social Mode')) %}
-              background: {{ 'linear-gradient(135deg, rgba(0, 170, 35, 0.45), rgba(0, 95, 20, 0.25))' if active else 'rgba(0, 170, 35, 0.15)' }} !important;
-              border: {{ '1.5px solid rgba(0, 170, 35, 0.95)' if active else '1px solid rgba(0, 170, 35, 0.45)' }} !important;
-              box-shadow: {{ '0 0 14px rgba(0, 170, 35, 0.5)' if active else 'none' }} !important;
-              transition: all 0.2s ease !important;
-            }
-            ha-card:active { transform: scale(0.94); }
-            ha-card .container {
-              padding: 0 !important;
-              margin: 0 !important;
-              width: 100% !important;
-              gap: 6px !important;
-              justify-content: center !important;
-              align-items: center !important;
-            }
-            ha-card mushroom-shape-icon {
-              --shape-size: 24px !important;
-              --icon-size: 16px !important;
-              margin: 0 !important;
-            }
-            ha-card mushroom-state-info {
-              flex: 0 1 auto !important;
-              min-width: 0 !important;
-              padding: 0 !important;
-            }
-            ha-card .primary {
-              font-size: 0.74rem !important;
-              font-weight: 700 !important;
-              color: #4ade80 !important;
-            }
+      - type: custom:decluttering-card
+        template: effect_pill
+        variables:
+          - name: Toast
+          - icon: mdi:glass-flute
+          - color: amber
+          - action: pyscript.effect_bar_toast
+          - idle_bg: "rgba(245, 158, 11, 0.15)"
+          - idle_border: "rgba(245, 158, 11, 0.5)"
+          - text_color: "#fbbf24"
+      - type: custom:decluttering-card
+        template: effect_pill
+        variables:
+          - name: Eagles
+          - icon: mdi:football
+          - color: green
+          - action: pyscript.effect_eagles_chant
+          - active_expr: "is_state('sensor.philadelphia_eagles', 'IN') or (is_state('sensor.theater_mode', 'sports') and is_state('input_select.basement_lighting_mode', 'Social Mode'))"
+          - idle_bg: "rgba(0, 170, 35, 0.15)"
+          - idle_border: "rgba(0, 170, 35, 0.45)"
+          - active_bg: "linear-gradient(135deg, rgba(0, 170, 35, 0.45), rgba(0, 95, 20, 0.25))"
+          - active_border: "rgba(0, 170, 35, 0.95)"
+          - glow: "rgba(0, 170, 35, 0.5)"
+          - text_color: "#4ade80"
       - type: custom:decluttering-card
         template: quick_mood_pill
         variables:
@@ -298,7 +222,7 @@ cards:
         hold_action:
           action: more-info
           haptic: medium
-    card_mod:
+    card_mod: &zone_slider_style
       style: |
         ha-card { border: none !important; background: none !important;}
         .bubble-container {
@@ -336,18 +260,7 @@ cards:
         hold_action:
           action: more-info
           haptic: medium
-    card_mod:
-      style: |
-        ha-card { border: none !important; background: none !important;}
-        .bubble-container {
-          border: 1px solid rgba(255, 193, 7, 0.45) !important;
-          border-radius: 20px !important;
-          background: linear-gradient(135deg, rgba(255, 193, 7, 0.16), rgba(255, 111, 0, 0.08)) !important;
-        }
-        .bubble-sub-button-2 {
-          font-weight: 800 !important;
-          font-size: 11px !important;
-        }
+    card_mod: *zone_slider_style
 
   # 3. Stairlights
   - type: custom:bubble-card
@@ -382,11 +295,4 @@ cards:
           data:
             brightness_pct: 100
           haptic: light
-    card_mod:
-      style: |
-        ha-card { border: none !important; background: none !important;}
-        .bubble-container {
-          border: 1px solid rgba(255, 193, 7, 0.45) !important;
-          border-radius: 20px !important;
-          background: linear-gradient(135deg, rgba(255, 193, 7, 0.16), rgba(255, 111, 0, 0.08)) !important;
-        }
+    card_mod: *zone_slider_style

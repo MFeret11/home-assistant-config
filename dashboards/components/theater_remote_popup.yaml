@@ -24,7 +24,7 @@ cards:
       - type: template
         icon: mdi:football
         content: Sports
-        icon_color: green
+        icon_color: teal
         tap_action:
           action: perform-action
           perform_action: pyscript.play_sports
@@ -32,7 +32,7 @@ cards:
       - type: template
         icon: mdi:music
         content: Music
-        icon_color: green
+        icon_color: purple
         tap_action:
           action: perform-action
           perform_action: pyscript.play_music
@@ -40,7 +40,7 @@ cards:
       - type: template
         icon: mdi:gamepad-variant
         content: Arcade
-        icon_color: purple
+        icon_color: green
         tap_action:
           action: perform-action
           perform_action: pyscript.play_game

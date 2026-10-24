@@ -11,7 +11,8 @@ card:
   content: >-
     {%- set mode = states('sensor.theater_mode') -%}
     {%- set eagles_state = states('sensor.philadelphia_eagles') -%}
-    {%- if mode == 'sports' and eagles_state == 'IN' -%}
+    {%- set bad = ['none', 'None', 'unknown', 'unavailable', ''] -%}
+    {%- if mode == 'sports' and eagles_state in ['PRE', 'IN', 'POST'] -%}
       {%- set team_logo = state_attr('sensor.philadelphia_eagles', 'team_logo') | default(state_attr('sensor.theater_current_poster', 'team_logo') | default('https://a.espncdn.com/i/teamlogos/nfl/500/phi.png', true), true) -%}
       {%- set opp_logo = state_attr('sensor.philadelphia_eagles', 'opponent_logo') | default(state_attr('sensor.theater_current_poster', 'opponent_logo'), true) -%}
       {%- set team_score = state_attr('sensor.philadelphia_eagles', 'team_score') | default(state_attr('sensor.theater_current_poster', 'team_score') | default('0', true), true) -%}
@@ -23,9 +24,12 @@ card:
       {%- set last_play = state_attr('sensor.philadelphia_eagles', 'last_play') | default(state_attr('sensor.theater_current_poster', 'last_play'), true) -%}
       {%- set game_state = states('sensor.philadelphia_eagles') -%}
       {%- set trim = states('input_number.theater_announcer_volume') | default('0.0', true) -%}
-      {%- set backdrop = state_attr('sensor.theater_current_poster', 'backdrop_url') | default('/src/assets/images/stadium_broadcast_backdrop_1792095435540.jpg', true) -%}
-      <div class="theater-marquee-hero sports-hero">
+      {%- set backdrop = state_attr('sensor.theater_current_poster', 'backdrop_url') -%}
+      {%- set has_art = backdrop and backdrop not in bad -%}
+      <div class="theater-marquee-hero sports-hero{{ '' if has_art else ' no-art' }}">
+        {%- if has_art -%}
         <div class="marquee-backdrop" style="background-image: url('{{ backdrop }}');"></div>
+        {%- endif -%}
         <div class="marquee-scrim"></div>
         <div class="marquee-badge">
           <span class="mode-tag">{{ 'LIVE BROADCAST' if game_state == 'IN' else ('FINAL' if game_state == 'POST' else 'GAME DAY') }}</span>
@@ -37,21 +41,33 @@ card:
           </div>
           <div class="scoreboard-middle">
             <div class="score-numbers">
+              {%- if game_state == 'PRE' -%}
+              <span class="sep">VS</span>
+              {%- else -%}
               <span class="num">{{ team_score }}</span>
               <span class="sep">-</span>
               <span class="num">{{ opp_score }}</span>
+              {%- endif -%}
             </div>
             <div class="game-status-pill">
-              {%- if quarter and clock -%}
-                Q{{ quarter }} &bull; {{ clock }}
-              {%- elif game_state == 'POST' -%}
+              {%- if game_state == 'POST' -%}
                 FINAL
+              {%- elif game_state == 'PRE' -%}
+                {{ clock if clock else 'KICKOFF' }}
+              {%- elif quarter and clock -%}
+                Q{{ quarter }} &bull; {{ clock }}
               {%- else -%}
                 KICKOFF
               {%- endif -%}
             </div>
             <div class="game-extra-stats">
-              {{ down_dist if down_dist else ('Stadium Surround • Trim: ' ~ trim ~ ' dB') }}
+              {%- if game_state == 'PRE' -%}
+                {%- set tv = state_attr('sensor.philadelphia_eagles', 'tv_network') -%}
+                {%- set odds = state_attr('sensor.philadelphia_eagles', 'odds') -%}
+                {{ [tv, odds] | reject('none') | reject('in', bad) | join(' • ') or 'Stadium Surround' }}
+              {%- else -%}
+                {{ down_dist if down_dist else ('Stadium Surround • Trim: ' ~ trim ~ ' dB') }}
+              {%- endif -%}
             </div>
             {%- if last_play and last_play not in ['none', 'None', 'unknown', 'unavailable', ''] -%}
             <div class="game-last-play">
@@ -74,13 +90,15 @@ card:
       {%- set poster = states('sensor.theater_current_poster') -%}
       {%- set title = state_attr('sensor.theater_current_poster', 'title') | default('Basement Theater', true) -%}
       {%- set subtitle = state_attr('sensor.theater_current_poster', 'subtitle') | default('Active Session', true) -%}
-      {%- set bg_img = backdrop if backdrop and backdrop not in ['none', 'None', 'unknown', 'unavailable', ''] else (poster if poster and poster not in ['none', 'None', 'unknown', 'unavailable', ''] else '/src/assets/images/theater_cinematic_backdrop_1792095433713.jpg') -%}
-      {%- set poster_img = poster if poster and poster not in ['none', 'None', 'unknown', 'unavailable', ''] else '/src/assets/images/theatrical_movie_poster_1792095434475.jpg' -%}
-      <div class="theater-marquee-hero">
+      {%- set poster_img = poster if poster and poster not in bad else '' -%}
+      {%- set bg_img = backdrop if backdrop and backdrop not in bad else poster_img -%}
+      <div class="theater-marquee-hero{{ '' if bg_img else ' no-art' }}">
+        {%- if bg_img -%}
         <div class="marquee-backdrop" style="background-image: url('{{ bg_img }}');"></div>
+        {%- endif -%}
         <div class="marquee-scrim"></div>
         <div class="marquee-content-split">
-          {%- if poster_img and poster_img not in ['none', 'None', 'unknown', 'unavailable', ''] -%}
+          {%- if poster_img -%}
             <div class="theatrical-poster-frame">
               <img class="theatrical-poster-img" src="{{ poster_img }}" alt="{{ title }}" />
             </div>
@@ -127,7 +145,11 @@ card:
         border: 1.5px solid rgba({{ rgb[2] }}, 0.65);
         background: linear-gradient(90deg, #0b0f19 0%, #151c2e 50%, #0b0f19 100%);
         background-size: 200% 100%;
-        animation: marqueeSkeleton 2.5s infinite linear;
+        animation: marqueeSkeleton 2.5s linear 4;
+      }
+      .theater-marquee-hero.no-art {
+        animation: none;
+        background: linear-gradient(135deg, rgba({{ rgb[1] }}, 0.6) 0%, #0b0f19 70%);
       }
       @keyframes marqueeSkeleton {
         0% { background-position: 200% 0; }
