@@ -103,7 +103,11 @@ PALETTES = {
 PC_IDLE_WINDOWS = {
     "desktop", "task switching", "taskbar", "explorer", "start",
     "windows shell experience host", "program manager", "none",
-    "unknown", "unavailable", "null", "", "steam big picture mode", "steam",
+    "unknown", "unavailable", "null", "undefined", "", "steam big picture mode", "steam",
+    # Non-game apps, same as PC_NON_GAME_APPS in theater.py
+    "hass.agent", "settings", "calculator", "task manager",
+    "device manager", "command prompt", "powershell", "terminal",
+    "notepad", "discord", "spotify", "spotify free", "spotify premium",
 }
 PC_BROWSER_SUFFIXES = ["- google chrome", "- microsoft edge", "- mozilla firefox", "- brave"]
 
@@ -129,6 +133,9 @@ GLOW_PCT = 3
 # 4 AM reset: turn a forgotten room off if the stairs have seen no motion for this long.
 NIGHTLY_IDLE_OFF_S = 7200
 BLACKOUT_IN_PROGRESS = False
+# Team green already painted for this sports session. After that, a palette the
+# user picks (Social source becomes "manual") is left alone.
+SPORTS_GREEN_APPLIED = False
 
 # ------------------------------------------------------------------------------
 # HELPERS & INITIALIZATION
@@ -619,10 +626,13 @@ def on_movie_screen() -> bool:
 )
 def theater_lighting_sync():
     """Single master synchronizer for theater sessions."""
+    global SPORTS_GREEN_APPLIED
     if is_booting() or safe_state_get(CURTAIN_CALL) == "on" or BLACKOUT_IN_PROGRESS:
         return
 
     mode = safe_state_get(THEATER_MODE)
+    if mode != "sports":
+        SPORTS_GREEN_APPLIED = False
     media = safe_state_get(MEDIA_STATE)
     batocera = safe_state_get(BATOCERA_STATE)
     lighting_mode = get_lighting_mode()
@@ -630,6 +640,14 @@ def theater_lighting_sync():
 
     # Sports: explicit game-day treatment (same as picking a palette)
     if mode == "sports":
+        user_palette = (
+            SPORTS_GREEN_APPLIED
+            and lighting_mode == MODE_SOCIAL
+            and safe_state_get(SOCIAL_SOURCE) == "manual"
+        )
+        if user_palette:
+            return
+        SPORTS_GREEN_APPLIED = True
         set_lighting_mode(MODE_SOCIAL, source="sports")
         eagles_green = pyscript.get_team_rgb() or [0, 170, 35]
         light.turn_on(

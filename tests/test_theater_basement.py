@@ -198,6 +198,7 @@ def setup_clean_environment():
     basement.LAST_MOTION_BOTTOM_TS = 0.0
     basement.LAST_MOTION_CLEAR_TS = 0.0
     basement.LAST_MOTION_SEEN_TS = 0.0
+    basement.SPORTS_GREEN_APPLIED = False
     basement.CURRENT_PALETTE = "synthwave"
     basement.CURRENT_EFFECT = "static"
     basement.IS_EFFECT_UPDATING = False
@@ -2687,6 +2688,44 @@ def test_cooldown_in_music_mode_never_sleeps_onn():
     print("  ✓ [Thermal] test_cooldown_in_music_mode_never_sleeps_onn PASSED")
 
 
+def _green_calls():
+    return [c for c in spy.calls if c["domain"] == "light" and c["service"] == "turn_on" and c["kwargs"].get("rgb_color")]
+
+
+def test_sports_keeps_palette_picked_mid_game():
+    """Team green lands once; a palette picked during the game survives later theater updates."""
+    setup_clean_environment()
+    state.set("pyscript.curtain_call_active", "off")
+    state.set("binary_sensor.theater_in_use", "on")
+    state.set("sensor.theater_mode", "sports")
+    state.set("input_select.basement_lighting_mode", "Daily Driver")
+
+    basement.theater_lighting_sync()
+    assert _green_calls(), "FAIL: Sports did not paint team green!"
+
+    basement.select_palette("synthwave")
+    spy.clear()
+    basement.theater_lighting_sync()
+    assert not _green_calls(), "FAIL: Sports repainted green over the user's palette!"
+    print("  ✓ [SportsEngine] test_sports_keeps_palette_picked_mid_game PASSED")
+
+
+def test_pc_discord_window_does_not_black_out_game_mode():
+    """Discord in the PC foreground is not a game: game mode keeps the glow, not a blackout."""
+    setup_clean_environment()
+    state.set("pyscript.curtain_call_active", "off")
+    state.set("binary_sensor.theater_in_use", "on")
+    state.set("sensor.theater_mode", "game")
+    state.set("input_select.basement_lighting_mode", "Daily Driver")
+    state.set("sensor.desktop_rspn8nu_activewindow", "Discord")
+    state.set("sensor.theater_current_boxart", "x", {"state": "idle"})
+
+    basement.theater_lighting_sync()
+    glow = spy.last_call_for("light", "turn_on")
+    assert glow and glow["kwargs"].get("entity_id") == "light.theater_dimmer", "FAIL: Discord blacked out the room!"
+    print("  ✓ [Lighting] test_pc_discord_window_does_not_black_out_game_mode PASSED")
+
+
 def test_prime_video_brand_art_is_not_netflix():
     assert theater.APP_BRAND_ART["prime_video"]["poster"] != theater.APP_BRAND_ART["netflix"]["poster"], \
         "FAIL: Prime Video fallback shows the Netflix image!"
@@ -2772,6 +2811,8 @@ if __name__ == "__main__":
         test_announcer_bar_shows_for_prime_video,
         test_announcer_slider_drives_center_on_prime,
         test_cooldown_in_music_mode_never_sleeps_onn,
+        test_sports_keeps_palette_picked_mid_game,
+        test_pc_discord_window_does_not_black_out_game_mode,
         test_prime_video_brand_art_is_not_netflix,
         test_walkout_cancelled_when_door_reopens,
         test_nightly_reset_turns_off_forgotten_social_lights,
