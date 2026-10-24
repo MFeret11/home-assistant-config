@@ -17,6 +17,7 @@ _Moved verbatim from AGENTS.md. "§N" references point to the old AGENTS.md sect
 - `media_player.onn_pro`: Onn 4K Pro primary Android TV integration.
 - `media_player.onn_pro_2`: Onn 4K Pro Google Cast fallback.
 - `remote.onn_pro`: Android TV Remote entity used for D-pad, `BACK`, and `HOME` commands on the dashboard remote.
+- `media_player.theater_onn_pro_adb` / `remote.theater_onn_pro_adb`: Onn 4K Pro over ADB (Android Debug Bridge integration, added 2026-10-24). The target for `androidtv.adb_command` (`am start`, `monkey`); `media_player.onn_pro` belongs to Android TV Remote and rejects ADB commands. Not wired into `theater.py` yet.
 - `media_player.whole_house_spotify`: Spotify Connect target — Spotify audio/playback state lives here, not on `media_player.onn_pro`. Does not support `media_pause` on every state; `pause_spotify_if_playing()` checks `supported_features` first.
 - `sensor.mediasession2mqtt_1_playback_state` / `sensor.mediasession2mqtt_1_application_id`: Onn media-session playback state and foreground app package ID (drives dashboard play/pause icon and sports-app detection). Reports whichever session changed last, not necessarily the foreground app; `media_player.onn_pro` `app_id` is the foreground source of truth.
 - `switch.batocera`: Smart plug hardware relay powering Batocera PC (Endpoint on Third Reality Dual Plug 2).
