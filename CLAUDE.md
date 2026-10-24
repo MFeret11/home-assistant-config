@@ -23,7 +23,7 @@ This repo is the Docker named volume mounted at `/config` in the `homeassistant`
 python3 tests/run_all_tests.py            # full suite (same as ./run_tests.sh)
 python3 tests/test_theater_basement.py    # run one suite directly
 python3 tests/test_dashboard_integrity.py # dashboard entity/service binding audit
-python3 scripts/build_dashboard.py        # build + validate dashboard components
+python3 scripts/build_dashboard.py        # read-only check of basement.yaml includes (never writes)
 ```
 
 Each suite is a standalone script (no pytest); it exits non-zero on failure. `run_all_tests.py` runs the suites listed in its `TEST_SUITES` array in subprocesses with `pyscript/` on `PYTHONPATH` — add new suites there. The `audit_*`, `extract_*` and `profile_*` scripts in `tests/` are telemetry tools that read the recorder DB, not tests.

@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """
-Home Assistant Dashboard-as-Code Compiler & Builder
-Builds, validates, and manages Home Assistant Lovelace dashboards programmatically.
+Home Assistant dashboard checker.
+Checks that dashboards/basement.yaml and its components line up. Read-only:
+basement.yaml is hand-maintained and this script never writes to it.
 
 Usage:
-  python3 scripts/build_dashboard.py             # Build and validate all components
-  python3 scripts/build_dashboard.py --test      # Build and run the test harness
-  python3 scripts/build_dashboard.py --monolith  # Output a single unified YAML file
+  python3 scripts/build_dashboard.py                    # check basement.yaml includes
+  python3 scripts/build_dashboard.py --test             # check, then run the full test suite
+  python3 scripts/build_dashboard.py --monolith OUT     # also write an inlined copy to OUT
 """
 import os
 import sys
 import argparse
+import re
 import subprocess
 from typing import Dict, List, Any, Optional
 
@@ -214,104 +216,81 @@ class LovelaceBuilder:
 COMPONENTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "dashboards", "components"))
 DASHBOARDS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "dashboards"))
 
-def build_modular_basement():
-    """Generates the master modular basement.yaml leveraging component includes."""
-    target_path = os.path.join(DASHBOARDS_DIR, "basement.yaml")
-    content = """title: Basement
-decluttering_templates: !include components/decluttering_templates.yaml
+BASEMENT_PATH = os.path.join(DASHBOARDS_DIR, "basement.yaml")
+INCLUDE_RE = re.compile(r"^(?P<indent>\s*)(?P<prefix>- |[\w-]+: )!include (?P<path>\S+)\s*$")
 
-views:
-  - title: Basement
-    path: basement
-    icon: mdi:home-floor-b
-    type: sections
-    max_columns: 2
-    sections:
-      # =========================================================
-      # SECTION 1: HEADER & DUAL-AUDIO COCKPIT
-      # =========================================================
-      - type: grid
-        cards:
-          - !include components/header_cockpit_chips.yaml
-          - !include components/header_avr_volume.yaml
-          - !include components/header_booth_announcer.yaml
 
-      # =========================================================
-      # SECTION 2: CINEMA, SPORTS & ARCADE EXPERIENCE
-      # =========================================================
-      - type: grid
-        cards:
-          - !include components/now_playing_marquee.yaml
-          - !include components/eagles_team_tracker.yaml
-          - !include components/theater_stage.yaml
-          - !include components/zone_lighting.yaml
-          - !include components/theater_remote_popup.yaml
-"""
-    with open(target_path, "w", encoding="utf-8") as f:
-        f.write(content)
-    print(f"  ✓ Built modular master: {target_path} (30 lines)")
+def check_basement():
+    """Read-only check: basement.yaml's !includes all exist and every component is used.
 
-def build_monolithic_basement():
-    """Compiles all components into a single standalone monolithic basement.yaml."""
-    target_path = os.path.join(DASHBOARDS_DIR, "basement.yaml")
-    
-    # Read each component
-    def read_comp(name):
-        p = os.path.join(COMPONENTS_DIR, name)
-        with open(p, "r", encoding="utf-8") as f:
-            return f.read()
+    basement.yaml is hand-maintained and is the source of truth for the layout.
+    This never writes to it.
+    """
+    with open(BASEMENT_PATH, "r", encoding="utf-8") as f:
+        lines = f.read().splitlines()
 
-    def indent(text, spaces):
-        sp = " " * spaces
-        lines = []
-        for line in text.splitlines():
-            lines.append(sp + line if line.strip() else "")
-        return "\n".join(lines)
+    included = set()
+    problems = []
+    for n, line in enumerate(lines, 1):
+        m = INCLUDE_RE.match(line)
+        if not m:
+            continue
+        rel = m.group("path")
+        included.add(os.path.normpath(rel))
+        if not os.path.isfile(os.path.join(DASHBOARDS_DIR, rel)):
+            problems.append(f"basement.yaml:{n} includes missing file {rel}")
 
-    decluttering = indent(read_comp("decluttering_templates.yaml"), 2)
-    chips = indent("- " + read_comp("header_cockpit_chips.yaml").lstrip(), 10)
-    avr_vol = indent("- " + read_comp("header_avr_volume.yaml").lstrip(), 10)
-    announcer = indent("- " + read_comp("header_booth_announcer.yaml").lstrip(), 10)
-    marquee = indent("- " + read_comp("now_playing_marquee.yaml").lstrip(), 10)
-    eagles = indent("- " + read_comp("eagles_team_tracker.yaml").lstrip(), 10)
-    stage = indent("- " + read_comp("theater_stage.yaml").lstrip(), 10)
-    lighting = indent("- " + read_comp("zone_lighting.yaml").lstrip(), 10)
-    popup = indent("- " + read_comp("theater_remote_popup.yaml").lstrip(), 10)
+    for name in sorted(os.listdir(COMPONENTS_DIR)):
+        rel = os.path.normpath(os.path.join("components", name))
+        if name.endswith(".yaml") and rel not in included:
+            problems.append(f"{rel} is not included by basement.yaml")
 
-    monolith = f"""title: Basement
-decluttering_templates:
-{decluttering}
+    for p in problems:
+        print(f"  ✗ {p}")
+    if not problems:
+        print(f"  ✓ basement.yaml: {len(included)} includes, all present, no orphan components")
+    return not problems
 
-views:
-  - title: Basement
-    path: basement
-    icon: mdi:home-floor-b
-    type: sections
-    max_columns: 2
-    sections:
-      # =========================================================
-      # SECTION 1: HEADER & DUAL-AUDIO COCKPIT
-      # =========================================================
-      - type: grid
-        cards:
-{chips}
-{avr_vol}
-{announcer}
 
-      # =========================================================
-      # SECTION 2: CINEMA, SPORTS & ARCADE EXPERIENCE
-      # =========================================================
-      - type: grid
-        cards:
-{marquee}
-{eagles}
-{stage}
-{lighting}
-{popup}
-"""
-    with open(target_path, "w", encoding="utf-8") as f:
-        f.write(monolith)
-    print(f"  ✓ Compiled monolithic master: {target_path} ({len(monolith.splitlines())} lines)")
+def build_monolithic_basement(out_path: str):
+    """Inline basement.yaml's !includes into one standalone file at out_path.
+
+    Follows the real basement.yaml layout. Refuses to write inside dashboards/,
+    since every file there is a live, registered dashboard.
+    """
+    out_abs = os.path.abspath(out_path)
+    if os.path.commonpath([out_abs, DASHBOARDS_DIR]) == DASHBOARDS_DIR:
+        sys.exit(f"Refusing to write {out_abs}: dashboards/ files are live. Pick a path outside it.")
+
+    def read_comp(rel):
+        with open(os.path.join(DASHBOARDS_DIR, rel), "r", encoding="utf-8") as f:
+            return f.read().rstrip("\n").splitlines()
+
+    with open(BASEMENT_PATH, "r", encoding="utf-8") as f:
+        src = f.read().splitlines()
+
+    out = []
+    for line in src:
+        m = INCLUDE_RE.match(line)
+        if not m:
+            out.append(line)
+            continue
+        indent, prefix = m.group("indent"), m.group("prefix")
+        body = read_comp(m.group("path"))
+        if prefix == "- ":
+            # List item: first line follows the dash, the rest align under it.
+            pad = indent + "  "
+            out.append(indent + "- " + body[0])
+            out.extend(pad + l if l.strip() else "" for l in body[1:])
+        else:
+            # Mapping key: nest the file's content one level under the key.
+            pad = indent + "  "
+            out.append(indent + prefix.rstrip())
+            out.extend(pad + l if l.strip() else "" for l in body)
+
+    with open(out_abs, "w", encoding="utf-8") as f:
+        f.write("\n".join(out) + "\n")
+    print(f"  ✓ Compiled monolith: {out_abs} ({len(out)} lines)")
 
 def run_tests():
     """Runs test harness to verify output."""
@@ -322,22 +301,20 @@ def run_tests():
 
 def main():
     parser = argparse.ArgumentParser(description="Home Assistant Dashboard-as-Code Builder")
-    parser.add_argument("--monolith", action="store_true", help="Compile into a single monolithic YAML file")
+    parser.add_argument("--monolith", metavar="OUT", help="Also write a single inlined YAML file to OUT (outside dashboards/)")
     parser.add_argument("--test", action="store_true", help="Run full automated verification test suite")
     args = parser.parse_args()
 
     print("==================================================")
-    print("HOME ASSISTANT DASHBOARD-AS-CODE COMPILER")
+    print("BASEMENT DASHBOARD CHECK (read-only)")
     print("==================================================")
 
+    ok = check_basement()
     if args.monolith:
-        build_monolithic_basement()
-    else:
-        build_modular_basement()
-
+        build_monolithic_basement(args.monolith)
     if args.test:
-        success = run_tests()
-        sys.exit(0 if success else 1)
+        ok = run_tests() and ok
+    sys.exit(0 if ok else 1)
 
 if __name__ == "__main__":
     main()
