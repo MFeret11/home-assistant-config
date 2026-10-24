@@ -42,7 +42,7 @@ REGISTERED_ENTITIES = {
 
     # Sports, State Flags & Virtual Entities
     "sensor.philadelphia_eagles", "binary_sensor.basement_automation_allowed",
-    "binary_sensor.theater_in_use", "binary_sensor.basement_lights_active",
+    "binary_sensor.theater_in_use", "binary_sensor.theater_announcer_bar", "binary_sensor.basement_lights_active",
     "input_select.basement_lighting_mode", "input_select.basement_theater_mode",
     "input_select.basement_drawer", "input_select.theater_announcer_preset",
     "sensor.theater_mode", "sensor.basement_palette", "sensor.basement_effect",

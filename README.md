@@ -9,7 +9,7 @@ This repo is the production config. It is mounted straight into the Home Assista
 ## What it does
 
 - **Theater mode resolver.** Works out what is on screen from the streaming box's foreground app (HDMI 1) and the retro-gaming PC's state (HDMI 2), then sets the Yamaha receiver's input and DSP program to match.
-- **Lighting state machine.** Two modes: *Daily Driver* (adaptive color temperature, blackout during a movie, a 1% glow when paused, direction-of-travel stair lighting) and *Social* (lights stay on, mood palettes). Theater activity never touches the lights in Social mode.
+- **Lighting state machine.** Two modes: *Daily Driver* (adaptive color temperature, blackout during a movie, a 3% glow when paused, direction-of-travel stair lighting) and *Social* (lights stay on, mood palettes). Theater activity never touches the lights in Social mode.
 - **Game-day reactions.** Eagles kickoff, score and game-over flashes on 9 Zigbee bulbs. They pulse brightness only, never color, to avoid flooding the Zigbee mesh.
 - **Artwork lookup.** Posters and box art from TMDB, Cinemeta, TVmaze, SteamGridDB, RAWG and the libretro thumbnail repos, with caching and per-service circuit breakers.
 - **Dashboards.** Five YAML-mode Lovelace dashboards (basement, kitchen, bedroom, home, diagnostics). They are built from shared templates and checked by a test that resolves every entity and service they reference.

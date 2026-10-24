@@ -11,7 +11,7 @@ The RX-V673 exposes no `PLII ...` programs through HA. `media_player.theater_rec
 | `com.netflix.ninja` / Prime | HDMI1 | `Standard` | Multichannel discrete surround |
 | `com.google.android.youtube.tv` | HDMI1 | `Surround Decoder` | Stereo source matrixed to multichannel (Dolby Pro Logic II) |
 | `com.spotify.tv.android` | HDMI1 | `7ch Stereo` | Same stereo from every speaker; room-filling for social use. Switch to `Surround Decoder` in the UI for dedicated listening |
-| Music mode (`play_music()`) | HDMI1 | `7ch Stereo` | Spotify Connect from phone; no Onn app launched |
+| Music mode (`play_music()`) | HDMI1 | `7ch Stereo` | Projector off: stays off, phone streams to the AVR, Onn untouched. Projector on: opens Spotify on the Onn |
 | Batocera (Retro 2CH Systems) | HDMI2 | `Straight` | Uncompressed stereo, no processing |
 | Batocera (Modern 3D Systems) | HDMI2 | `Surround Decoder` | Stereo mix matrixed to multichannel (Dolby Pro Logic II) |
 | Moonlight via Batocera (`play_pc_game()`, default) | HDMI2 | `Surround Decoder` | Batocera runs the Moonlight client; stereo is matrixed, true 5.1 plays natively. `configure_batocera_audio()` applies the same mode when Batocera reports `playing` |
@@ -31,5 +31,6 @@ The RX-V673 exposes no `PLII ...` programs through HA. `media_player.theater_rec
 - **Select feedback guard**: `sync_theater_select()` records its own changes in `_SELECT_SYNC_PENDING` (5s window) so `on_theater_select_changed()` ignores them and doesn't re-fire a `play_*` service.
 - **Foreground app vs media session**: `get_active_media_info()` ignores `mediasession2mqtt` metadata when its app ID differs from the foreground app ID. This requires `media_player.onn_pro` to expose a live `app_id` attribute.
 - **Art cache**: movie/TV lookup misses are not negatively cached while a service circuit breaker is open. Steam shortcut titles are cleaned before lookup (`1794680_Vampire_Survivors` becomes `Vampire Survivors`).
+- **Music mode**: projector off (lamp current <= 0.06A) → cut its mains, receiver to HDMI1 / 7ch Stereo, and leave the Onn alone; music comes from the phone to the AVR. Projector on → leave it on and open Spotify on the Onn (skipped if already foreground). Never sleep the Onn here: the receiver follows its CEC standby and that ends the session (2026-10-23). The cooldown loop likewise never sleeps the Onn in music mode.
 - **Spotify pause**: `pause_spotify_if_playing()` only fires when `media_player.whole_house_spotify` reports pause support.
 

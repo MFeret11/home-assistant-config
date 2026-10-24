@@ -13,9 +13,9 @@ _Moved verbatim from AGENTS.md. "§N" references point to the old AGENTS.md sect
 - **4 AM reset (`safe_nightly_social_reset`)**: switches to Daily Driver. If lights are on, the theater is not in use, and `bottom_stairs` has seen no motion for 2 hours (`NIGHTLY_IDLE_OFF_S`), it runs `basement_all_off()` instead, so a forgotten Social session doesn't burn all night. The idle clock starts at boot, so a restart never counts as idle.
 - **Daily Driver + `binary_sensor.theater_in_use` ON**: Theater governs the *entire* basement (`light.theater_dimmer` + `light.zigbee_basement_lights`), not just the dimmer — one flat "theater in use" behavior, distinct from Social/party use of the same room:
   - **Movie/Game — actively playing**: Full blackout (dimmer + lounge/bar OFF), `switch.bias_lights` ON.
-  - **Movie — paused** (4.0s debounce before committing, to avoid flicker on menu blips): 1% glow on dimmer, lounge/bar OFF, bias ON.
+  - **Movie — paused** (4.0s debounce before committing, to avoid flicker on menu blips): 3% glow on dimmer (`GLOW_PCT`), lounge/bar OFF, bias ON.
   - **Music (any playback state)**: Full blackout (dimmer + lounge/bar OFF), bias ON — deliberately no glow state; kept fully dark by design.
-  - **Pre-show / menus / game idle**: 1% glow on dimmer, lounge/bar OFF, bias ON.
+  - **Pre-show / menus / game idle**: 3% glow on dimmer (`GLOW_PCT`), lounge/bar OFF, bias ON.
   - **Sports**: Exception to all of the above — auto-engages Social Mode and paints `light.zigbee_basement_lights` + `light.stairlights` solid team color (via `get_team_rgb()`) at 100%, same as a manual palette pick.
 - **Daily Driver + theater NOT in use**: Adaptive CCT/brightness active across master groups (unchanged).
 - **`theater_lighting_sync()` trigger list** includes `binary_sensor.theater_in_use` directly — a prior gap here (relying only on `sensor.theater_mode` changing value) meant re-entering the theater in the same mode as last time could silently fail to re-sync lights, since `theater_mode` doesn't always change value on re-entry.
@@ -24,6 +24,7 @@ _Moved verbatim from AGENTS.md. "§N" references point to the old AGENTS.md sect
   - `basement_stairs_door_sensor` ON -> `bottom_stairs` ON within 18s => Downward entry.
   - `bottom_stairs` ON -> `basement_stairs_door_sensor` ON within 25s => Upward exit (calibrated from 18s to 25s to reliably capture slow/deliberate ascents such as the 18.76s traversal recorded in real hardware telemetry, ensuring instant 1.5s walkout shutoff).
   - Upward exit in `Daily Driver` shuts down all room lights after a 20s confirmation window (`WALKOUT_CONFIRM_S`). New `bottom_stairs` motion or the door reopening during the window cancels it, so someone still downstairs isn't blacked out. The sensor clears within ~7–11s, so a person left near the stairs re-trips it in time.
+  - Group coming down: if the door opened under 3 minutes ago (`ENTRY_FOLLOW_WINDOW_S = 180`) and the bottom-stairs motion came after that opening, the close is the last person shutting the door behind the first, not a walk-out. Lights stay on.
   - Door left open while downstairs: there is no "open" event on the way up, so a door **close** within 25s (`EXIT_WINDOW_S`) of `bottom_stairs` motion starting or clearing also counts as an upward exit. On entry the close comes before motion, so it is not misread.
   - Vacancy: If `bottom_stairs` holds `off` for 14400s (4 hours) with no theater activity, cut room lights.
 

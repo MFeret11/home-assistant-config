@@ -68,6 +68,7 @@ _Moved verbatim from AGENTS.md. "§N" references point to the old AGENTS.md sect
 - `sensor.philadelphia_eagles`: ESPN Team Tracker (`PRE`, `IN`, `POST`; Attributes: `team_score`, `team_colors`, `opponent_name`).
 - `binary_sensor.basement_automation_allowed`: Master safety gate; if `off`, suppresses automated sports flashes and macros.
 - `binary_sensor.theater_in_use`: High when `media_player.theater_receiver == 'on'`.
+- `binary_sensor.theater_announcer_bar`: Set by `theater.py` `update_announcer_bar()`. On while the theater is in use and in sports mode, or in movie mode with a sports app or Prime Video in the foreground. Shows the booth announcer bar.
 - `binary_sensor.basement_lights_active`: High when dimmer, lounge, or bias strip are ON.
 - `input_select.basement_lighting_mode`: Active room mode (`Daily Driver`, `Social Mode`). ("Movie Mode" is a legacy input value, auto-converted to `Daily Driver` by `set_lighting_mode()` — theater lighting behavior is driven by `binary_sensor.theater_in_use` / `sensor.theater_mode`, not a distinct lighting-mode value.)
 - `input_select.basement_theater_mode`: AV intent (`Movie`, `Game`, `Music`, `Sports`, `Off`).

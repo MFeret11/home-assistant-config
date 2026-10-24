@@ -26,7 +26,7 @@ You are an expert Home Assistant and PyScript engineer. This file holds the rule
 ## Theater lighting (Daily Driver, `binary_sensor.theater_in_use` ON)
 Theater governs the whole basement (`light.theater_dimmer` + `light.zigbee_basement_lights`):
 - Movie/Game playing: full blackout, `switch.bias_lights` ON.
-- Movie paused (4.0s debounce) and pre-show/menus/game idle: 1% dimmer glow, lounge/bar OFF, bias ON.
+- Movie paused (4.0s debounce) and pre-show/menus/game idle: 3% dimmer glow (the cans don't light below ~3%), lounge/bar OFF, bias ON.
 - Music: full blackout, bias ON, no glow state.
 - Sports: auto-engages Social Mode, solid team color at 100%.
 - In Social Mode, theater state never touches lights.

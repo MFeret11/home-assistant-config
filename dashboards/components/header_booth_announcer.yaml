@@ -1,23 +1,11 @@
 type: conditional
 grid_options:
   columns: full
+# Sports mode, sports apps and Prime Video (TNF). Set by theater.py update_announcer_bar().
 conditions:
   - condition: state
-    entity: binary_sensor.theater_in_use
+    entity: binary_sensor.theater_announcer_bar
     state: "on"
-  - condition: or
-    conditions:
-      - condition: state
-        entity: sensor.theater_mode
-        state: sports
-      - condition: state
-        entity: sensor.mediasession2mqtt_1_application_id
-        state:
-          - com.silicondust.view
-          - com.armata.televizio
-          - ar.tvplayer.tv
-          - com.espn.score_center
-          - com.foxsports.videogo
 card:
   type: horizontal-stack
   cards:

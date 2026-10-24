@@ -21,7 +21,7 @@
 ## 4. Lighting State Machine
 - **Theater Governs Basement**: When `binary_sensor.theater_in_use` is `on`, the theater logic dictates `light.theater_dimmer` and `light.zigbee_basement_lights`.
   - *Movie/Game Playing*: Blackout + bias lights ON.
-  - *Paused/Idle*: 1% dimmer glow + bias lights ON.
+  - *Paused/Idle*: 3% dimmer glow + bias lights ON.
   - *Music*: Full blackout (no glow) + bias lights ON.
   - *Sports*: Auto-engages Social Mode and uses 100% team color.
 - **Stairway Topology**: Use `_trigger_stealth_red_stairs` (2% warm candlelight) during active theater sessions (if Social Mode is off) to preserve night vision and avoid screen washout.

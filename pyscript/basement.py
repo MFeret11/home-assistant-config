@@ -110,6 +110,11 @@ EXIT_WINDOW_S = 25
 # After a walk-out door close, wait this long and cancel the shutoff if anyone is still downstairs.
 # The bottom-stairs sensor clears within ~7-11s, so someone left near the stairs re-trips it in this window.
 WALKOUT_CONFIRM_S = 20
+# Door opened this recently, then bottom-stairs motion, then the close: that is a group
+# coming down (the first person trips the sensor before the last one shuts the door).
+ENTRY_FOLLOW_WINDOW_S = 180
+# Paused / pre-show glow on the theater dimmer. The cans don't light below ~3%.
+GLOW_PCT = 3
 # 4 AM reset: turn a forgotten room off if the stairs have seen no motion for this long.
 NIGHTLY_IDLE_OFF_S = 7200
 BLACKOUT_IN_PROGRESS = False
@@ -534,9 +539,19 @@ def stair_door_closed(old_value=None):
     if DIRECTION_OF_TRAVEL != "up" and not _recent_bottom_stairs_motion():
         return
 
+    close_ts = time.time()
+    # Two people coming down: the door opened moments ago, the first one tripped the
+    # bottom-stairs sensor, then the second closed the door (2026-10-23). Not a walk-out.
+    if (
+        DIRECTION_OF_TRAVEL == "down"
+        and 0 <= close_ts - LAST_DOOR_OPEN_TS < ENTRY_FOLLOW_WINDOW_S
+        and LAST_MOTION_BOTTOM_TS >= LAST_DOOR_OPEN_TS
+    ):
+        DIRECTION_OF_TRAVEL = "none"
+        return
+
     # 4. Daily Driver: likely walk-out. Confirm nobody is still downstairs: a fresh
     # bottom-stairs motion or the door reopening during the window cancels the shutoff.
-    close_ts = time.time()
     DIRECTION_OF_TRAVEL = "none"
     task.unique("walkout_confirm")
     task.sleep(WALKOUT_CONFIRM_S)
@@ -649,13 +664,13 @@ def theater_lighting_sync():
     if mode == "movie" and media == "paused" and on_movie_screen():
         task.sleep(4.0)
         if safe_state_get(MEDIA_STATE) == "paused" and get_lighting_mode() != MODE_SOCIAL:
-            light.turn_on(entity_id=THEATER_DIMMER, brightness_pct=1, transition=2)
+            light.turn_on(entity_id=THEATER_DIMMER, brightness_pct=GLOW_PCT, transition=2)
             light.turn_off(entity_id=MASTER_ZIGBEE_GROUP, transition=2)
             switch.turn_on(entity_id=BIAS_LIGHTS)
         return
 
     # PRE-SHOW, MENUS, IDLE (game not yet playing): subtle glow, whole basement dark
-    light.turn_on(entity_id=THEATER_DIMMER, brightness_pct=1, transition=2)
+    light.turn_on(entity_id=THEATER_DIMMER, brightness_pct=GLOW_PCT, transition=2)
     light.turn_off(entity_id=MASTER_ZIGBEE_GROUP, transition=2)
     switch.turn_on(entity_id=BIAS_LIGHTS)
 

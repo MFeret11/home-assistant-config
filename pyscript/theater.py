@@ -100,6 +100,10 @@ SPORTS_APPS = {
     "com.cbs.app",              # Paramount+ / CBS Sports
 }
 
+# Apps that get the booth announcer bar (center-channel trim). Prime carries TNF.
+ANNOUNCER_BAR_APPS = SPORTS_APPS | PRIME_VIDEO_APPS
+ANNOUNCER_BAR = "binary_sensor.theater_announcer_bar"
+
 GAME_APPS = {
     "com.limelight",            # Moonlight Game Streaming
     "com.limelight.android",    # Moonlight Variant
@@ -132,8 +136,9 @@ APP_BRAND_ART = {
     "prime_video": {
         "title": "Prime Video",
         "subtitle": "▶ Streaming on Prime Video",
-        "poster": "https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=800&q=80",
-        "backdrop": "https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=1200&q=80",
+        # Own card: it used to share the Netflix photo (a TV showing the Netflix logo)
+        "poster": "https://placehold.co/800x1200/00a8e1/ffffff/png?text=PRIME+VIDEO",
+        "backdrop": "https://placehold.co/1200x800/00a8e1/ffffff/png?text=PRIME+VIDEO",
         "badge_icon": "mdi:video",
         "badge_color": "teal",
     },
@@ -1588,6 +1593,25 @@ def update_theater_in_use():
             state.set(THEATER_IN_USE, value="off")
 
 
+@time_trigger("startup")
+@state_trigger(
+    "media_player.onn_pro.app_id, remote.onn_pro.current_activity, "
+    "sensor.theater_mode, binary_sensor.theater_in_use"
+)
+def update_announcer_bar():
+    """Shows the booth announcer bar for sports and for Prime Video (Thursday Night Football)."""
+    show = safe_state_get(THEATER_IN_USE) == "on" and (
+        safe_state_get(THEATER_MODE) == "sports"
+        or (safe_state_get(THEATER_MODE) == "movie" and get_active_app_id() in ANNOUNCER_BAR_APPS)
+    )
+    value = "on" if show else "off"
+    if safe_state_get(ANNOUNCER_BAR) != value:
+        state.set(ANNOUNCER_BAR, value=value, new_attributes={
+            "friendly_name": "Theater Announcer Bar",
+            "icon": "mdi:account-voice",
+        })
+
+
 @state_trigger("media_player.theater_receiver == 'off'")
 def handle_receiver_power_off():
     """Detects external/unmanaged AVR power-off (e.g. Yamaha remote or front button) while theater is active."""
@@ -1659,7 +1683,7 @@ def _announcer_zone(level):
 def sync_announcer_volume_to_hardware(value=None):
     if safe_state_get(THEATER_IN_USE) != "on":
         return
-    if safe_state_get(THEATER_MODE) == "sports" or get_active_app_id() in SPORTS_APPS:
+    if safe_state_get(THEATER_MODE) == "sports" or get_active_app_id() in ANNOUNCER_BAR_APPS:
         level_float = safe_float(value, default=None)
         if level_float is not None:
             safe_service(rest_command.yamaha_set_center_trim, level=level_float)
@@ -1864,13 +1888,15 @@ def _projector_cooldown_body():
         else:
             consecutive_low_reads = 0
             # Lamp still lit: re-send CEC standby (twice total, ~110s and ~170s in)
-            if current_val > 0.5 and attempt in (2, 8) and mode in ["music", "off"]:
+            if current_val > 0.5 and attempt in (2, 8) and mode == "off":
                 log.warning("[Theater Projector] Lamp drawing >0.5A. Re-sending CEC standby...")
-                # In music mode keep the receiver on; only sleep the Onn
-                _cec_standby_burst(rounds=1, drop_receiver=(mode == "off"))
-                if mode == "off":
-                    state.set(THEATER_MODE, value="off")
-                    state.set(THEATER_IN_USE, value="off")
+                _cec_standby_burst(rounds=1, drop_receiver=True)
+                state.set(THEATER_MODE, value="off")
+                state.set(THEATER_IN_USE, value="off")
+            elif current_val > 0.5 and attempt in (2, 8) and mode == "music":
+                # The Onn is playing the music: sleeping it takes the receiver down over CEC
+                # and ends the session (2026-10-23). Leave the lamp; session end puts it out.
+                log.warning("[Theater Projector] Lamp still lit during music. Not sleeping the Onn; mains stay on.")
 
         task.sleep(10)
 
@@ -2017,29 +2043,30 @@ def play_pc_game(app="moonlight", target="batocera"):
 
 @service
 def play_music():
+    """Projector off: keep it off; music comes from the phone to the AVR.
+    Projector on: open Spotify on the Onn and leave the projector alone."""
     state.set(CURTAIN_CALL, value="off")
     _teardown_conflicting_sources("music")
     state.set(THEATER_MODE, value="music")
     state.set(THEATER_IN_USE, value="on")
     sync_theater_select("music")
 
-    if is_projector_cold():
+    projector_cold = is_projector_cold()
+    if projector_cold:
+        # Cut mains before anything wakes over HDMI, so CEC can't strike the lamp
         switch.turn_off(entity_id=PROJECTOR_SWITCH)
         task.sleep(0.5)
-    else:
-        safe_service(remote.send_command, entity_id=ONN_REMOTE, command="SLEEP")
-        task.create(safe_projector_cooldown)
 
     media_player.turn_on(entity_id=RECEIVER)
     media_player.select_source(entity_id=RECEIVER, source="HDMI1")
-
-    # Sound mode directly set to 7ch Stereo
     set_receiver_sound_mode("7ch Stereo")
-
     safe_service(rest_command.yamaha_set_center_trim, level=0.0)
 
-    # Wake Onn if needed, but do NOT launch any app (user controls via phone via Spotify Connect)
-    media_player.turn_on(entity_id=ONN_PRO)
+    if not projector_cold and get_active_app_id() not in MUSIC_APPS:
+        media_player.turn_on(entity_id=ONN_PRO)
+        task.sleep(1.0)
+        launch_onn_app("com.spotify.tv.android")
+
     update_theater_media_art()
 
 

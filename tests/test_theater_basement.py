@@ -251,12 +251,13 @@ def test_play_music_cuts_live_plug_before_onn_wake():
     for idx, call in enumerate(spy.calls):
         if call["domain"] == "switch" and call["service"] == "turn_off" and call["kwargs"].get("entity_id") == "switch.projector":
             if plug_cut_index == -1: plug_cut_index = idx
-        if call["domain"] == "media_player" and call["service"] == "turn_on" and call["kwargs"].get("entity_id") == "media_player.onn_pro":
-            onn_wake_index = idx
+        # Nothing on HDMI may wake before the plug is cut (the receiver passes CEC through)
+        if call["domain"] == "media_player" and call["service"] == "turn_on" and call["kwargs"].get("entity_id") == "media_player.theater_receiver":
+            if onn_wake_index == -1: onn_wake_index = idx
 
     assert plug_cut_index != -1, "FAIL: switch.projector was never turned off!"
-    assert onn_wake_index != -1, "FAIL: onn_pro was never turned on!"
-    assert plug_cut_index < onn_wake_index, "FAIL: Onn woke up before projector plug cut! CEC will strike bulb!"
+    assert onn_wake_index != -1, "FAIL: receiver was never turned on!"
+    assert plug_cut_index < onn_wake_index, "FAIL: HDMI chain woke before projector plug cut! CEC will strike bulb!"
     print("  ✓ [Core] test_play_music_cuts_live_plug_before_onn_wake PASSED")
 
 
@@ -288,7 +289,7 @@ def test_movie_intermission_glow():
 
     intermission_called = any(
         c["domain"] == "light" and c["service"] == "turn_on" and
-        c["kwargs"].get("entity_id") == "light.theater_dimmer" and c["kwargs"].get("brightness_pct") == 1
+        c["kwargs"].get("entity_id") == "light.theater_dimmer" and c["kwargs"].get("brightness_pct") == 3
         for c in spy.calls
     )
     assert intermission_called, "FAIL: 1% Intermission glow not applied!"
@@ -966,7 +967,7 @@ def test_lobby_browsing_android_launcher():
 
     assert any(
         c["domain"] == "light" and c["service"] == "turn_on" and
-        c["kwargs"].get("entity_id") == "light.theater_dimmer" and c["kwargs"].get("brightness_pct") == 1
+        c["kwargs"].get("entity_id") == "light.theater_dimmer" and c["kwargs"].get("brightness_pct") == 3
         for c in spy.calls
     ), "FAIL: Lobby browsing did not set cans to 1%!"
     assert spy.was_called("switch", "turn_on", "switch.bias_lights"), "FAIL: Bias not on in lobby!"
@@ -986,7 +987,7 @@ def test_lobby_browsing_batocera_carousel():
 
     assert any(
         c["domain"] == "light" and c["service"] == "turn_on" and
-        c["kwargs"].get("entity_id") == "light.theater_dimmer" and c["kwargs"].get("brightness_pct") == 1
+        c["kwargs"].get("entity_id") == "light.theater_dimmer" and c["kwargs"].get("brightness_pct") == 3
         for c in spy.calls
     ), "FAIL: Batocera carousel did not set cans to 1%!"
     print("  ✓ [Atmospheric] test_lobby_browsing_batocera_carousel PASSED")
@@ -1205,7 +1206,7 @@ def test_full_evening_story_simulation():
     state.set("sensor.mediasession2mqtt_1_playback_state", "paused")
     basement.theater_lighting_sync()
     mock_task.run_deferred_tasks()
-    assert any(c["domain"] == "light" and c["kwargs"].get("brightness_pct") == 1 for c in spy.calls), \
+    assert any(c["domain"] == "light" and c["kwargs"].get("brightness_pct") == 3 for c in spy.calls), \
         "Story Fail: Step 5 Intermission 1% glow didn't activate!"
 
     # --- 6. Curtain Call & Exit (10:30 PM) ---
@@ -2567,6 +2568,131 @@ def test_hdhomerun_tuner_contention_and_preemption():
     print("  ✓ [TunerPreemption] test_hdhomerun_tuner_contention_and_preemption PASSED (force-release, success & failure alerts)")
 
 
+def test_two_person_entry_door_close_keeps_lights():
+    """Replay of 2026-10-23 20:51: door opens, the first person trips bottom-stairs motion 12s later,
+    the second closes the door 2s after that. That is an entry, so the room must stay lit."""
+    import time
+    setup_clean_environment()
+    state.set("input_select.basement_lighting_mode", "Daily Driver")
+    state.set("binary_sensor.theater_in_use", "off")
+    orig_time = time.time
+    try:
+        time.time = lambda: 3000.0
+        basement.stair_door_opened("off")
+        assert basement.DIRECTION_OF_TRAVEL == "down"
+        time.time = lambda: 3012.0
+        state.set("binary_sensor.bottom_stairs", "on")
+        basement.motion_at_foot_of_stairs("off")
+        mock_task.run_deferred_tasks()
+        time.time = lambda: 3014.0
+        spy.clear()
+        basement.stair_door_closed("on")
+        mock_task.run_deferred_tasks()
+    finally:
+        time.time = orig_time
+    assert not spy.was_called("light", "turn_off", "light.zigbee_basement_lights"), \
+        "FAIL: Two-person entry was read as a walk-out and blacked out the room!"
+    assert not spy.was_called("light", "turn_off", "light.theater_dimmer"), "FAIL: Dimmer cut on two-person entry!"
+    print("  ✓ [Temporal] test_two_person_entry_door_close_keeps_lights PASSED")
+
+
+def test_play_music_hot_projector_opens_spotify_only():
+    """Music with the projector on (2026-10-23): open Spotify on the Onn and nothing else.
+    Sleeping the Onn took the receiver down over CEC and ended the session."""
+    setup_clean_environment()
+    state.set("switch.projector", "on")
+    state.set("sensor.projector_current", "2.3")
+    state.set("sensor.theater_mode", "movie")
+    state.set("binary_sensor.theater_in_use", "on")
+    state.set("media_player.onn_pro", "on")
+    state.set("media_player.theater_receiver", "on")
+
+    theater.play_music()
+    mock_task.run_deferred_tasks()
+
+    assert state.get("sensor.theater_mode") == "music", "FAIL: Mode not music!"
+    assert state.get("pyscript.curtain_call_active") != "on", "FAIL: Music ended the session!"
+    assert not spy.was_called("switch", "turn_off", "switch.projector"), "FAIL: Hot projector mains cut!"
+    assert not spy.was_called("media_player", "turn_off", "media_player.onn_pro"), "FAIL: Onn put to sleep!"
+    assert not any(c["domain"] == "remote" and c["kwargs"].get("command") == "SLEEP" for c in spy.calls), \
+        "FAIL: SLEEP sent to the Onn!"
+    spotify_launch = [c for c in spy.calls if c["domain"] == "remote" and c["service"] == "turn_on"
+                      and "spotify" in str(c["kwargs"].get("activity", "")).lower()]
+    assert spotify_launch, "FAIL: Spotify was not opened on the Onn!"
+    print("  ✓ [Core] test_play_music_hot_projector_opens_spotify_only PASSED")
+
+
+def test_play_music_cold_projector_stays_off_no_onn_app():
+    """Music with the projector off: keep it off and leave the Onn alone (phone streams to the AVR)."""
+    setup_clean_environment()
+    state.set("switch.projector", "on")
+    state.set("sensor.projector_current", "0.02")
+
+    theater.play_music()
+    mock_task.run_deferred_tasks()
+
+    assert spy.was_called("switch", "turn_off", "switch.projector"), "FAIL: Cold projector mains left on!"
+    assert not spy.was_called("media_player", "turn_on", "media_player.onn_pro"), "FAIL: Woke the Onn!"
+    assert not any(c["domain"] == "remote" for c in spy.calls), "FAIL: Sent something to the Onn!"
+    assert spy.was_called("media_player", "turn_on", "media_player.theater_receiver"), "FAIL: Receiver not on!"
+    print("  ✓ [Core] test_play_music_cold_projector_stays_off_no_onn_app PASSED")
+
+
+def test_announcer_bar_shows_for_prime_video():
+    setup_clean_environment()
+    state.set("binary_sensor.theater_in_use", "on")
+    state.set("sensor.theater_mode", "movie")
+    state.set("media_player.onn_pro", "on", new_attributes={"app_id": "com.amazon.amazonvideo.livingroom"})
+    theater.update_announcer_bar()
+    assert state.get("binary_sensor.theater_announcer_bar") == "on", "FAIL: No announcer bar on Prime Video!"
+
+    state.set("media_player.onn_pro", "on", new_attributes={"app_id": "com.stremio.one"})
+    theater.update_announcer_bar()
+    assert state.get("binary_sensor.theater_announcer_bar") == "off", "FAIL: Announcer bar shown on Stremio!"
+
+    state.set("sensor.theater_mode", "sports")
+    theater.update_announcer_bar()
+    assert state.get("binary_sensor.theater_announcer_bar") == "on", "FAIL: No announcer bar in sports mode!"
+
+    state.set("binary_sensor.theater_in_use", "off")
+    theater.update_announcer_bar()
+    assert state.get("binary_sensor.theater_announcer_bar") == "off", "FAIL: Announcer bar left on after session!"
+    print("  ✓ [Announcer] test_announcer_bar_shows_for_prime_video PASSED")
+
+
+def test_announcer_slider_drives_center_on_prime():
+    setup_clean_environment()
+    state.set("binary_sensor.theater_in_use", "on")
+    state.set("sensor.theater_mode", "movie")
+    state.set("media_player.onn_pro", "on", new_attributes={"app_id": "com.amazon.amazonvideo.livingroom"})
+    theater.sync_announcer_volume_to_hardware(value="3.0")
+    assert any(c["domain"] == "rest_command" and c["kwargs"].get("level") == 3.0 for c in spy.calls), \
+        "FAIL: Announcer slider did not trim the center on Prime Video!"
+    print("  ✓ [Announcer] test_announcer_slider_drives_center_on_prime PASSED")
+
+
+def test_cooldown_in_music_mode_never_sleeps_onn():
+    """The cooldown's lamp re-check must not sleep the Onn while it is playing the music."""
+    setup_clean_environment()
+    state.set("switch.projector", "on")
+    state.set("sensor.projector_current", "1.2")
+    state.set("sensor.theater_mode", "music")
+    state.set("media_player.onn_pro", "on")
+    state.set("media_player.theater_receiver", "on")
+
+    theater.safe_projector_cooldown()
+    assert not spy.was_called("media_player", "turn_off", "media_player.onn_pro"), "FAIL: Cooldown slept the Onn mid-music!"
+    assert not spy.was_called("media_player", "turn_off", "media_player.theater_receiver"), "FAIL: Cooldown dropped the receiver!"
+    assert not spy.was_called("switch", "turn_off", "switch.projector"), "FAIL: Mains cut with lamp still lit!"
+    print("  ✓ [Thermal] test_cooldown_in_music_mode_never_sleeps_onn PASSED")
+
+
+def test_prime_video_brand_art_is_not_netflix():
+    assert theater.APP_BRAND_ART["prime_video"]["poster"] != theater.APP_BRAND_ART["netflix"]["poster"], \
+        "FAIL: Prime Video fallback shows the Netflix image!"
+    print("  ✓ [Art] test_prime_video_brand_art_is_not_netflix PASSED")
+
+
 # ==============================================================================
 # 3. MASTER RUNNER (50 TESTS)
 # ==============================================================================
@@ -2640,6 +2766,13 @@ if __name__ == "__main__":
         # Suite 9: Master Utilities & Guest Lock (4)
         test_social_mode_lock_blocks_exit_shutoff,
         test_walkout_cancelled_when_someone_still_downstairs,
+        test_two_person_entry_door_close_keeps_lights,
+        test_play_music_hot_projector_opens_spotify_only,
+        test_play_music_cold_projector_stays_off_no_onn_app,
+        test_announcer_bar_shows_for_prime_video,
+        test_announcer_slider_drives_center_on_prime,
+        test_cooldown_in_music_mode_never_sleeps_onn,
+        test_prime_video_brand_art_is_not_netflix,
         test_walkout_cancelled_when_door_reopens,
         test_nightly_reset_turns_off_forgotten_social_lights,
         test_nightly_reset_keeps_lights_with_recent_motion,

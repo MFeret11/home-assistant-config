@@ -314,7 +314,7 @@ def test_music_mode_7ch_stereo_and_phone_control():
     """
     Automated Test 4: Music Mode Conduction
     Verifies that selecting Music mode directly routes Yamaha DSP to '7ch Stereo'
-    and does NOT launch the Spotify TV app on Onn (protecting phone-driven Cast/Connect).
+    and, with the projector off, does NOT launch the Spotify TV app on Onn (music comes from the phone to the AVR).
     """
     setup_baseline()
 
