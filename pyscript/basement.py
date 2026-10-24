@@ -34,6 +34,9 @@ THEATER_MODE = "sensor.theater_mode"
 BATOCERA_STATE = "sensor.batocera_state"
 MEDIA_STATE = "sensor.mediasession2mqtt_1_playback_state"
 ONN_PRO = "media_player.onn_pro"
+ONN_REMOTE = "remote.onn_pro"
+PC_ACTIVE_WINDOW = "sensor.desktop_rspn8nu_activewindow"
+THEATER_BOXART = "sensor.theater_current_boxart"
 SPOTIFY_PLAYER = "media_player.whole_house_spotify"
 
 SENSOR_PALETTE = "sensor.basement_palette"
@@ -95,6 +98,14 @@ PALETTES = {
         {"stair_hs": [0, 100]},
     ],
 }
+
+# PC foreground windows that mean "not in a game" (theater.py has a fuller parser)
+PC_IDLE_WINDOWS = {
+    "desktop", "task switching", "taskbar", "explorer", "start",
+    "windows shell experience host", "program manager", "none",
+    "unknown", "unavailable", "null", "", "steam big picture mode", "steam",
+}
+PC_BROWSER_SUFFIXES = ["- google chrome", "- microsoft edge", "- mozilla firefox", "- brave"]
 
 # Runtime tracking state
 CURRENT_PALETTE = "synthwave"
@@ -160,6 +171,10 @@ def ensure_entity(entity_id: str, default_val="off", attrs=None):
 
 def is_booting(grace_seconds=30) -> bool:
     return (time.time() - BOOT_TIMESTAMP) < grace_seconds
+
+
+def _theater_active() -> bool:
+    return safe_state_get(THEATER_IN_USE) == "on" or safe_state_get(THEATER_MODE) in ["movie", "game", "music", "sports"]
 
 
 # Ensure tracking entities exist safely on startup
@@ -398,7 +413,7 @@ def stair_door_opened(old_value=None):
     DIRECTION_OF_TRAVEL = "up" if 0 < time_since_bottom_motion < EXIT_WINDOW_S else "down"
 
     mode = get_lighting_mode()
-    theater_active = safe_state_get(THEATER_IN_USE) == "on" or safe_state_get(THEATER_MODE) in ["movie", "game", "music", "sports"]
+    theater_active = _theater_active()
 
     if theater_active and mode != MODE_SOCIAL:
         task.create(_trigger_stealth_red_stairs)
@@ -444,7 +459,7 @@ def motion_at_foot_of_stairs(old_value=None):
     task.unique("stair_peek_timer")
     LAST_MOTION_BOTTOM_TS = time.time()
     mode = get_lighting_mode()
-    theater_active = safe_state_get(THEATER_IN_USE) == "on" or safe_state_get(THEATER_MODE) in ["movie", "game", "music", "sports"]
+    theater_active = _theater_active()
 
     # 1. THEATER ACTIVE (in Daily Driver): Stealth 2% candlelight stairs only. Hard-block room cans (Cinema Shield).
     if theater_active:
@@ -527,7 +542,7 @@ def stair_door_closed(old_value=None):
         return
 
     # 2. Social Mode or Theater Active: Preserve ambient lighting
-    theater_active = safe_state_get(THEATER_IN_USE) == "on" or safe_state_get(THEATER_MODE) in ["movie", "game", "music", "sports"]
+    theater_active = _theater_active()
     if get_lighting_mode() == MODE_SOCIAL or theater_active:
         DIRECTION_OF_TRAVEL = "none"
         return
@@ -588,10 +603,10 @@ def basement_door_open_vacancy_guard():
 # THEATER LIGHTING ENGINE
 # ------------------------------------------------------------------------------
 def on_movie_screen() -> bool:
-    if safe_state_get("media_player.onn_pro") != "on":
+    if safe_state_get(ONN_PRO) != "on":
         return False
     try:
-        activity = safe_state_getattr("remote.onn_pro", "current_activity")
+        activity = safe_state_getattr(ONN_REMOTE, "current_activity")
         return activity != "com.google.android.apps.tv.launcherx"
     except Exception:
         return True
@@ -638,16 +653,12 @@ def theater_lighting_sync():
         return
 
     # Is a movie/game actively playing right now?
-    pc_boxart_state = safe_state_getattr("sensor.theater_current_boxart", "state")
-    pc_win = str(safe_state_get("sensor.desktop_rspn8nu_activewindow") or "").strip().lower()
+    pc_boxart_state = safe_state_getattr(THEATER_BOXART, "state")
+    pc_win = str(safe_state_get(PC_ACTIVE_WINDOW) or "").strip().lower()
     pc_playing = (pc_boxart_state == "playing") or (
         bool(pc_win)
-        and pc_win not in [
-            "desktop", "task switching", "taskbar", "explorer", "start",
-            "windows shell experience host", "program manager", "none",
-            "unknown", "unavailable", "null", "", "steam big picture mode", "steam"
-        ]
-        and not any([pc_win.endswith(b) for b in ["- google chrome", "- microsoft edge", "- mozilla firefox", "- brave"]])
+        and pc_win not in PC_IDLE_WINDOWS
+        and not any([pc_win.endswith(b) for b in PC_BROWSER_SUFFIXES])
     )
     actively_playing = (
         (mode == "movie" and media == "playing")
@@ -730,7 +741,7 @@ def basement_all_off():
     ]
     light.turn_off(entity_id=all_targets, transition=0)
     switch.turn_off(entity_id=BIAS_LIGHTS)
-    
+
     # 4. Set state directly so the mode is Daily Driver for next entry
     try:
         input_select.select_option(entity_id=LIGHTING_MODE_SELECT, option=MODE_DAILY)
@@ -962,9 +973,6 @@ def effect_bar_toast():
         apply_static_palette(CURRENT_PALETTE or "synthwave", transition=2)
 
 
-EAGLES_SILVER_RGB = [230, 242, 255]
-
-
 @service
 def effect_eagles_chant():
     """Manual trigger: plays the Zigbee-safe solid Kelly Green Philadelphia Eagles touchdown chant."""
@@ -1054,7 +1062,7 @@ def toggle_basement_drawer(drawer: str = "theater"):
     state.set(DRAWER_SELECT, value=target)
 
 def _get_active_media_player():
-    return "media_player.whole_house_spotify" if safe_state_get(THEATER_MODE) == "music" else ONN_PRO
+    return SPOTIFY_PLAYER if safe_state_get(THEATER_MODE) == "music" else ONN_PRO
 
 
 @service
