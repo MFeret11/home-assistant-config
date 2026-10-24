@@ -1,13 +1,9 @@
 # ==============================================================================
 # PYSCRIPT MODULE: THEATER AV CONDUCTION, ART & HARDWARE ENGINE
 # ==============================================================================
-import json
-import os
 import re
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
 
 BOOT_TIMESTAMP = time.time()
 
@@ -63,10 +59,6 @@ MODE_DAILY = "Daily Driver"
 LIGHTING_MODE_SELECT = "input_select.basement_lighting_mode"
 CURTAIN_CALL = "pyscript.curtain_call_active"
 SPOTIFY_PLAYER = "media_player.whole_house_spotify"
-
-MEDIA_APP_ID = "sensor.mediasession2mqtt_1_application_id"
-MEDIA_STATE = "sensor.mediasession2mqtt_1_playback_state"
-MEDIA_TITLE = "sensor.mediasession2mqtt_1_media_title"
 
 PRIME_VIDEO_PACKAGE = "com.amazon.amazonvideo.livingroom"
 
@@ -132,6 +124,12 @@ APP_AUDIO_MODES = {
     "com.valvesoftware.steamlink": "Surround Decoder",
 }
 
+# Fallback art used when no lookup succeeds
+MOVIE_FALLBACK_POSTER = "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=800&q=80"
+MOVIE_FALLBACK_BACKDROP = "https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=1200&q=80"
+SPORTS_BACKDROP = "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=1200&q=80"
+EAGLES_LOGO_FALLBACK = "https://a.espncdn.com/i/teamlogos/nfl/500/phi.png"
+
 APP_BRAND_ART = {
     "prime_video": {
         "title": "Prime Video",
@@ -146,15 +144,15 @@ APP_BRAND_ART = {
         "title": "Netflix",
         "subtitle": "▶ Streaming on Netflix",
         "poster": "https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=800&q=80",
-        "backdrop": "https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=1200&q=80",
+        "backdrop": MOVIE_FALLBACK_BACKDROP,
         "badge_icon": "mdi:netflix",
         "badge_color": "red",
     },
     "stremio": {
         "title": "Stremio",
         "subtitle": "▶ Streaming on Stremio",
-        "poster": "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=800&q=80",
-        "backdrop": "https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=1200&q=80",
+        "poster": MOVIE_FALLBACK_POSTER,
+        "backdrop": MOVIE_FALLBACK_BACKDROP,
         "badge_icon": "mdi:movie-open",
         "badge_color": "blue",
     },
@@ -1020,6 +1018,66 @@ def _fetch_game_art_from_secrets(game_title, system_id=None):
         return None
 
 
+EAGLES_SENSOR = "sensor.philadelphia_eagles"
+
+
+def _set_sports_poster(source_label=None):
+    """Writes the Eagles scoreboard to the theater poster. source_label (e.g. "HDHomeRun")
+    is shown in the pre-game subtitle when given."""
+    try:
+        eagles = state.getattr(EAGLES_SENSOR) or {}
+    except Exception:
+        eagles = {}
+    attr = eagles.get
+
+    opp_name = attr("opponent_name")
+    opp_abbr = attr("opponent_abbr") or opp_name or "OPP"
+    team_abbr = attr("team_abbr") or "PHI"
+    team_score = attr("team_score")
+    opp_score = attr("opponent_score")
+    quarter = attr("quarter")
+    clock = attr("clock")
+    down_dist = attr("down_distance_text")
+    team_logo = attr("team_logo") or EAGLES_LOGO_FALLBACK
+    game_state = safe_state_get(EAGLES_SENSOR)
+    trim = safe_state_get(ANNOUNCER_VOLUME) or "0.0"
+
+    if game_state == "IN" and team_score is not None and opp_score is not None:
+        sports_title = f"{team_abbr} {team_score} - {opp_score} {opp_abbr}"
+        sub_parts = []
+        if quarter and clock:
+            sub_parts.append(f"Q{quarter} {clock}")
+        if down_dist:
+            sub_parts.append(down_dist)
+        sub_parts.append(f"Booth Trim: {trim} dB")
+        sports_subtitle = " • ".join(sub_parts)
+    elif game_state == "POST" and team_score is not None and opp_score is not None:
+        sports_title = f"FINAL: {team_abbr} {team_score} - {opp_score} {opp_abbr}"
+        sports_subtitle = f"Final Score • Stadium Surround • Booth Trim: {trim} dB"
+    else:
+        sports_title = f"Eagles vs {opp_name}" if opp_name else "Live Sports Broadcast"
+        sub_parts = ["Stadium Surround"] + ([source_label] if source_label else []) + [f"Booth Trim: {trim} dB"]
+        sports_subtitle = " • ".join(sub_parts)
+
+    set_theater_poster(
+        team_logo, sports_title, sports_subtitle,
+        backdrop_url=SPORTS_BACKDROP, media_type="sports",
+        source="sports", badge_icon="mdi:football", badge_color="green",
+        team_logo=team_logo,
+        opponent_logo=attr("opponent_logo"),
+        team_score=team_score,
+        opponent_score=opp_score,
+        team_abbr=team_abbr,
+        opponent_abbr=opp_abbr,
+        quarter=quarter,
+        clock=clock,
+        down_distance_text=down_dist,
+        last_play=attr("last_play"),
+        possession=attr("possession"),
+        game_state=game_state,
+    )
+
+
 # Plain function (no trigger): called directly by the play_* services and by the
 # debounced trigger wrapper below.
 def update_theater_media_art():
@@ -1042,56 +1100,7 @@ def update_theater_media_art():
             onn_art = None
 
     if mode == "sports" or app_id in SPORTS_APPS:
-        opp_name = safe_state_getattr("sensor.philadelphia_eagles", "opponent_name")
-        opp_abbr = safe_state_getattr("sensor.philadelphia_eagles", "opponent_abbr") or opp_name or "OPP"
-        team_abbr = safe_state_getattr("sensor.philadelphia_eagles", "team_abbr") or "PHI"
-        team_score = safe_state_getattr("sensor.philadelphia_eagles", "team_score")
-        opp_score = safe_state_getattr("sensor.philadelphia_eagles", "opponent_score")
-        quarter = safe_state_getattr("sensor.philadelphia_eagles", "quarter")
-        clock = safe_state_getattr("sensor.philadelphia_eagles", "clock")
-        down_dist = safe_state_getattr("sensor.philadelphia_eagles", "down_distance_text")
-        last_play = safe_state_getattr("sensor.philadelphia_eagles", "last_play")
-        possession = safe_state_getattr("sensor.philadelphia_eagles", "possession")
-        team_logo = safe_state_getattr("sensor.philadelphia_eagles", "team_logo") or "https://a.espncdn.com/i/teamlogos/nfl/500/phi.png"
-        opp_logo = safe_state_getattr("sensor.philadelphia_eagles", "opponent_logo")
-        game_state = safe_state_get("sensor.philadelphia_eagles")
-        trim = safe_state_get(ANNOUNCER_VOLUME) or "0.0"
-        sports_backdrop = "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=1200&q=80"
-
-        # Construct live stats & scoreboard title
-        if game_state == "IN" and team_score is not None and opp_score is not None:
-            sports_title = f"{team_abbr} {team_score} - {opp_score} {opp_abbr}"
-            sub_parts = []
-            if quarter and clock:
-                sub_parts.append(f"Q{quarter} {clock}")
-            if down_dist:
-                sub_parts.append(down_dist)
-            sub_parts.append(f"Booth Trim: {trim} dB")
-            sports_subtitle = " • ".join(sub_parts)
-        elif game_state == "POST" and team_score is not None and opp_score is not None:
-            sports_title = f"FINAL: {team_abbr} {team_score} - {opp_score} {opp_abbr}"
-            sports_subtitle = f"Final Score • Stadium Surround • Booth Trim: {trim} dB"
-        else:
-            sports_title = f"Eagles vs {opp_name}" if opp_name else "Live Sports Broadcast"
-            sports_subtitle = f"Stadium Surround • Booth Trim: {trim} dB"
-
-        set_theater_poster(
-            team_logo, sports_title, sports_subtitle,
-            backdrop_url=sports_backdrop, media_type="sports",
-            source="sports", badge_icon="mdi:football", badge_color="green",
-            team_logo=team_logo,
-            opponent_logo=opp_logo,
-            team_score=team_score,
-            opponent_score=opp_score,
-            team_abbr=team_abbr,
-            opponent_abbr=opp_abbr,
-            quarter=quarter,
-            clock=clock,
-            down_distance_text=down_dist,
-            last_play=last_play,
-            possession=possession,
-            game_state=game_state,
-        )
+        _set_sports_poster()
         return
 
     # In movie mode, ignore any lingering background Spotify sessions
@@ -1179,12 +1188,12 @@ def update_theater_media_art():
     if raw_title or artist:
         candidates = get_search_candidates(raw_title, artist=artist)
         best_title = artist if (artist and artist not in ["Stremio", "Prime Video", "Netflix", "None"]) else (candidates[0] if candidates else raw_title)
-        fallback_poster = "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=800&q=80"
+        fallback_poster = MOVIE_FALLBACK_POSTER
         set_theater_poster(
             fallback_poster, best_title,
             subtitle_val,
             raw_title=raw_title or "",
-            backdrop_url="https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=1200&q=80",
+            backdrop_url=MOVIE_FALLBACK_BACKDROP,
             media_type="movie", source=f"{stream_src}_title_match",
             badge_icon=badge_icon, badge_color=badge_color,
         )
@@ -1203,8 +1212,8 @@ def update_theater_media_art():
         else:
             fallback_sub = f"Ready to Stream • {fallback_title}"
     else:
-        fallback_poster = "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=800&q=80"
-        fallback_backdrop = "https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=1200&q=80"
+        fallback_poster = MOVIE_FALLBACK_POSTER
+        fallback_backdrop = MOVIE_FALLBACK_BACKDROP
         fallback_title = app_label
         fallback_sub = subtitle_val
 
@@ -1315,13 +1324,6 @@ def is_pc_game_playing():
     win = safe_state_get(PC_ACTIVE_WINDOW)
     title, state_val, _ = parse_pc_active_window(win)
     return state_val == "playing"
-
-
-def is_pc_gaming_active():
-    """Returns True if PC is online and running either a game or Steam BPM."""
-    win = safe_state_get(PC_ACTIVE_WINDOW)
-    title, state_val, is_steam = parse_pc_active_window(win)
-    return state_val in ["playing", "idle"]
 
 
 # Plain function (no trigger): called directly by play_pc_game and by the
@@ -1946,35 +1948,47 @@ def end_social_mode():
         safe_service(input_select.select_option, entity_id=LIGHTING_MODE_SELECT, option=MODE_DAILY)
 
 
+def _begin_session(target_mode, cancel_cooldown=True):
+    """Common start of every play_* service: end curtain call, stop a running projector
+    cooldown (play_music keeps it so a cold projector still gets its mains cut), and
+    tear down whatever the previous mode left running."""
+    state.set(CURTAIN_CALL, value="off")
+    if cancel_cooldown:
+        task.unique("projector_cooldown_worker")
+    _teardown_conflicting_sources(target_mode)
+
+
+def _mark_session_active(mode):
+    state.set(THEATER_MODE, value=mode)
+    state.set(THEATER_IN_USE, value="on")
+    sync_theater_select(mode)
+
+
+def _wake_hdmi1_chain():
+    """Projector mains, receiver on HDMI1, then wake the Onn."""
+    switch.turn_on(entity_id=PROJECTOR_SWITCH)
+    media_player.turn_on(entity_id=RECEIVER)
+    media_player.select_source(entity_id=RECEIVER, source="HDMI1")
+    media_player.turn_on(entity_id=ONN_PRO)
+    task.sleep(1.0)
+
+
 @service
 def play_movie():
-    state.set(CURTAIN_CALL, value="off")
-    task.unique("projector_cooldown_worker")
-    _teardown_conflicting_sources("movie")
-
-    state.set(THEATER_MODE, value="movie")
-    state.set(THEATER_IN_USE, value="on")
-    sync_theater_select("movie")
+    _begin_session("movie")
+    _mark_session_active("movie")
     release_sports_social_mode()
 
     # Immediately wipe any stale Spotify art from the marquee
     set_theater_poster(
-        "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=800&q=80",
+        MOVIE_FALLBACK_POSTER,
         "Stremio",
         "Ready to Stream • Stremio",
-        backdrop_url="https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=1200&q=80",
+        backdrop_url=MOVIE_FALLBACK_BACKDROP,
         media_type="movie", source="stremio", badge_icon="mdi:movie-open", badge_color="blue",
     )
 
-    if safe_state_get("input_boolean.sandbox_mode") == "on":
-        return
-
-    switch.turn_on(entity_id=PROJECTOR_SWITCH)
-    media_player.turn_on(entity_id=RECEIVER)
-    media_player.select_source(entity_id=RECEIVER, source="HDMI1")
-
-    media_player.turn_on(entity_id=ONN_PRO)
-    task.sleep(1.0)
+    _wake_hdmi1_chain()
 
     launch_onn_app("com.stremio.one")
     task.sleep(0.5)
@@ -1987,9 +2001,7 @@ def play_movie():
 
 @service
 def play_game():
-    state.set(CURTAIN_CALL, value="off")
-    task.unique("projector_cooldown_worker")
-    _teardown_conflicting_sources("game")
+    _begin_session("game")
 
     switch.turn_on(entity_id=PROJECTOR_SWITCH)
     switch.turn_on(entity_id=BATOCERA_SWITCH)
@@ -2000,18 +2012,14 @@ def play_game():
 
     safe_service(rest_command.yamaha_set_center_trim, level=0.0)
 
-    state.set(THEATER_MODE, value="game")
-    state.set(THEATER_IN_USE, value="on")
-    sync_theater_select("game")
+    _mark_session_active("game")
     release_sports_social_mode()
 
 
 @service
 def play_pc_game(app="moonlight", target="batocera"):
     """Orchestrates PC Gaming mode: boots PC via WOL, selects AVR surround sound, launches Moonlight on Batocera."""
-    state.set(CURTAIN_CALL, value="off")
-    task.unique("projector_cooldown_worker")
-    _teardown_conflicting_sources("game")
+    _begin_session("game")
 
     switch.turn_on(entity_id=PROJECTOR_SWITCH)
     switch.turn_on(entity_id=PC_SWITCH)
@@ -2034,9 +2042,7 @@ def play_pc_game(app="moonlight", target="batocera"):
 
     safe_service(rest_command.yamaha_set_center_trim, level=0.0)
 
-    state.set(THEATER_MODE, value="game")
-    state.set(THEATER_IN_USE, value="on")
-    sync_theater_select("game")
+    _mark_session_active("game")
     release_sports_social_mode()
     update_game_poster()
 
@@ -2045,11 +2051,8 @@ def play_pc_game(app="moonlight", target="batocera"):
 def play_music():
     """Projector off: keep it off; music comes from the phone to the AVR.
     Projector on: open Spotify on the Onn and leave the projector alone."""
-    state.set(CURTAIN_CALL, value="off")
-    _teardown_conflicting_sources("music")
-    state.set(THEATER_MODE, value="music")
-    state.set(THEATER_IN_USE, value="on")
-    sync_theater_select("music")
+    _begin_session("music", cancel_cooldown=False)
+    _mark_session_active("music")
 
     projector_cold = is_projector_cold()
     if projector_cold:
@@ -2168,9 +2171,6 @@ def preempt_tuner_for_theater(target_tuner="1"):
 
 def ensure_hdhomerun_tuner_available():
     """Guarantees at least 1 ATSC 1.0 physical tuner is free for the basement theater."""
-    if safe_state_get("input_boolean.sandbox_mode") == "on":
-        return True
-
     t0 = (safe_state_get("sensor.tuner0") or "idle").lower().strip()
     t1 = (safe_state_get("sensor.tuner1") or "idle").lower().strip()
     if t0 not in TUNER_IDLE_STATES and t1 not in TUNER_IDLE_STATES:
@@ -2182,76 +2182,17 @@ def ensure_hdhomerun_tuner_available():
 @service
 def play_sports(app=None):
     """Sports mode. Default source is HDHomeRun; pass app="prime" to watch sports on Prime Video instead."""
-    state.set(CURTAIN_CALL, value="off")
-    task.unique("projector_cooldown_worker")
-    _teardown_conflicting_sources("sports")
+    _begin_session("sports")
 
     use_prime = str(app or "").lower().strip() in ("prime", "prime_video", "amazon")
     source_label = "Prime Video" if use_prime else "HDHomeRun"
 
-    state.set(THEATER_MODE, value="sports")
-    state.set(THEATER_IN_USE, value="on")
-    sync_theater_select("sports")
+    _mark_session_active("sports")
 
-    # Immediately set sports marquee with Eagles logo/matchup so stale Spotify art is wiped
-    opp = safe_state_getattr("sensor.philadelphia_eagles", "opponent_name")
-    opp_abbr = safe_state_getattr("sensor.philadelphia_eagles", "opponent_abbr") or opp or "OPP"
-    team_abbr = safe_state_getattr("sensor.philadelphia_eagles", "team_abbr") or "PHI"
-    team_score = safe_state_getattr("sensor.philadelphia_eagles", "team_score")
-    opp_score = safe_state_getattr("sensor.philadelphia_eagles", "opponent_score")
-    quarter = safe_state_getattr("sensor.philadelphia_eagles", "quarter")
-    clock = safe_state_getattr("sensor.philadelphia_eagles", "clock")
-    down_dist = safe_state_getattr("sensor.philadelphia_eagles", "down_distance_text")
-    last_play = safe_state_getattr("sensor.philadelphia_eagles", "last_play")
-    possession = safe_state_getattr("sensor.philadelphia_eagles", "possession")
-    team_logo = safe_state_getattr("sensor.philadelphia_eagles", "team_logo") or "https://a.espncdn.com/i/teamlogos/nfl/500/phi.png"
-    opp_logo = safe_state_getattr("sensor.philadelphia_eagles", "opponent_logo")
-    game_state = safe_state_get("sensor.philadelphia_eagles")
-    trim = safe_state_get(ANNOUNCER_VOLUME) or "0.0"
-    sports_backdrop = "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=1200&q=80"
+    # Set the scoreboard right away so stale Spotify art is wiped
+    _set_sports_poster(source_label)
 
-    if game_state == "IN" and team_score is not None and opp_score is not None:
-        sports_title = f"{team_abbr} {team_score} - {opp_score} {opp_abbr}"
-        sub_parts = []
-        if quarter and clock:
-            sub_parts.append(f"Q{quarter} {clock}")
-        if down_dist:
-            sub_parts.append(down_dist)
-        sub_parts.append(f"Booth Trim: {trim} dB")
-        sports_subtitle = " • ".join(sub_parts)
-    elif game_state == "POST" and team_score is not None and opp_score is not None:
-        sports_title = f"FINAL: {team_abbr} {team_score} - {opp_score} {opp_abbr}"
-        sports_subtitle = f"Final Score • Stadium Surround • Booth Trim: {trim} dB"
-    else:
-        sports_title = f"Eagles vs {opp}" if opp else "Live Sports Broadcast"
-        sports_subtitle = f"Stadium Surround • {source_label} • Booth Trim: {trim} dB"
-
-    set_theater_poster(
-        team_logo, sports_title, sports_subtitle,
-        backdrop_url=sports_backdrop, media_type="sports", source="sports",
-        badge_icon="mdi:football", badge_color="green",
-        team_logo=team_logo,
-        opponent_logo=opp_logo,
-        team_score=team_score,
-        opponent_score=opp_score,
-        team_abbr=team_abbr,
-        opponent_abbr=opp_abbr,
-        quarter=quarter,
-        clock=clock,
-        down_distance_text=down_dist,
-        last_play=last_play,
-        possession=possession,
-        game_state=game_state,
-    )
-
-    if safe_state_get("input_boolean.sandbox_mode") == "on":
-        return
-
-    switch.turn_on(entity_id=PROJECTOR_SWITCH)
-    media_player.turn_on(entity_id=RECEIVER)
-    media_player.select_source(entity_id=RECEIVER, source="HDMI1")
-    media_player.turn_on(entity_id=ONN_PRO)
-    task.sleep(1.0)
+    _wake_hdmi1_chain()
 
     if not use_prime:
         # Guarantee an ATSC tuner is unblocked before launching broadcast app
@@ -2444,22 +2385,17 @@ def search_and_play_movie(query=None):
     poster_url = (
         meta.get("poster")
         if meta and meta.get("poster")
-        else "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=800&q=80"
+        else MOVIE_FALLBACK_POSTER
     )
     backdrop_url = (
         meta.get("background")
         if meta and meta.get("background")
-        else "https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=1200&q=80"
+        else MOVIE_FALLBACK_BACKDROP
     )
 
     # 2. Immediately set theatrical poster & state
-    state.set(CURTAIN_CALL, value="off")
-    task.unique("projector_cooldown_worker")
-    _teardown_conflicting_sources("movie")
-
-    state.set(THEATER_MODE, value="movie")
-    state.set(THEATER_IN_USE, value="on")
-    sync_theater_select("movie")
+    _begin_session("movie")
+    _mark_session_active("movie")
     release_sports_social_mode()
 
     subtitle_str = f"{year} • Stremio AutoPlay" if year else "Stremio AutoPlay"
@@ -2474,20 +2410,10 @@ def search_and_play_movie(query=None):
         badge_color="blue",
     )
 
-    if safe_state_get("input_boolean.sandbox_mode") == "on":
-        return
-
-    # 3. Hardware conduction: Mains + Yamaha AVR + Audio Routing
-    switch.turn_on(entity_id=PROJECTOR_SWITCH)
-    media_player.turn_on(entity_id=RECEIVER)
-    media_player.select_source(entity_id=RECEIVER, source="HDMI1")
+    # 3. Projector, receiver on HDMI1, Onn awake; then audio
+    _wake_hdmi1_chain()
     set_receiver_sound_mode("Standard")
-
     safe_service(rest_command.yamaha_set_center_trim, level=0.0)
-
-    # 4. Wake Onn Pro
-    media_player.turn_on(entity_id=ONN_PRO)
-    task.sleep(1.0)
 
     # 5. Deep Link Intent Construction
     if imdb_id and str(imdb_id).startswith("tt"):
