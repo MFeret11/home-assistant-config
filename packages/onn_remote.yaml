@@ -1,0 +1,70 @@
+# Onn remote app buttons -> theater modes and lighting.
+#
+# Button Mapper (Pro) on the Onn 4K Pro replaces the app shortcut buttons
+# with an HTTP request to this webhook:
+#   POST http://<pi-lan-ip>:8123/api/webhook/<onn_remote_webhook_id>?button=<action>
+# The action can also be sent as a JSON body: {"button": "<action>"}.
+# Actions are named for what they do, so a remote button can be re-pointed
+# by changing only its URL in Button Mapper.
+#
+# Current Button Mapper mapping (the Star button can't be remapped):
+#   Netflix (BUTTON_4)       -> movie
+#   Paramount+ (BUTTON_10)   -> music
+#   Disney+ (BUTTON_9)       -> game
+#   Free TV (FEATURED_APP_1) -> sports
+#   Guide: press -> social, double press -> lights, hold -> eagles
+#
+# The webhook ID lives in secrets.yaml (it is the only thing guarding the
+# endpoint on the LAN). This is a YAML automation rather than pyscript so
+# the ID can come from !secret.
+
+automation:
+  - id: onn_remote_buttons
+    alias: "Onn remote: app buttons"
+    description: "Maps the Onn remote's app and Guide buttons (via Button Mapper) to theater modes and lighting."
+    mode: parallel
+    max: 4
+    triggers:
+      - trigger: webhook
+        webhook_id: !secret onn_remote_webhook_id
+        allowed_methods: [POST, GET]
+        local_only: true
+    variables:
+      button: >-
+        {{ ((trigger.json | default({}, true)).get('button')
+            or trigger.query.get('button', '')) | lower | trim }}
+    actions:
+      - choose:
+          # Movie mode (Stremio, blackout lighting)
+          - conditions: "{{ button == 'movie' }}"
+            sequence:
+              - action: pyscript.play_movie
+          # Music mode (Spotify, 7ch Stereo)
+          - conditions: "{{ button == 'music' }}"
+            sequence:
+              - action: pyscript.play_music
+          # Game mode (Batocera, HDMI2)
+          - conditions: "{{ button == 'game' }}"
+            sequence:
+              - action: pyscript.play_game
+          # Sports mode (HDHomeRun, team colors)
+          - conditions: "{{ button == 'sports' }}"
+            sequence:
+              - action: pyscript.play_sports
+          # Daily Driver / Social Mode toggle
+          - conditions: "{{ button == 'social' }}"
+            sequence:
+              - action: pyscript.toggle_lighting_mode
+          # All basement lights off / on
+          - conditions: "{{ button == 'lights' }}"
+            sequence:
+              - action: pyscript.toggle_all_basement_lights
+          # Eagles chant
+          - conditions: "{{ button == 'eagles' }}"
+            sequence:
+              - action: pyscript.effect_eagles_chant
+        default:
+          - action: system_log.write
+            data:
+              level: warning
+              message: "Onn remote webhook: unknown button '{{ button }}'"

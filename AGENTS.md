@@ -38,4 +38,5 @@ Theater governs the whole basement (`light.theater_dimmer` + `light.zigbee_basem
 - **docs/lighting.md**: read before changing `basement.py` or `sports.py`: Social/Daily Driver behavior, stairs and direction-of-travel timings, vacancy, palettes, or Eagles flash cadence.
 - **docs/dashboard.md**: read before editing `dashboards/basement.yaml`, its components or the decluttering templates.
 - **docs/network.md**: read before work involving device IPs, ports, Tailscale/xTeVe, the Zigbee coordinator, or recorder/database tuning.
+- **docs/onn-remote.md**: read before changing the Onn remote button mapping (`packages/onn_remote.yaml`, Button Mapper webhook) or the power-button behavior.
 - **docs/roadmap.md**: read before starting Karaoke mode or other planned features.
