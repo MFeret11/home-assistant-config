@@ -4,7 +4,7 @@ _Moved verbatim from AGENTS.md. "§N" references point to the old AGENTS.md sect
 
 ### Hardware Safety Interlocks
 1. **Optoma Projector Thermal Cutoff**:
-   - `safe_projector_cooldown()`: Mandatory 90s cooldown delay -> poll `sensor.projector_current` every 10s (max 15 attempts).
+   - `safe_projector_cooldown()`: Mandatory 90s cooldown delay -> poll `sensor.projector_current` every 10s (max 25 attempts, about 4 minutes after the 90s wait).
    - Requires **2 consecutive reads <= 0.06A** before opening `switch.projector`.
    - Protects against power cuts during `movie`, `game`, and `sports` modes.
    - If sensor reads `unavailable` or verification fails, mains remain closed to preserve lamp cooling fans.
@@ -12,7 +12,12 @@ _Moved verbatim from AGENTS.md. "§N" references point to the old AGENTS.md sect
    - Clean shutdown initiated via software command.
    - `switch.batocera` opens only after `sensor.batocera_current < 0.05A` holds continuously for 12s.
 3. **Shutdown Sequence (`session_end_house_lights`)**:
-   - Send CEC `SLEEP` to Onn Pro -> wait 2.5s -> turn off `media_player.theater_receiver` and `media_player.theater_receiver_zone_2`.
+   - Raise house lights first (`pyscript.curtain_call_active` on, Adaptive Lighting on) so the room isn't dark during the CEC steps.
+   - Pause Spotify and start the clean Batocera shutdown (`_teardown_conflicting_sources("off")`, then again explicitly; the repeat is harmless).
+   - Onn: when gaming (mode `game`, HDMI2/HDMI3, or Batocera on) send only CEC `SLEEP`, never HOME or HDMI1; otherwise `HOME`, 0.5s, then `SLEEP`. Either way `media_player.onn_pro` is turned off.
+   - Receiver to `AUDIO1` (cuts HDMI pass-through), 0.5s.
+   - `_cec_standby_burst(rounds=2)`: each round re-sends `SLEEP` if the Onn still reads on (1s), then receiver `AUDIO1` (0.5s) and off (2s); stops early once `sensor.projector_current` < 0.5A. In practice that is about 2s from `SLEEP` to the first receiver off.
+   - Turn off `media_player.theater_receiver` and `media_player.theater_receiver_zone_2`.
    - Return `input_select.basement_lighting_mode` to Daily Driver (`end_social_mode()`) and re-enable Adaptive Lighting.
    - Reset Center channel trim to flat 0.0 dB -> initiate `safe_projector_cooldown()`.
 4. **Post-Power-Outage Restoration Sweep (`post_power_restoration_sweep`)**:

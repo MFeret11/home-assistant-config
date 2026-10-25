@@ -1540,6 +1540,8 @@ def test_theater_volume_up_down_fine_step():
     vol_call2 = spy.last_call_for("media_player", "volume_set")
     assert vol_call2 and vol_call2["kwargs"].get("volume_level") == 0.500, \
         f"FAIL: Fine volume down should step back to 0.500, got {vol_call2}!"
+    assert not spy.was_called("rest_command", "yamaha_master_volume_step"), \
+        "FAIL: A second volume step was sent; each tap would move 2 dB!"
 
     print("  ✓ [MasterAudio] test_theater_volume_up_down_fine_step PASSED")
 

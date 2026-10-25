@@ -1725,14 +1725,13 @@ def sync_announcer_preset_to_hardware(value=None):
 
 
 def _step_avr_volume(direction: str, step_db: float):
+    """One volume write per tap. The Yamaha integration maps volume_level = dB / 100 + 1,
+    so 1 dB is 0.01. (A second YNC "Up 1 dB" step used to follow, doubling some taps.)"""
     vol_float = safe_float(safe_state_getattr(RECEIVER, "volume_level"), 0.5)
     step_val = safe_float(step_db, 1.0)
-    delta = step_val / 97.0
+    delta = step_val / 100.0
     new_vol = min(1.0, max(0.0, vol_float + delta if direction == "Up" else vol_float - delta))
     safe_service(media_player.volume_set, entity_id=RECEIVER, volume_level=round(new_vol, 3))
-
-    val_str = f"{direction} {int(step_val)} dB" if step_val.is_integer() else f"{direction} {step_val} dB"
-    safe_service(rest_command.yamaha_master_volume_step, step=val_str)
 
 
 @service
