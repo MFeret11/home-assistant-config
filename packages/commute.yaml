@@ -53,6 +53,8 @@ rest:
           - planned_connection_train
           - planned_arrival_time
           - data_stale
+          - service_alerts
+          - alerts_unavailable
 
   - resource: "http://127.0.0.1:8000/api/weather"
     scan_interval: 300
@@ -70,6 +72,8 @@ rest:
           - precip_chance
           - commute_warnings
           - weather_stale
+          - morning_warning
+          - evening_warning
 
 template:
   # Commute cards show on weekdays only; the transit service has no commute

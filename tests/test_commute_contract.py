@@ -33,13 +33,13 @@ EXPECTED_COMMUTE_ATTRIBUTES = {
     "connection_stall_minutes", "connection_cancelled", "transfer_buffer_minutes",
     "arrival_time", "planned_arrival_time", "actual_arrival_time", "total_delay_minutes",
     "missed_connection", "planned_connection_cancelled", "planned_connection_train",
-    "backup_train_departure", "data_stale",
+    "backup_train_departure", "data_stale", "service_alerts", "alerts_unavailable",
 }
 
 EXPECTED_WEATHER_ATTRIBUTES = {
     "high_f", "low_f", "morning_temp_f", "evening_temp_f",
     "condition", "needs_umbrella", "current_temp_f", "precip_chance",
-    "commute_warnings", "weather_stale",
+    "commute_warnings", "weather_stale", "morning_warning", "evening_warning",
 }
 
 
@@ -108,20 +108,20 @@ class _States:
         return _Domain(self._entities, domain)
 
 
-def _render(template: str, commute_state: str, commute: dict) -> str:
+def _render(template: str, commute_state: str, commute: dict, weather: dict | None = None) -> str:
     entities = {
         "sensor.septa_commute": _Entity(commute_state, commute),
         "sensor.commute_weather": _Entity("Light jacket / sweater", {
             "current_temp_f": 52, "morning_temp_f": 48, "evening_temp_f": 60,
-            "high_f": 61, "low_f": 47,
+            "high_f": 61, "low_f": 47, **(weather or {}),
         }),
     }
     env = jinja2.Environment(undefined=jinja2.StrictUndefined)
     return env.from_string(template).render(states=_States(entities))
 
 
-def _attribute_lookups(text: str) -> set:
-    return set(re.findall(r"c\.get\(['\"]([\w_]+)['\"]", text))
+def _attribute_lookups(text: str, var: str = "c") -> set:
+    return set(re.findall(var + r"\.get\(['\"]([\w_]+)['\"]", text))
 
 
 # Placeholder trains and stations; keep real stations out of this public repo.
@@ -140,6 +140,7 @@ BASE = {
     "planned_connection_train": None, "total_delay_minutes": 0,
     "actual_arrival_time": "6:15PM", "planned_arrival_time": "6:15PM",
     "backup_train_departure": "5:40PM", "data_stale": False,
+    "service_alerts": [], "alerts_unavailable": False,
 }
 
 # (name, sensor state, attribute overrides, text expected on AM card, on PM card)
@@ -174,6 +175,15 @@ SCENARIOS = [
      "10 min late", "Delayed 10 min"),
     ("Minor delay", "ok", {"total_delay_minutes": 4}, "4 min late", "Delayed 4 min"),
     ("Stale data", "ok", {"data_stale": True}, "few minutes ago", "few minutes ago"),
+    ("Line alert", "alert", {"service_alerts": ["Line A: Suspended near Center Station"]},
+     "🚨 **Line A: Suspended near Center Station**", "🚨 **Line A: Suspended near Center Station**"),
+    ("Line alert never reads as on time", "alert", {"service_alerts": ["Line A: Suspended"]},
+     "check the alert above", "# 🚨 Service alert"),
+    ("Line alert while SEPTA is down", "error",
+     {"error": "SEPTA trip data unavailable", "service_alerts": ["Line A: Suspended"]},
+     "🚨 **Line A: Suspended**", "🚨 **Line A: Suspended**"),
+    ("Next train shown", "ok", {"backup_train_departure": "5:55PM"},
+     "Next train after this one: 5:55PM", "On Time"),
     ("Direct trip", "ok", {"trip_type": "direct", "connection_station": None,
                            "connection_train": None, "connection_line": None},
      "On time", "On Time"),
@@ -197,6 +207,10 @@ def test_kitchen_reads_only_imported_attributes():
     assert not undeclared, (
         f"kitchen.yaml reads attributes HA never imports (always empty): {sorted(undeclared)}"
     )
+    with open(KITCHEN, encoding="utf-8") as f:
+        weather_lookups = _attribute_lookups(f.read(), var="w")
+    undeclared = weather_lookups - _declared_attributes("Commute Weather")
+    assert not undeclared, f"kitchen.yaml reads weather attributes HA never imports: {sorted(undeclared)}"
     print(f"    ✓ {len(lookups)} commute attribute lookups are all imported by the REST sensor")
 
 
@@ -213,6 +227,23 @@ def test_commute_card_rendering_matrix():
             assert "None" not in text, f"{name} / {window}: 'None' leaked into:\n{text}"
             _render(card["card_mod"]["style"], state, commute)
         print(f"    ✓ {name}")
+
+    weather = {"morning_warning": "Heavy rain around 7AM", "evening_warning": "Rain likely (60%)"}
+    am = _render(cards["am"]["content"], "ok", BASE, weather)
+    pm = _render(cards["pm"]["content"], "ok", BASE, weather)
+    assert "☔ Heavy rain around 7AM" in am, am
+    assert "☔ Rain likely (60%) on the way home" in pm, pm
+    dry = _render(cards["am"]["content"], "ok", BASE, {"morning_warning": None})
+    assert "☔" not in dry and "None" not in dry, dry
+    print("    ✓ Weather warnings")
+
+    red = "rgba(244, 67, 54, 0.4)"
+    alert = {**BASE, "service_alerts": ["Line A: Suspended"]}
+    for window in ("am", "pm"):
+        style = cards[window]["card_mod"]["style"]
+        assert red in _render(style, "alert", alert), f"{window} card not red for a line alert"
+        assert red not in _render(style, "ok", BASE), f"{window} card red with nothing wrong"
+    print("    ✓ Card turns red for a line alert")
 
 
 if __name__ == "__main__":
