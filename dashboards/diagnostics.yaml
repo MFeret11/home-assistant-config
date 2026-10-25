@@ -168,33 +168,6 @@ views:
                   background: rgba(255, 255, 255, 0.03) !important;
                   border: 1px solid rgba(255, 255, 255, 0.08) !important;
                 }
-          - type: custom:mini-graph-card
-            name: Host Compute & Memory (24h)
-            icon: mdi:chart-timeline-variant
-            entities:
-              - entity: sensor.system_monitor_processor_use
-                name: CPU %
-                color: "#4caf50"
-              - entity: sensor.system_monitor_memory_usage
-                name: RAM %
-                color: "#ab47bc"
-            hours_to_show: 24
-            points_per_hour: 4
-            line_width: 2
-            animate: true
-            show:
-              graph: line
-              fill: fade
-              legend: true
-              average: true
-              extrema: true
-            card_mod:
-              style: |
-                ha-card {
-                  border-radius: 20px !important;
-                  background: rgba(255, 255, 255, 0.03) !important;
-                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                }
           - type: heading
             heading: Theater & AV Hardware
             icon: mdi:theater
@@ -212,7 +185,10 @@ views:
                 name: Onn 4K Pro (Cast Feed)
               - entity: remote.onn_pro
                 name: Onn Remote Bridge
-              - entity: switch.batocera
+              # Relays are read-only here: a toggle would cut power and skip
+              # the safety interlocks (the row confirmation never applied to it).
+              - type: simple-entity
+                entity: switch.batocera
                 name: Batocera PC Relay
               - entity: sensor.batocera_current
                 name: Batocera Current Draw
@@ -224,12 +200,9 @@ views:
                 name: Batocera Filtered Current (A)
               - entity: sensor.theater_total_power
                 name: Theater Total Power (W)
-              - entity: switch.projector
+              - type: simple-entity
+                entity: switch.projector
                 name: Optoma Projector Relay
-                confirmation:
-                  text: >-
-                    DANGER: Cutting mains power bypasses fan cooldown. Confirm
-                    projector lamp is cool!
               - entity: sensor.projector_current
                 name: Projector Current Draw (Raw)
             card_mod:
@@ -240,16 +213,13 @@ views:
                   border: 1px solid rgba(255, 255, 255, 0.08) !important;
                 }
           - type: custom:mini-graph-card
-            name: Theater Power & Cooldown (24h)
+            # Only recorded sensors can be graphed; theater_total_power is excluded.
+            name: Projector Cooldown (24h)
             icon: mdi:lightning-bolt
             entities:
-              - entity: sensor.theater_total_power
-                name: Total Watts
-                color: "#2196f3"
               - entity: sensor.projector_current_rounded
                 name: Projector (A)
                 color: "#ff9800"
-                y_axis: secondary
             hours_to_show: 24
             points_per_hour: 4
             line_width: 2

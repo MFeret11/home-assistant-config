@@ -176,15 +176,15 @@ views:
                   {% if c.get('is_cancelled', false) or c.get('connection_cancelled', false) %}
                     # ❌ RETURN TRAIN CANCELLED
 
-                    ### Check backup options at {{ c.get('connection_station', 'Jefferson') }}
+                    ### Check backup options at {{ c.get('connection_station', '—') }}
                   {% elif stalled %}
                     # ⚠️ TRAIN STALLED
 
-                    ### Holding at {{ c.get('connection_current_stop', 'Jefferson') }}
+                    ### Holding at {{ c.get('connection_current_stop', 'the transfer') }}
                   {% elif missed %}
                     # 🚨 MISSED CONNECTION
 
-                    ### Re-planning arrival via {{ c.get('connection_station', 'Jefferson') }}
+                    ### Re-planning arrival via {{ c.get('connection_station', '—') }}
                   {% elif delay > 10 %}
                     # 🔴 Delayed {{ delay }} min
                   {% elif delay > 0 %}
@@ -193,7 +193,7 @@ views:
                     # 🟢 On Time
                   {% endif %}
 
-                  {{ origin }} → {{ c.get('connection_line', 'Media') }} via {{ c.get('connection_station', 'Jefferson') }}{{ track_str }}
+                  {{ origin }} → {{ c.get('connection_line', '—') }} via {{ c.get('connection_station', '—') }}{{ track_str }}
 
                   ---
 

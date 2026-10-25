@@ -69,38 +69,6 @@ views:
                     }
                     ha-card:active { transform: scale(0.95); }
 
-      # Section 1: 24h Activity Log
-      - type: grid
-        cards:
-          - type: heading
-            heading: Past 24 Hours
-            icon: mdi:calendar-today
-          - type: logbook
-            title: ""
-            entities:
-              - binary_sensor.basement_stairs_door_sensor
-              - binary_sensor.bottom_stairs
-              - binary_sensor.basement_lights_active
-              - input_select.basement_lighting_mode
-              - sensor.basement_palette
-              - sensor.basement_effect
-              - sensor.theater_mode
-              - binary_sensor.theater_in_use
-              - sensor.projector_power_state
-              - switch.batocera_console
-              - media_player.theater_receiver
-            hours_to_show: 24
-            grid_options:
-              columns: full
-              rows: auto
-            card_mod:
-              style: |
-                ha-card {
-                  border-radius: 20px !important;
-                  background: rgba(255, 255, 255, 0.03) !important;
-                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                }
-
       # Section 2: Theater History (48 Hours)
       - type: grid
         cards:

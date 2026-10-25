@@ -163,17 +163,6 @@ views:
                   action: navigate
                   navigation_path: '#vaculina'
                   haptic: medium
-                hold_action:
-                  action: perform-action
-                  perform_action: >-
-                    {% if states('vacuum.vaculina') in ['cleaning', 'paused'] %}
-                      vacuum.return_to_base
-                    {% else %}
-                      vacuum.start
-                    {% endif %}
-                  target:
-                    entity_id: vacuum.vaculina
-                  haptic: heavy
                 card_mod:
                   style: |
                     ha-card {
