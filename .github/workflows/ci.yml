@@ -15,6 +15,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+      # The commute contract test renders the kitchen dashboard templates.
+      - name: Install test dependencies
+        run: pip install pyyaml==6.0.2 jinja2==3.1.6
       - name: Run test suites
         run: python3 tests/run_all_tests.py
 
