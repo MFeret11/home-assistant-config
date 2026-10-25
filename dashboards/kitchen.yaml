@@ -50,34 +50,67 @@ views:
                 {% set w = states.sensor.commute_weather.attributes if
                 states.sensor.commute_weather is not none else {} %}
 
-                {% set cancelled = c.get('is_cancelled', false) %}
-
-                {% set stalled = c.get('is_stalled', false) %}
-
-                {% set leave_now = c.get('leave_now', false) %}
+                {% set no_data = c.get('origin_train') is none or
+                states('sensor.septa_commute') in ['unavailable', 'unknown', 'error', 'idle'] %}
 
                 {% set orig_track = c.get('origin_track') %}
 
                 {% set track = (' · Track ' ~ orig_track) if (orig_track and
                 orig_track != 'TBD') else '' %}
 
+                {% set delay = c.get('total_delay_minutes', 0) or 0 %}
 
-                {% if cancelled %}
+                {% set backup = c.get('backup_train_departure') %}
+
+
+                {% if no_data %}
+                  # ⚠️ Train times unavailable
+
+                  ### Check SEPTA before heading out
+                {% elif c.get('is_cancelled', false) %}
                   # ❌ TRAIN CANCELLED
 
-                  ### Next backup departs at **{{ c.get('backup_train_departure', 'Check SEPTA') }}**
-                {% elif stalled %}
+                  ### Train {{ c.get('origin_train') }} is cancelled · next train **{{ backup or 'check SEPTA' }}**
+                {% elif c.get('connection_cancelled', false) %}
+                  # ❌ CONNECTION CANCELLED
+
+                  ### Train {{ c.get('connection_train') }} at {{ c.get('connection_station') }} is cancelled · next train **{{ backup or 'check SEPTA' }}**
+                {% elif c.get('is_stalled', false) %}
                   # ⚠️ TRAIN STALLED
 
-                  ### Train {{ c.get('origin_train', '—') }} stopped at {{ c.get('origin_current_stop', 'en route') }} (~{{ c.get('stall_minutes', 0) }}m)
-                {% elif leave_now %}
+                  ### Train {{ c.get('origin_train') }} stopped at {{ c.get('origin_current_stop') or 'its last stop' }} (~{{ c.get('stall_minutes', 0) }}m)
+                {% elif c.get('connection_is_stalled', false) %}
+                  # ⚠️ CONNECTION STALLED
+
+                  ### Train {{ c.get('connection_train') }} stopped at {{ c.get('connection_current_stop') or 'its last stop' }} (~{{ c.get('connection_stall_minutes', 0) }}m)
+                {% elif c.get('leave_now', false) %}
                   # 🚨 LEAVE NOW
 
-                  ### Train {{ c.get('origin_train', '—') }}{{ track }} departs at **{{ c.get('origin_actual_departure_time', '—') }}**
+                  ### Train {{ c.get('origin_train') }}{{ track }} departs at **{{ c.get('origin_actual_departure_time', '—') }}**
                 {% else %}
                   # 🕐 Leave by **{{ c.get('leave_by_time', '—') }}**
 
-                  ### Train {{ c.get('origin_train', '—') }}{{ track }} · Departs **{{ c.get('origin_actual_departure_time', '—') }}**
+                  ### Train {{ c.get('origin_train') }}{{ track }} · Departs **{{ c.get('origin_actual_departure_time', '—') }}**
+                {% endif %}
+
+                {% if not no_data and not c.get('is_cancelled', false) and not c.get('connection_cancelled', false) %}
+                  {% if c.get('origin_delay_unknown', false) or c.get('connection_delay_unknown', false) %}
+                  ⚠️ SEPTA says "{{ c.get('origin_delay_text') if c.get('origin_delay_unknown', false) else c.get('connection_delay_text') }}" for train {{ c.get('origin_train') if c.get('origin_delay_unknown', false) else c.get('connection_train') }}, not a delay estimate. Check SEPTA.
+                  {% elif c.get('planned_connection_cancelled', false) %}
+                  ❌ Usual connection (train {{ c.get('planned_connection_train') }}) cancelled · take train {{ c.get('connection_train') }} at {{ c.get('connection_actual_departure_time') }} · arrive {{ c.get('actual_arrival_time') }}
+                  {% elif c.get('missed_connection', false) %}
+                  🚨 Misses the planned connection · next is train {{ c.get('connection_train') }} at {{ c.get('connection_actual_departure_time') }} · arrive {{ c.get('actual_arrival_time') }}
+                  {% elif c.get('at_risk', false) %}
+                  ⚠️ Tight connection at {{ c.get('connection_station') }} · arrive {{ c.get('actual_arrival_time') }}
+                  {% elif delay > 0 %}
+                  {{ '🔴' if delay >= 10 else '🟡' }} {{ delay }} min late · arrive {{ c.get('actual_arrival_time') }}
+                  {% else %}
+                  🟢 On time · arrive {{ c.get('actual_arrival_time') }}
+                  {% endif %}
+                {% endif %}
+
+                {% if c.get('data_stale', false) %}
+                  ⏳ SEPTA didn't respond just now; times are from a few minutes ago.
                 {% endif %}
 
 
@@ -101,9 +134,11 @@ views:
                     padding: 18px 14px;
                     backdrop-filter: blur(16px);
                     {% set c = states.sensor.septa_commute.attributes if states.sensor.septa_commute is not none else {} %}
-                    {% set is_alert = c.get('leave_now', false) or c.get('is_cancelled', false) %}
-                    background: {{ 'linear-gradient(135deg, rgba(244, 67, 54, 0.4), rgba(183, 28, 28, 0.2))' if is_alert else 'rgba(255, 255, 255, 0.04)' }} !important;
-                    border: {{ '2px solid rgba(244, 67, 54, 0.8)' if is_alert else '1px solid rgba(255, 255, 255, 0.1)' }} !important;
+                    {% set no_data = c.get('origin_train') is none or states('sensor.septa_commute') in ['unavailable', 'unknown', 'error', 'idle'] %}
+                    {% set is_alert = c.get('leave_now', false) or c.get('is_cancelled', false) or c.get('connection_cancelled', false) or c.get('planned_connection_cancelled', false) or c.get('missed_connection', false) %}
+                    {% set is_warn = no_data or c.get('is_stalled', false) or c.get('connection_is_stalled', false) or c.get('at_risk', false) or c.get('origin_delay_unknown', false) or c.get('connection_delay_unknown', false) or (c.get('total_delay_minutes', 0) or 0) > 0 %}
+                    background: {{ 'linear-gradient(135deg, rgba(244, 67, 54, 0.4), rgba(183, 28, 28, 0.2))' if is_alert else ('linear-gradient(135deg, rgba(255, 179, 0, 0.35), rgba(255, 111, 0, 0.18))' if is_warn else 'rgba(255, 255, 255, 0.04)') }} !important;
+                    border: {{ '2px solid rgba(244, 67, 54, 0.8)' if is_alert else ('1.5px solid rgba(255, 179, 0, 0.7)' if is_warn else '1px solid rgba(255, 255, 255, 0.1)') }} !important;
                     box-shadow: {{ '0 6px 24px rgba(244, 67, 54, 0.35)' if is_alert else '0 6px 20px rgba(0, 0, 0, 0.2)' }};
                     color: var(--primary-text-color);
                   }
@@ -164,28 +199,49 @@ views:
 
                 {% set origin = c.get('origin_line') %}
 
-                {% if origin is none %}
-                  # No Active Commute
+                {% if origin is none or states('sensor.septa_commute') in ['unavailable', 'unknown', 'error', 'idle'] %}
+                  # ⚠️ Train times unavailable
+
+                  ### Check SEPTA before heading home
                 {% else %}
-                  {% set missed = c.get('missed_connection', false) %}
-                  {% set stalled = c.get('is_stalled', false) or c.get('connection_is_stalled', false) %}
-                  {% set delay = c.get('total_delay_minutes', 0) %}
+                  {% set delay = c.get('total_delay_minutes', 0) or 0 %}
                   {% set conn_track = c.get('connection_track') %}
                   {% set track_str = (' · Track ' ~ conn_track) if (conn_track and conn_track != 'TBD') else '' %}
+                  {% set backup = c.get('backup_train_departure') %}
 
-                  {% if c.get('is_cancelled', false) or c.get('connection_cancelled', false) %}
+                  {% if c.get('is_cancelled', false) %}
                     # ❌ RETURN TRAIN CANCELLED
 
-                    ### Check backup options at {{ c.get('connection_station', '—') }}
-                  {% elif stalled %}
+                    ### Train {{ c.get('origin_train') }} is cancelled · next train **{{ backup or 'check SEPTA' }}**
+                  {% elif c.get('connection_cancelled', false) %}
+                    # ❌ CONNECTION CANCELLED
+
+                    ### Train {{ c.get('connection_train') }} at {{ c.get('connection_station') }} is cancelled · next train **{{ backup or 'check SEPTA' }}**
+                  {% elif c.get('planned_connection_cancelled', false) %}
+                    # ❌ CONNECTION CANCELLED
+
+                    ### Usual train {{ c.get('planned_connection_train') }} is cancelled · take train {{ c.get('connection_train') }} at {{ c.get('connection_actual_departure_time') }}
+                  {% elif c.get('is_stalled', false) %}
                     # ⚠️ TRAIN STALLED
 
-                    ### Holding at {{ c.get('connection_current_stop', 'the transfer') }}
-                  {% elif missed %}
+                    ### Train {{ c.get('origin_train') }} stopped at {{ c.get('origin_current_stop') or 'its last stop' }} (~{{ c.get('stall_minutes', 0) }}m)
+                  {% elif c.get('connection_is_stalled', false) %}
+                    # ⚠️ CONNECTION STALLED
+
+                    ### Train {{ c.get('connection_train') }} stopped at {{ c.get('connection_current_stop') or 'its last stop' }} (~{{ c.get('connection_stall_minutes', 0) }}m)
+                  {% elif c.get('origin_delay_unknown', false) or c.get('connection_delay_unknown', false) %}
+                    # ⚠️ Status unclear
+
+                    ### SEPTA says "{{ c.get('origin_delay_text') if c.get('origin_delay_unknown', false) else c.get('connection_delay_text') }}" for train {{ c.get('origin_train') if c.get('origin_delay_unknown', false) else c.get('connection_train') }}. Check SEPTA.
+                  {% elif c.get('missed_connection', false) %}
                     # 🚨 MISSED CONNECTION
 
-                    ### Re-planning arrival via {{ c.get('connection_station', '—') }}
-                  {% elif delay > 10 %}
+                    ### Next connection: train {{ c.get('connection_train') }} at {{ c.get('connection_actual_departure_time') }}
+                  {% elif c.get('at_risk', false) %}
+                    # ⚠️ Tight connection
+
+                    ### Train {{ c.get('connection_train') }} leaves {{ c.get('connection_station') }} at {{ c.get('connection_actual_departure_time') }}{{ track_str }}
+                  {% elif delay >= 10 %}
                     # 🔴 Delayed {{ delay }} min
                   {% elif delay > 0 %}
                     # 🟡 Delayed {{ delay }} min
@@ -193,11 +249,15 @@ views:
                     # 🟢 On Time
                   {% endif %}
 
-                  {{ origin }} → {{ c.get('connection_line', '—') }} via {{ c.get('connection_station', '—') }}{{ track_str }}
+                  Train {{ c.get('origin_train') }} at {{ c.get('origin_actual_departure_time', '—') }} · {{ origin }}{% if c.get('trip_type') == 'transfer' %} → {{ c.get('connection_line', '—') }} via {{ c.get('connection_station', '—') }}{{ track_str }}{% endif %}
 
                   ---
 
-                  🏡 **Home by {{ c.get('actual_arrival_time', '—') }}**
+                  🏡 **Home by {{ c.get('actual_arrival_time', '—') }}**{% if delay > 0 and c.get('planned_arrival_time') %} (planned {{ c.get('planned_arrival_time') }}){% endif %}
+
+                  {% if c.get('data_stale', false) %}
+                  ⏳ SEPTA didn't respond just now; times are from a few minutes ago.
+                  {% endif %}
                 {% endif %}
               grid_options:
                 columns: full
@@ -212,8 +272,10 @@ views:
                     padding: 18px 14px;
                     backdrop-filter: blur(16px);
                     {% set c = states.sensor.septa_commute.attributes if states.sensor.septa_commute is not none else {} %}
-                    {% set is_danger = c.get('missed_connection', false) or (c.get('total_delay_minutes', 0) > 10) or c.get('is_cancelled', false) %}
-                    {% set is_warn = (c.get('total_delay_minutes', 0) > 0) %}
+                    {% set delay = c.get('total_delay_minutes', 0) or 0 %}
+                    {% set no_data = c.get('origin_line') is none or states('sensor.septa_commute') in ['unavailable', 'unknown', 'error', 'idle'] %}
+                    {% set is_danger = c.get('missed_connection', false) or delay >= 10 or c.get('is_cancelled', false) or c.get('connection_cancelled', false) or c.get('planned_connection_cancelled', false) %}
+                    {% set is_warn = no_data or delay > 0 or c.get('at_risk', false) or c.get('is_stalled', false) or c.get('connection_is_stalled', false) or c.get('origin_delay_unknown', false) or c.get('connection_delay_unknown', false) %}
                     background: {{ 'linear-gradient(135deg, rgba(244, 67, 54, 0.4), rgba(183, 28, 28, 0.2))' if is_danger else ('linear-gradient(135deg, rgba(255, 179, 0, 0.35), rgba(255, 111, 0, 0.18))' if is_warn else 'rgba(255, 255, 255, 0.04)') }} !important;
                     border: {{ '2px solid rgba(244, 67, 54, 0.8)' if is_danger else ('1.5px solid rgba(255, 179, 0, 0.7)' if is_warn else '1px solid rgba(255, 255, 255, 0.1)') }} !important;
                     color: var(--primary-text-color);

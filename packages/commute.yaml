@@ -42,6 +42,17 @@ rest:
           - total_delay_minutes
           - missed_connection
           - backup_train_departure
+          - origin_current_stop
+          - origin_delay_text
+          - origin_delay_unknown
+          - connection_current_stop
+          - connection_stall_minutes
+          - connection_delay_text
+          - connection_delay_unknown
+          - planned_connection_cancelled
+          - planned_connection_train
+          - planned_arrival_time
+          - data_stale
 
   - resource: "http://127.0.0.1:8000/api/weather"
     scan_interval: 300
@@ -58,14 +69,17 @@ rest:
           - current_temp_f
           - precip_chance
           - commute_warnings
+          - weather_stale
 
 template:
+  # Commute cards show on weekdays only; the transit service has no commute
+  # data on weekends. Hours sit inside the service's own windows (5-9, 14-19).
   - binary_sensor:
       - name: "Septa Display Window"
-        state: "{{ now().hour in [6, 7, 16, 17] }}"
+        state: "{{ now().weekday() < 5 and now().hour in [6, 7, 16, 17] }}"
       - name: "Drive Display Window"
         state: "{{ now().hour == 8 }}"
       - name: "Septa AM Window"
-        state: "{{ now().hour in [6, 7] }}"
+        state: "{{ now().weekday() < 5 and now().hour in [6, 7] }}"
       - name: "Septa PM Window"
-        state: "{{ now().hour in [16, 17] }}"
+        state: "{{ now().weekday() < 5 and now().hour in [16, 17] }}"
