@@ -14,10 +14,8 @@ SOCIAL_SOURCE = "pyscript.basement_social_source"
 MASTER_ZIGBEE_GROUP = "light.zigbee_basement_lights"
 STAIRLIGHTS = "light.stairlights"
 FLASH_TARGETS = [MASTER_ZIGBEE_GROUP, STAIRLIGHTS]
-SNAPSHOT_SCENE_ID = "eagles_flash_before_snapshot"
 
 EAGLES_KELLY_GREEN = [0, 170, 35]  # Authentic Philadelphia Eagles Kelly Green (calibrated for RGB LEDs)
-DEFAULT_EAGLES_RGB = EAGLES_KELLY_GREEN
 
 # Dim floor for strobe/chant steps. 15% ensures bulbs stay smoothly
 # calibrated without hitting low-end PWM flicker or mesh packet lag.

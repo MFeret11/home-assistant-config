@@ -33,6 +33,9 @@ THEATER_IN_USE = "binary_sensor.theater_in_use"
 THEATER_MODE = "sensor.theater_mode"
 BATOCERA_STATE = "sensor.batocera_state"
 MEDIA_STATE = "sensor.mediasession2mqtt_1_playback_state"
+# The ADB player reports the Onn's playing/paused state; mediasession2mqtt is a fallback.
+ONN_ADB = "media_player.theater_onn_pro_adb"
+ADB_PLAYBACK_STATES = {"playing", "paused", "idle"}
 ONN_PRO = "media_player.onn_pro"
 ONN_REMOTE = "remote.onn_pro"
 PC_ACTIVE_WINDOW = "sensor.desktop_rspn8nu_activewindow"
@@ -619,8 +622,16 @@ def on_movie_screen() -> bool:
         return True
 
 
+def get_media_state():
+    """Onn playback state: the ADB player first, mediasession2mqtt as a fallback."""
+    adb = safe_state_get(ONN_ADB)
+    if adb in ADB_PLAYBACK_STATES:
+        return adb
+    return safe_state_get(MEDIA_STATE)
+
+
 @state_trigger(
-    f"{THEATER_MODE}, {MEDIA_STATE}, {BATOCERA_STATE}, {THEATER_IN_USE}, "
+    f"{THEATER_MODE}, {MEDIA_STATE}, {ONN_ADB}, {BATOCERA_STATE}, {THEATER_IN_USE}, "
     "remote.onn_pro.current_activity, media_player.onn_pro, pyscript.curtain_call_active, "
     "sensor.desktop_rspn8nu_activewindow"
 )
@@ -633,7 +644,7 @@ def theater_lighting_sync():
     mode = safe_state_get(THEATER_MODE)
     if mode != "sports":
         SPORTS_GREEN_APPLIED = False
-    media = safe_state_get(MEDIA_STATE)
+    media = get_media_state()
     batocera = safe_state_get(BATOCERA_STATE)
     lighting_mode = get_lighting_mode()
     in_use = safe_state_get(THEATER_IN_USE) == "on" or mode in ["movie", "game", "music", "sports"]
@@ -692,7 +703,7 @@ def theater_lighting_sync():
     # INTERMISSION: paused mid-movie -> confirm it holds, then subtle glow
     if mode == "movie" and media == "paused" and on_movie_screen():
         task.sleep(4.0)
-        if safe_state_get(MEDIA_STATE) == "paused" and get_lighting_mode() != MODE_SOCIAL:
+        if get_media_state() == "paused" and get_lighting_mode() != MODE_SOCIAL:
             light.turn_on(entity_id=THEATER_DIMMER, brightness_pct=GLOW_PCT, transition=2)
             light.turn_off(entity_id=MASTER_ZIGBEE_GROUP, transition=2)
             switch.turn_on(entity_id=BIAS_LIGHTS)

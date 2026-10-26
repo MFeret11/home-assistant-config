@@ -48,16 +48,8 @@ def get_cpu_temp():
 
 def get_disk_usage():
     """Returns SSD utilization percent, or None if no sensor is available."""
-    for eid in [
-        "sensor.system_monitor_disk_use_percent",
-        "sensor.disk_use_percent",
-        "sensor.disk_use_percent_config",
-        "sensor.system_monitor_disk_usage",
-    ]:
-        val = safe_float_get(eid, None)
-        if val is not None:
-            return val
-    return None
+    # System Monitor's "Disk usage /" is the percent; "Disk use /" is GiB.
+    return safe_float_get("sensor.system_monitor_disk_usage", None)
 
 
 def pi4_thermal_alert():

@@ -48,10 +48,7 @@ if not raw_titles and os.path.exists(JSON_PATH):
             telemetry = json.load(f)
         seen = set()
         for item in telemetry:
-            if item.get("entity_id") in [
-                "sensor.mediasession2mqtt_1_media_title",
-                "sensor.mediasession2mqtt_media_title"
-            ]:
+            if item.get("entity_id") == "sensor.mediasession2mqtt_1_media_title":
                 st = item.get("state")
                 if st and st not in ('unavailable', 'unknown', 'None', '') and st not in seen:
                     seen.add(st)

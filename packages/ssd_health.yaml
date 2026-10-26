@@ -1,0 +1,111 @@
+# USB SSD (Crucial BX500) health from SMART data.
+#
+# The Pi host reads the drive with smartctl and POSTs the result here:
+#   - daily at 05:10 and ~10 min after boot (ssd-health-report.timer)
+#   - immediately when smartd flags a problem (/etc/smartmontools/run.d hook)
+# Host-side files live in ~/docker/ssd-health/ (not in this repo).
+#
+# The entities are trigger-based, so they keep their last reading across HA
+# restarts and update only once a day: no extra recorder writes to speak of.
+# The webhook ID is in secrets.yaml; local_only keeps it LAN-only.
+
+template:
+  - triggers:
+      - trigger: webhook
+        webhook_id: !secret ssd_health_webhook_id
+        allowed_methods: [POST]
+        local_only: true
+    sensor:
+      - name: "SSD life remaining"
+        unique_id: ssd_health_life_remaining
+        unit_of_measurement: "%"
+        state_class: measurement
+        icon: mdi:harddisk
+        state: "{{ trigger.json.life_remaining }}"
+      - name: "SSD temperature"
+        unique_id: ssd_health_temperature
+        device_class: temperature
+        unit_of_measurement: "°C"
+        state_class: measurement
+        state: "{{ trigger.json.temperature_c }}"
+      - name: "SSD last health report"
+        unique_id: ssd_health_last_report
+        device_class: timestamp
+        state: "{{ now().isoformat() }}"
+        attributes:
+          source: "{{ trigger.json.source }}"
+    binary_sensor:
+      - name: "SSD health problem"
+        unique_id: ssd_health_problem
+        device_class: problem
+        state: >-
+          {% set j = trigger.json %}
+          {{ not j.health_passed
+             or not j.last_selftest_passed
+             or j.reallocated | int(0) > 0
+             or j.pending | int(0) > 0
+             or j.uncorrectable | int(0) > 0
+             or j.life_remaining | int(100) <= 10
+             or j.smartd_message != '' }}
+        attributes:
+          health_passed: "{{ trigger.json.health_passed }}"
+          last_selftest: "{{ trigger.json.last_selftest }}"
+          last_selftest_passed: "{{ trigger.json.last_selftest_passed }}"
+          reallocated_blocks: "{{ trigger.json.reallocated }}"
+          pending_sectors: "{{ trigger.json.pending }}"
+          uncorrectable_errors: "{{ trigger.json.uncorrectable }}"
+          crc_errors: "{{ trigger.json.crc_errors }}"
+          power_on_hours: "{{ trigger.json.power_on_hours }}"
+          tb_written: "{{ trigger.json.tb_written }}"
+          unsafe_shutdowns: "{{ trigger.json.unsafe_shutdowns }}"
+          smartd_message: "{{ trigger.json.smartd_message }}"
+
+  - binary_sensor:
+      # No report for 2+ days means the host timer or smartctl stopped working.
+      - name: "SSD health report stale"
+        unique_id: ssd_health_report_stale
+        device_class: problem
+        state: >-
+          {% set last = states('sensor.ssd_last_health_report') | as_datetime(none) %}
+          {{ last is none or now() - last > timedelta(hours=50) }}
+
+automation:
+  - id: ssd_health_alert
+    alias: "SSD health alert"
+    description: "Sends a ntfy alert when the USB SSD reports a SMART problem or stops reporting."
+    mode: queued
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.ssd_health_problem
+        to: "on"
+        not_from: "unavailable"
+        id: problem
+      - trigger: state
+        entity_id: binary_sensor.ssd_health_report_stale
+        from: "off"
+        to: "on"
+        for: "01:00:00"
+        id: stale
+    actions:
+      - choose:
+          - conditions: "{{ trigger.id == 'problem' }}"
+            sequence:
+              - action: notify.ntfy
+                data:
+                  title: "💾 SSD health problem"
+                  message: >-
+                    {% set a = states.binary_sensor.ssd_health_problem.attributes %}
+                    {{ a.smartd_message ~ ' ' if a.smartd_message else '' -}}
+                    SMART health: {{ 'passed' if a.health_passed else 'FAILED' }},
+                    last self-test: {{ a.last_selftest }} ({{ 'passed' if a.last_selftest_passed else 'FAILED' }}),
+                    reallocated {{ a.reallocated_blocks }}, pending {{ a.pending_sectors }},
+                    uncorrectable {{ a.uncorrectable_errors }},
+                    life left {{ states('sensor.ssd_life_remaining') }}%.
+                    Back up and plan a replacement.
+        default:
+          - action: notify.ntfy
+            data:
+              title: "💾 SSD health reports stopped"
+              message: >-
+                No SSD health report since {{ states('sensor.ssd_last_health_report') }}.
+                On the Pi, check: systemctl status ssd-health-report.timer ssd-health-report.service

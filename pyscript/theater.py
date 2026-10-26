@@ -28,6 +28,7 @@ RECEIVER = "media_player.theater_receiver"
 RECEIVER_ZONE_2 = "media_player.theater_receiver_zone_2"
 ONN_PRO = "media_player.onn_pro"
 ONN_PRO_2 = "media_player.onn_pro_2"
+ONN_ADB = "media_player.theater_onn_pro_adb"
 ONN_REMOTE = "remote.onn_pro"
 
 PROJECTOR_SWITCH = "switch.projector"
@@ -43,7 +44,6 @@ PC_SWITCH = "switch.gaming_pc"
 PC_ONLINE = "binary_sensor.gaming_pc_online"
 PC_ACTIVE_WINDOW = "sensor.desktop_rspn8nu_activewindow"
 PC_GPU_TEMP = "sensor.desktop_rspn8nu_gputemperature"
-PC_SHUTDOWN_BUTTON = "button.desktop_rspn8nu_shutdown"
 
 THEATER_MODE = "sensor.theater_mode"
 THEATER_SELECT = "input_select.basement_theater_mode"
@@ -321,7 +321,7 @@ def get_active_app_id():
     return None
 
 
-def launch_onn_app(package_name, activity_name=None):
+def launch_onn_app(package_name):
     if not package_name:
         return
     # Map deep links / URI schemes (per Google TV Remote protocol recommendation)
@@ -333,37 +333,29 @@ def launch_onn_app(package_name, activity_name=None):
     elif "limelight" in package_name or "moonlight" in package_name:
         scheme = "moonlight://"
 
-    # 1. Try deep link / URI scheme
-    if scheme:
-        safe_service(remote.turn_on, entity_id=ONN_REMOTE, activity=scheme)
+    # The Android TV Remote integration is the normal path: deep link first, then package.
+    if not _onn_remote_down():
+        if scheme:
+            safe_service(remote.turn_on, entity_id=ONN_REMOTE, activity=scheme)
+        safe_service(remote.turn_on, entity_id=ONN_REMOTE, activity=package_name)
+        return
 
-    # 2. Standard Home Assistant Android TV Remote integration launch by package
-    safe_service(remote.turn_on, entity_id=ONN_REMOTE, activity=package_name)
+    # Remote integration offline: launch through ADB instead.
+    _onn_adb_command(f"monkey -p {package_name} -c android.intent.category.LAUNCHER 1")
 
-    # 3. Explicit MainActivity component
-    act = activity_name or f"{package_name}/.MainActivity"
-    safe_service(remote.turn_on, entity_id=ONN_REMOTE, activity=act)
 
-    # 4. In case ADB integration (androidtv.adb_command) is present
+def _onn_remote_down() -> bool:
+    return safe_state_get(ONN_REMOTE) == "unavailable"
+
+
+def _onn_adb_command(command):
+    """Send a shell command over the ADB integration, if it's online."""
+    if safe_state_get(ONN_ADB) in [None, "unavailable"]:
+        return
     try:
-        service.call(
-            "androidtv",
-            "adb_command",
-            entity_id=ONN_PRO,
-            command=f"monkey -p {package_name} -c android.intent.category.LAUNCHER 1",
-        )
-    except Exception:
-        pass
-    try:
-        service.call(
-            "androidtv",
-            "adb_command",
-            entity_id=ONN_PRO,
-            command=f"am start -n {act}",
-        )
-    except Exception:
-        pass
-
+        service.call("androidtv", "adb_command", entity_id=ONN_ADB, command=command)
+    except Exception as e:
+        log.warning(f"[Theater] ADB command failed ({command!r}): {e}")
 
 
 def is_booting(grace_seconds=30) -> bool:
@@ -470,35 +462,11 @@ def _read_secret(key_name):
     return val or None
 
 
-MEDIA_TITLE_ENTITIES = [
-    "sensor.mediasession2mqtt_1_media_title",
-    "sensor.mediasession2mqtt_media_title",
-    "sensor.mediasession2mqtt_1_title",
-    "sensor.mediasession2mqtt_title",
-    "sensor.mediasession2mqtt_1_track",
-    "sensor.mediasession2mqtt_track",
-    "sensor.mediasession2mqtt_2_media_title",
-]
-
-MEDIA_ARTIST_ENTITIES = [
-    "sensor.mediasession2mqtt_1_media_artist",
-    "sensor.mediasession2mqtt_media_artist",
-    "sensor.mediasession2mqtt_1_artist",
-    "sensor.mediasession2mqtt_artist",
-    "sensor.mediasession2mqtt_2_media_artist",
-]
-
-MEDIA_STATE_ENTITIES = [
-    "sensor.mediasession2mqtt_1_playback_state",
-    "sensor.mediasession2mqtt_playback_state",
-    "sensor.mediasession2mqtt_2_playback_state",
-]
-
-MEDIA_APP_ENTITIES = [
-    "sensor.mediasession2mqtt_1_application_id",
-    "sensor.mediasession2mqtt_application_id",
-    "sensor.mediasession2mqtt_2_application_id",
-]
+# mediasession2mqtt publishes only these _1 sensors (there is no artist sensor;
+# artist comes from the Onn media players below).
+MEDIA_TITLE_ENTITIES = ["sensor.mediasession2mqtt_1_media_title"]
+MEDIA_STATE_ENTITIES = ["sensor.mediasession2mqtt_1_playback_state"]
+MEDIA_APP_ENTITIES = ["sensor.mediasession2mqtt_1_application_id"]
 
 
 def get_active_media_info():
@@ -510,12 +478,6 @@ def get_active_media_info():
         val = safe_state_get(eid)
         if val and str(val).strip() not in ["unknown", "unavailable", "None", ""]:
             title = str(val).strip()
-            break
-
-    for eid in MEDIA_ARTIST_ENTITIES:
-        val = safe_state_get(eid)
-        if val and str(val).strip() not in ["unknown", "unavailable", "None", ""]:
-            artist = str(val).strip()
             break
 
     for eid in MEDIA_STATE_ENTITIES:
@@ -569,6 +531,10 @@ def get_active_media_info():
             if artist:
                 break
 
+    # The ADB player tracks the foreground app's playback, so it wins when it has a state.
+    adb_state = safe_state_get(ONN_ADB)
+    if adb_state in ["playing", "paused", "idle"]:
+        play_state = adb_state
     if not play_state:
         play_state = safe_state_get(ONN_PRO)
 
@@ -861,11 +827,6 @@ def _fetch_movie_or_tv_art(raw_title, artist=None):
     except Exception as e:
         log.warning(f"[Theater] Movie/TV art lookup failed for {raw_title!r}: {e}")
         return None
-
-
-def _fetch_tmdb_from_secrets(raw_title, artist=None):
-    """Compatibility alias for tests and direct callers."""
-    return _fetch_movie_or_tv_art(raw_title, artist=artist)
 
 
 def _fetch_sgdb_asset(url, api_key):
@@ -1229,16 +1190,10 @@ def update_theater_media_art():
 
 @state_trigger(
     "sensor.mediasession2mqtt_1_media_title, "
-    "sensor.mediasession2mqtt_media_title, "
-    "sensor.mediasession2mqtt_1_title, "
-    "sensor.mediasession2mqtt_title, "
-    "sensor.mediasession2mqtt_1_media_artist, "
-    "sensor.mediasession2mqtt_media_artist, "
     "sensor.mediasession2mqtt_1_playback_state, "
-    "sensor.mediasession2mqtt_playback_state, "
     "sensor.mediasession2mqtt_1_application_id, "
-    "sensor.mediasession2mqtt_application_id, "
     "media_player.onn_pro, "
+    "media_player.theater_onn_pro_adb, "
     "media_player.onn_pro.media_title, "
     "media_player.onn_pro.media_series_title, "
     "media_player.onn_pro.entity_picture, "
@@ -2423,16 +2378,8 @@ def search_and_play_movie(query=None):
 
     log.info(f"[Theater] Sending Stremio deep link: {deep_link}")
 
-    # Send deep link via Android TV Remote activity
-    safe_service(remote.turn_on, entity_id=ONN_REMOTE, activity=deep_link)
-
-    # ADB explicit intent broadcast / am start
-    try:
-        service.call(
-            "androidtv",
-            "adb_command",
-            entity_id=ONN_PRO,
-            command=f'am start -a android.intent.action.VIEW -d "{deep_link}" -n com.stremio.one/.MainActivity',
-        )
-    except Exception:
-        pass
+    # Send the deep link through the Android TV Remote; ADB only if that integration is down.
+    if not _onn_remote_down():
+        safe_service(remote.turn_on, entity_id=ONN_REMOTE, activity=deep_link)
+    else:
+        _onn_adb_command(f'am start -a android.intent.action.VIEW -d "{deep_link}" com.stremio.one')

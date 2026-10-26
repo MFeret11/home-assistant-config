@@ -298,6 +298,36 @@ def test_movie_intermission_glow():
     print("  ✓ [Core] test_movie_intermission_glow PASSED")
 
 
+def test_adb_player_drives_movie_lighting():
+    # mediasession2mqtt is gone; the ADB player alone must drive blackout and pause glow.
+    setup_clean_environment()
+    state.set("input_select.basement_lighting_mode", "Movie Mode")
+    state.set("binary_sensor.theater_in_use", "on")
+    state.set("sensor.theater_mode", "movie")
+    state.set("media_player.onn_pro", "on")
+    state.set("sensor.mediasession2mqtt_1_playback_state", "unavailable")
+    state.set("media_player.theater_onn_pro_adb", "playing")
+
+    basement.theater_lighting_sync()
+    mock_task.run_deferred_tasks()
+    assert spy.was_called("light", "turn_off", "light.theater_dimmer"), "FAIL: ADB playing did not black out the dimmer!"
+    assert not any(
+        c["domain"] == "light" and c["service"] == "turn_on" and c["kwargs"].get("entity_id") == "light.theater_dimmer"
+        for c in spy.calls
+    ), "FAIL: dimmer glow applied while ADB reports playing!"
+
+    spy.clear()
+    state.set("media_player.theater_onn_pro_adb", "paused")
+    basement.theater_lighting_sync()
+    mock_task.run_deferred_tasks()
+    assert any(
+        c["domain"] == "light" and c["service"] == "turn_on" and
+        c["kwargs"].get("entity_id") == "light.theater_dimmer" and c["kwargs"].get("brightness_pct") == 3
+        for c in spy.calls
+    ), "FAIL: ADB paused did not apply the 3% glow!"
+    print("  ✓ [Core] test_adb_player_drives_movie_lighting PASSED")
+
+
 def test_stair_stealth_red_in_movie_mode():
     setup_clean_environment()
     state.set("input_select.basement_lighting_mode", "Movie Mode")
@@ -939,9 +969,9 @@ def test_stremio_movie_title_resolution():
     setup_clean_environment()
     state.set("sensor.theater_mode", "movie")
     state.set("binary_sensor.theater_in_use", "on")
-    state.set("sensor.mediasession2mqtt_application_id", "com.stremio.one")
-    state.set("sensor.mediasession2mqtt_playback_state", "playing")
-    state.set("sensor.mediasession2mqtt_media_title", "Inception.2010.1080p.WEBRip.x264.mp4")
+    state.set("sensor.mediasession2mqtt_1_application_id", "com.stremio.one")
+    state.set("sensor.mediasession2mqtt_1_playback_state", "playing")
+    state.set("sensor.mediasession2mqtt_1_media_title", "Inception.2010.1080p.WEBRip.x264.mp4")
 
     theater.update_theater_media_art()
     poster_title = state.getattr("sensor.theater_current_poster", "title")
@@ -1152,11 +1182,11 @@ def test_tmdb_fetcher_missing_key_graceful_fail():
 
     # 1. Verify missing secret path returns safe error dict or None
     with patch.object(theater, "_read_secret", return_value=None):
-        res = theater._fetch_tmdb_from_secrets("Interstellar 2014")
+        res = theater._fetch_movie_or_tv_art("Interstellar 2014")
         assert res is None or "error" in res, "FAIL: TMDB fetcher did not handle missing secret safely!"
 
     # 2. Verify that if a key is present (user's environment), it returns either results or error safely without unhandled exception
-    res_actual = theater._fetch_tmdb_from_secrets("Interstellar 2014")
+    res_actual = theater._fetch_movie_or_tv_art("Interstellar 2014")
     assert res_actual is None or isinstance(res_actual, dict), "FAIL: TMDB fetcher did not return dict or None!"
     print("  ✓ [Chaos] test_tmdb_fetcher_missing_key_graceful_fail PASSED")
 
@@ -1657,7 +1687,7 @@ def test_cross_mode_session_teardown_music_and_sports():
     assert spy.was_called("media_player", "media_pause", "media_player.whole_house_spotify"), "FAIL: Spotify Connect not paused!"
 
     # 2. Sports to Game sends HOME to release ATSC tuner
-    spy.calls.clear()
+    spy.clear()
     state.set("sensor.theater_mode", "sports")
     state.set("input_select.basement_lighting_mode", "Social Mode")
     state.set("pyscript.basement_social_source", "sports")
@@ -2366,7 +2396,7 @@ def test_watchdog_storage_and_health_audit():
     setup_clean_environment()
 
     # 1. Storage alert
-    state.set("sensor.system_monitor_disk_use_percent", "88.5")
+    state.set("sensor.system_monitor_disk_usage", "88.5")
     spy.clear()
     watchdog.pi4_storage_alert()
     assert spy.was_called("notify", "ntfy")
@@ -2375,7 +2405,7 @@ def test_watchdog_storage_and_health_audit():
 
     # 2. Nominal health audit
     state.set("sensor.system_monitor_processor_temperature", "38.2")
-    state.set("sensor.system_monitor_disk_use_percent", "32.0")
+    state.set("sensor.system_monitor_disk_usage", "32.0")
     state.set("binary_sensor.transit_microservice", "on")
     res_nominal = watchdog.run_system_health_audit()
     assert res_nominal["status"] == "nominal"
@@ -2394,7 +2424,7 @@ def test_watchdog_storage_and_health_audit():
 def test_watchdog_fahrenheit_conversion_and_alert_latch():
     """Verify °F sensors are converted to °C and a sustained warning notifies only once."""
     setup_clean_environment()
-    state.set("sensor.system_monitor_disk_use_percent", "10.0")
+    state.set("sensor.system_monitor_disk_usage", "10.0")
     state.set("binary_sensor.transit_microservice", "on")
 
     # 92.5°F is ~33.6°C: nominal, no alert
@@ -2674,6 +2704,41 @@ def test_announcer_slider_drives_center_on_prime():
     print("  ✓ [Announcer] test_announcer_slider_drives_center_on_prime PASSED")
 
 
+
+def test_onn_launch_falls_back_to_adb_when_remote_down():
+    # Normal path: the Android TV Remote launches the app and ADB stays quiet.
+    from types import SimpleNamespace
+    adb_calls = []
+    theater.service = SimpleNamespace(call=lambda *a, **k: adb_calls.append((a, k)))
+    try:
+        setup_clean_environment()
+        state.set("remote.onn_pro", "on")
+        state.set("media_player.theater_onn_pro_adb", "off")
+        theater.launch_onn_app("com.netflix.ninja")
+        assert spy.was_called("remote", "turn_on", "remote.onn_pro"), "FAIL: remote launch not sent!"
+        assert not adb_calls, "FAIL: ADB fired while the remote integration was up!"
+
+        # Remote integration offline: one ADB launch to the ADB entity, no remote calls.
+        setup_clean_environment()
+        state.set("remote.onn_pro", "unavailable")
+        state.set("media_player.theater_onn_pro_adb", "off")
+        theater.launch_onn_app("com.netflix.ninja")
+        assert not spy.was_called("remote", "turn_on", "remote.onn_pro"), "FAIL: remote called while unavailable!"
+        assert len(adb_calls) == 1, f"FAIL: expected one ADB launch, got {adb_calls}"
+        (domain, svc), kw = adb_calls[0]
+        assert (domain, svc) == ("androidtv", "adb_command")
+        assert kw["entity_id"] == "media_player.theater_onn_pro_adb"
+        assert "monkey -p com.netflix.ninja" in kw["command"]
+
+        # Both integrations down: nothing is sent.
+        adb_calls.clear()
+        state.set("media_player.theater_onn_pro_adb", "unavailable")
+        theater.launch_onn_app("com.netflix.ninja")
+        assert not adb_calls, "FAIL: ADB command sent to an unavailable entity!"
+    finally:
+        del theater.service
+    print("  ✓ [Core] test_onn_launch_falls_back_to_adb_when_remote_down PASSED")
+
 def test_cooldown_in_music_mode_never_sleeps_onn():
     """The cooldown's lamp re-check must not sleep the Onn while it is playing the music."""
     setup_clean_environment()
@@ -2750,6 +2815,7 @@ if __name__ == "__main__":
         test_play_music_cuts_live_plug_before_onn_wake,
         test_cinema_shield_blackout,
         test_movie_intermission_glow,
+        test_adb_player_drives_movie_lighting,
         test_stair_stealth_red_in_movie_mode,
         test_stair_daily_driver_entry,
         test_instant_walkout_shutoff,
@@ -2813,6 +2879,7 @@ if __name__ == "__main__":
         test_announcer_bar_shows_for_prime_video,
         test_announcer_slider_drives_center_on_prime,
         test_cooldown_in_music_mode_never_sleeps_onn,
+        test_onn_launch_falls_back_to_adb_when_remote_down,
         test_sports_keeps_palette_picked_mid_game,
         test_pc_discord_window_does_not_black_out_game_mode,
         test_prime_video_brand_art_is_not_netflix,
