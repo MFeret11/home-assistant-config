@@ -61,7 +61,6 @@ recorder:
     entities:
       - sun.sun
       - media_player.onn_pro_2
-      - media_player.theater_onn_pro_adb
       - remote.theater_onn_pro_adb
       - media_player.whole_house_spotify
       - sensor.mediasession2mqtt_1_playback_position

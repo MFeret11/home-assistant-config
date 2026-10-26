@@ -691,6 +691,81 @@ views:
                 entity: sensor.vaculina_scale_inhibitor_left
                 name: Scale Inhibitor
                 state: "{{ states('sensor.vaculina_scale_inhibitor_left') }}% · {{ states('sensor.vaculina_scale_inhibitor_time_left') }}h"
+              # Tap after replacing or cleaning a part; the confirmation prevents stray resets.
+              - type: section
+                label: Reset After Replacing
+              - type: button
+                entity: button.vaculina_reset_main_brush
+                name: Main Brush
+                icon: mdi:restore
+                action_name: Reset
+                tap_action:
+                  action: perform-action
+                  perform_action: button.press
+                  target:
+                    entity_id: button.vaculina_reset_main_brush
+                  confirmation:
+                    text: Reset the main brush counter? Only do this after replacing or cleaning it.
+              - type: button
+                entity: button.vaculina_reset_side_brush
+                name: Side Brush
+                icon: mdi:restore
+                action_name: Reset
+                tap_action:
+                  action: perform-action
+                  perform_action: button.press
+                  target:
+                    entity_id: button.vaculina_reset_side_brush
+                  confirmation:
+                    text: Reset the side brush counter? Only do this after replacing or cleaning it.
+              - type: button
+                entity: button.vaculina_reset_filter
+                name: Filter
+                icon: mdi:restore
+                action_name: Reset
+                tap_action:
+                  action: perform-action
+                  perform_action: button.press
+                  target:
+                    entity_id: button.vaculina_reset_filter
+                  confirmation:
+                    text: Reset the filter counter? Only do this after replacing or cleaning it.
+              - type: button
+                entity: button.vaculina_reset_sensor
+                name: Sensors
+                icon: mdi:restore
+                action_name: Reset
+                tap_action:
+                  action: perform-action
+                  perform_action: button.press
+                  target:
+                    entity_id: button.vaculina_reset_sensor
+                  confirmation:
+                    text: Reset the sensors counter? Only do this after replacing or cleaning it.
+              - type: button
+                entity: button.vaculina_reset_wheel
+                name: Wheel
+                icon: mdi:restore
+                action_name: Reset
+                tap_action:
+                  action: perform-action
+                  perform_action: button.press
+                  target:
+                    entity_id: button.vaculina_reset_wheel
+                  confirmation:
+                    text: Reset the wheel counter? Only do this after replacing or cleaning it.
+              - type: button
+                entity: button.vaculina_reset_scale_inhibitor
+                name: Scale Inhibitor
+                icon: mdi:restore
+                action_name: Reset
+                tap_action:
+                  action: perform-action
+                  perform_action: button.press
+                  target:
+                    entity_id: button.vaculina_reset_scale_inhibitor
+                  confirmation:
+                    text: Reset the scale inhibitor counter? Only do this after replacing or cleaning it.
               - type: section
                 label: Station
               - entity: sensor.vaculina_dust_bag_status
