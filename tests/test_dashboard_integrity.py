@@ -41,7 +41,7 @@ REGISTERED_ENTITIES = {
     "light.bedroom_lamp_1", "light.bedroom_light_2", "light.zigbee_bedroom_lights",
 
     # Sports, State Flags & Virtual Entities
-    "sensor.philadelphia_eagles", "binary_sensor.basement_automation_allowed",
+    "sensor.philadelphia_eagles", "sensor.philadelphia_76ers", "binary_sensor.basement_automation_allowed",
     "binary_sensor.theater_in_use", "binary_sensor.theater_announcer_bar", "binary_sensor.basement_lights_active",
     "input_select.basement_lighting_mode", "input_select.basement_theater_mode",
     "input_select.basement_drawer", "input_select.theater_announcer_preset",
@@ -138,7 +138,6 @@ REGISTERED_SERVICES = {
     "light.turn_on", "light.turn_off", "light.toggle",
     "switch.turn_on", "switch.turn_off", "switch.toggle",
     "vacuum.start", "vacuum.pause", "vacuum.stop", "vacuum.return_to_base",
-    "spotcast.start",
     "remote.send_command",
     "media_player.media_play_pause", "media_player.volume_up", "media_player.volume_down",
     "media_player.select_source", "media_player.select_sound_mode",

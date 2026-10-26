@@ -66,6 +66,7 @@ recorder:
       - sensor.mediasession2mqtt_1_playback_position
       - sensor.projector_current
       - sensor.batocera_current
+      - sensor.philadelphia_76ers  # live games update every few seconds; no history needed
       - sensor.theater_total_power
       - sensor.small_pad_charger_type
       - sensor.septa_commute

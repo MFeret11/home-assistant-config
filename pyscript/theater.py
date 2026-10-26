@@ -2028,8 +2028,8 @@ def play_music():
 
 
 @service
-def theater_play_spotify_playlist(uri="spotify:playlist:37i9dQZF1DXcBWIGoYBM5M", random_song=True):
-    """Puts theater into Hi-Fi music mode and triggers target Spotify playlist via native media player or Spotcast."""
+def theater_play_spotify_playlist(uri="spotify:playlist:37i9dQZF1DXcBWIGoYBM5M"):
+    """Puts theater into Hi-Fi music mode and plays a Spotify playlist on Spotify Connect."""
     play_music()
     task.sleep(1.0)
     try:
@@ -2039,11 +2039,7 @@ def theater_play_spotify_playlist(uri="spotify:playlist:37i9dQZF1DXcBWIGoYBM5M",
             media_content_type="playlist",
         )
     except Exception as e:
-        log.warning(f"Native Spotify play_media attempt error, trying spotcast: {e}")
-        try:
-            service.call("spotcast", "start", entity_id=SPOTIFY_PLAYER, uri=uri, random_song=random_song)
-        except Exception as e2:
-            log.warning(f"Spotcast fallback error: {e2}")
+        log.warning(f"Spotify playlist start failed: {e}")
 
 
 # ------------------------------------------------------------------------------
