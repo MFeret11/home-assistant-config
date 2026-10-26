@@ -2,11 +2,6 @@
 # PACKAGE: BASEMENT LIGHTING & STAIRS SUBSYSTEM
 # ==============================================================================
 
-input_boolean:
-  sandbox_mode:
-    name: "Dashboard Sandbox Mode"
-    icon: mdi:flask-outline
-    
 template:
   - binary_sensor:
       - name: "Basement Automation Allowed"

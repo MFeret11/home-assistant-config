@@ -169,7 +169,6 @@ def setup_baseline():
 
     # Base safety and hardware entities
     mock_state.set("binary_sensor.basement_automation_allowed", "on")
-    mock_state.set("input_boolean.sandbox_mode", "off")
     mock_state.set("binary_sensor.theater_in_use", "off")
     mock_state.set("sensor.theater_mode", "off")
     mock_state.set("input_select.basement_lighting_mode", "Daily Driver")

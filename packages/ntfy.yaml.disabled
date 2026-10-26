@@ -1,0 +1,19 @@
+# ntfy.sh push alerts.
+#
+# Provides the `notify.ntfy` action that pyscript (watchdog, basement, theater)
+# and packages/ssd_health.yaml call. The topic name lives in secrets.yaml as
+# `ntfy_topic`: anyone who knows a public ntfy.sh topic can read it, so it must
+# never be committed.
+#
+# Title and message are sent. Per-call `priority`/`tags` are not forwarded: the
+# REST notifier renders them as strings and ntfy's JSON API wants an integer
+# priority and a list of tags.
+notify:
+  - name: ntfy
+    platform: rest
+    resource: https://ntfy.sh
+    method: POST_JSON
+    message_param_name: message
+    title_param_name: title
+    data:
+      topic: !secret ntfy_topic

@@ -11,7 +11,7 @@ _Moved verbatim from AGENTS.md. "§N" references point to the old AGENTS.md sect
   - Guide: xTeVe reads a filtered local XMLTV file (`/epg/us_locals_philly.xml`, ~800 KB), not the full epgshare01 US Locals feed (~560 MB, which cost ~2 GB RAM). `~/docker/xteve/epg_filter.py` rebuilds it nightly at 23:30 (cron), keeping only stations in the HDHomeRun lineup. If the guide goes stale, check `~/docker/xteve/epg/filter.log`.
   - Threadfin note: its `:latest` Docker tag is amd64-only; version tags (e.g. `1.2.37`) include arm64.
   - Config lives in the named volume `septa-project_xteve_conf` mounted at `/home/xteve/conf`.
-- **Alert Channel**: `notify.ntfy` (ntfy.sh push notifications).
+- **Alert Channel**: `notify.ntfy` (ntfy.sh push notifications), a REST notifier defined in `packages/ntfy.yaml`; the topic is `ntfy_topic` in `secrets.yaml`. Title and message only: per-call priority/tags are not forwarded.
 - **Subnet Route**: Pi advertises `192.168.1.221/32` (HDHomeRun tuner) over Tailscale (`100.82.195.2`). Remote users access raw MPEG-2 stream via xTeVe M3U. In the basement theater, the native HDHomeRun app (`com.silicondust.view`) is used directly on Onn 4K Pro. SSH/HA/Portainer blocked at WireGuard layer.
 - **Secrets**: API keys (TMDB, SteamGridDB, RAWG) and device credentials live in `secrets.yaml`. Never inline credentials in this doc, dashboards, or pyscript.
 

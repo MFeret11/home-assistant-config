@@ -68,15 +68,35 @@ views:
                       border-radius: 20px !important;
                     }
                     ha-card:active { transform: scale(0.95); }
+              - type: template
+                icon: mdi:tools
+                content: Maintenance
+                icon_color: orange
+                tap_action:
+                  action: navigate
+                  navigation_path: /dashboard-diagnostics/maintenance
+                  haptic: light
+                card_mod:
+                  style: |
+                    ha-card {
+                      background: rgba(255, 152, 0, 0.12) !important;
+                      border: 1px solid rgba(255, 152, 0, 0.35) !important;
+                      border-radius: 20px !important;
+                    }
+                    ha-card:active { transform: scale(0.95); }
           # Executive Infrastructure KPI Bar
           - type: horizontal-stack
             cards:
               - type: custom:mushroom-template-card
                 primary: CPU
-                secondary: "{{ states('sensor.system_monitor_processor_use') | round(0, default='—') }}%"
+                secondary: >-
+                  {{ states('sensor.system_monitor_processor_use') | round(0, default='—') }}% ·
+                  {{ states('sensor.system_monitor_processor_temperature') | round(0, default='—') }}°F
                 icon: mdi:cpu-64-bit
+                # Red above 75% load or 80°C (176°F), where the Pi 4 starts to throttle.
                 icon_color: >-
-                  {{ 'red' if states('sensor.system_monitor_processor_use') | float(0) > 75 else 'green' }}
+                  {{ 'red' if states('sensor.system_monitor_processor_use') | float(0) > 75
+                     or states('sensor.system_monitor_processor_temperature') | float(0) > 176 else 'green' }}
                 layout: horizontal
                 card_mod:
                   style: |
@@ -130,6 +150,102 @@ views:
                       padding: 6px 10px !important;
                     }
 
+      - type: grid
+        cards:
+          - type: heading
+            heading: System Health
+            icon: mdi:heart-pulse
+          # Lists only what needs a look; one green line when everything passes.
+          - type: markdown
+            content: >-
+              {%- set ns = namespace(l=[]) -%}
+              {%- if is_state('binary_sensor.ssd_health_problem', 'on') -%}
+                {%- set ns.l = ns.l + ['🔴 SSD reports a SMART problem'] -%}
+              {%- endif -%}
+              {%- if is_state('binary_sensor.ssd_health_report_stale', 'on') -%}
+                {%- set ns.l = ns.l + ['🟡 SSD health report is stale'] -%}
+              {%- endif -%}
+              {%- if states('sensor.ssd_temperature') | float(0) > 131 -%}
+                {%- set ns.l = ns.l + ['🟡 SSD running warm: ' ~ states('sensor.ssd_temperature') | round(0) ~ '°F'] -%}
+              {%- endif -%}
+              {%- if states('sensor.system_monitor_processor_temperature') | float(0) > 176 -%}
+                {%- set ns.l = ns.l + ['🔴 CPU running hot: ' ~ states('sensor.system_monitor_processor_temperature') | round(0) ~ '°F'] -%}
+              {%- endif -%}
+              {%- if states('sensor.system_monitor_disk_usage') | float(0) > 85 -%}
+                {%- set ns.l = ns.l + ['🟡 SSD ' ~ states('sensor.system_monitor_disk_usage') | round(0) ~ '% full'] -%}
+              {%- endif -%}
+              {%- set last = as_timestamp(states('sensor.backup_last_successful_automatic_backup'), 0) -%}
+              {%- if as_timestamp(now()) - last > 36 * 3600 -%}
+                {%- set ns.l = ns.l + ['🟡 No successful backup in the last 36 hours'] -%}
+              {%- endif -%}
+              {%- if is_state('binary_sensor.verizon_router_wan_status', 'off') -%}
+                {%- set ns.l = ns.l + ['🔴 Internet (WAN) is down'] -%}
+              {%- endif -%}
+              {%- if is_state('binary_sensor.transit_microservice', 'off') -%}
+                {%- set ns.l = ns.l + ['🟡 Transit service (:8000) is not responding'] -%}
+              {%- endif -%}
+              {%- if states('sensor.watchman_missing_actions') | int(0) > 0 -%}
+                {%- set ns.l = ns.l + ['🟡 Watchman: ' ~ states('sensor.watchman_missing_actions') ~ ' action(s) called but not defined'] -%}
+              {%- endif -%}
+              {%- if ns.l -%}
+                {{ ns.l | join('\n\n') }}
+              {%- else -%}
+                ✅ All health checks passing
+              {%- endif -%}
+            card_mod:
+              style: |
+                ha-card {
+                  border-radius: 20px !important;
+                  background: rgba(255, 255, 255, 0.03) !important;
+                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                  font-size: 1.05rem;
+                }
+          - type: entities
+            entities:
+              - type: section
+                label: SSD
+              - entity: sensor.ssd_life_remaining
+                name: Life Remaining
+              - entity: sensor.ssd_temperature
+                name: Temperature
+              - entity: binary_sensor.ssd_health_problem
+                name: SMART Problem
+              - entity: sensor.ssd_last_health_report
+                name: Last Health Report
+                format: relative
+              - entity: sensor.system_monitor_processor_temperature
+                name: CPU Temperature
+              - type: section
+                label: Backups
+              - entity: sensor.backup_last_successful_automatic_backup
+                name: Last Successful
+                format: relative
+              - entity: sensor.backup_next_scheduled_automatic_backup
+                name: Next Scheduled
+                format: relative
+              - entity: sensor.whole_house_google_drive_backup_used_storage
+                name: Google Drive Used
+              - type: section
+                label: Network
+              - entity: binary_sensor.verizon_router_wan_status
+                name: Internet (WAN)
+              - entity: sensor.verizon_router_download_speed
+                name: WAN Download (live)
+              - entity: sensor.verizon_router_upload_speed
+                name: WAN Upload (live)
+              - type: section
+                label: Config (Watchman)
+              - entity: sensor.watchman_missing_entities
+                name: Missing Entities
+              - entity: sensor.watchman_missing_actions
+                name: Missing Actions
+            card_mod:
+              style: |
+                ha-card {
+                  border-radius: 20px !important;
+                  background: rgba(255, 255, 255, 0.03) !important;
+                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                }
       - type: grid
         cards:
           - type: heading
@@ -391,27 +507,256 @@ views:
                   background: rgba(255, 255, 255, 0.03) !important;
                   border: 1px solid rgba(255, 255, 255, 0.08) !important;
                 }
+
+  # Consumables, batteries and updates: everything that wears out or needs a hand.
+  - title: Maintenance
+    path: maintenance
+    icon: mdi:tools
+    type: sections
+    max_columns: 4
+    sections:
+      - type: grid
+        column_span: 4
+        cards:
+          - type: custom:mushroom-chips-card
+            alignment: start
+            card_mod:
+              style: |
+                ha-card {
+                  --chip-height: 42px;
+                  --chip-icon-size: 20px;
+                  margin-bottom: 4px !important;
+                }
+            chips:
+              - type: template
+                icon: mdi:arrow-left
+                content: Home
+                icon_color: blue
+                tap_action:
+                  action: navigate
+                  navigation_path: /dashboard-home/home
+                  haptic: light
+                card_mod:
+                  style: |
+                    ha-card {
+                      background: rgba(33, 150, 243, 0.12) !important;
+                      border: 1px solid rgba(33, 150, 243, 0.35) !important;
+                      border-radius: 20px !important;
+                    }
+                    ha-card:active { transform: scale(0.95); }
+              - type: template
+                icon: mdi:wrench-cog
+                content: Diagnostics
+                icon_color: teal
+                tap_action:
+                  action: navigate
+                  navigation_path: /dashboard-diagnostics/diagnostics
+                  haptic: light
+                card_mod:
+                  style: |
+                    ha-card {
+                      background: rgba(0, 150, 136, 0.12) !important;
+                      border: 1px solid rgba(0, 150, 136, 0.35) !important;
+                      border-radius: 20px !important;
+                    }
+                    ha-card:active { transform: scale(0.95); }
+
       - type: grid
         cards:
           - type: heading
-            heading: Engine State History (48h)
-            icon: mdi:history
-          - type: logbook
+            heading: Chores
+            icon: mdi:clipboard-text-clock
+          # Home Keeper (HACS): recurring house chores with completion history.
+          - type: custom:home-keeper-card
+            filter: all
+            sort: due
+            group_by: none
+          - type: heading
+            heading: Needs Attention
+            icon: mdi:alert-circle-outline
+          # Same thresholds as the Maintenance tile on home.yaml; keep the two in sync.
+          - type: markdown
+            content: >-
+              {%- set ns = namespace(l=[]) -%}
+              {%- set parts = {
+                'sensor.vaculina_main_brush_left': 'Vacuum main brush',
+                'sensor.vaculina_side_brush_left': 'Vacuum side brush',
+                'sensor.vaculina_filter_left': 'Vacuum filter',
+                'sensor.vaculina_sensor_dirty_left': 'Vacuum sensors (clean them)',
+                'sensor.vaculina_wheel_dirty_left': 'Vacuum wheel (clean it)',
+                'sensor.vaculina_scale_inhibitor_left': 'Station scale inhibitor',
+                'sensor.brother_black_toner_remaining': 'Printer toner',
+                'sensor.brother_drum_remaining_lifetime': 'Printer drum'
+              } -%}
+              {%- for e, n in parts.items() if states(e) | is_number and states(e) | float <= 20 -%}
+                {%- set ns.l = ns.l + ['🧰 ' ~ n ~ ': ' ~ states(e) | int ~ '%'] -%}
+              {%- endfor -%}
+              {%- for s in states.sensor
+                   | selectattr('attributes.device_class', 'defined')
+                   | selectattr('attributes.device_class', 'eq', 'battery')
+                   if s.state | is_number and s.state | float <= 20
+                   and not (s.entity_id is search('pixel_8|iphone|vaculina')) -%}
+                {%- set ns.l = ns.l + ['🔋 ' ~ s.name ~ ': ' ~ s.state | int ~ '%'] -%}
+              {%- endfor -%}
+              {%- set flags = {
+                'binary_sensor.vaculina_problem': 'Vacuum reports a problem',
+                'binary_sensor.vaculina_maintenance': 'Vacuum wants maintenance',
+                'binary_sensor.brother_low_toner': 'Printer toner low',
+                'binary_sensor.brother_no_toner': 'Printer out of toner',
+                'binary_sensor.brother_no_paper': 'Printer out of paper',
+                'binary_sensor.brother_paper_jam': 'Printer paper jam',
+                'binary_sensor.brother_door_open': 'Printer door open'
+              } -%}
+              {%- for e, n in flags.items() if is_state(e, 'on') -%}
+                {%- set ns.l = ns.l + ['⚠️ ' ~ n] -%}
+              {%- endfor -%}
+              {%- set err = states('sensor.vaculina_error') -%}
+              {%- if err not in ['no_error', 'unknown', 'unavailable'] -%}
+                {%- set ns.l = ns.l + ['⚠️ Vacuum error: ' ~ err | replace('_', ' ')] -%}
+              {%- endif -%}
+              {%- if states('sensor.vaculina_low_water_warning') not in ['no_warning', 'unknown', 'unavailable'] -%}
+                {%- set ns.l = ns.l + ['💧 Vacuum: ' ~ states('sensor.vaculina_low_water_warning') | replace('_', ' ')] -%}
+              {%- endif -%}
+              {%- set hk = state_attr('sensor.home_keeper_tasks', 'overdue') | int(0)
+                         + state_attr('sensor.home_keeper_tasks', 'due_today') | int(0) -%}
+              {%- if hk > 0 -%}
+                {%- set ns.l = ns.l + ['📋 ' ~ hk ~ ' chore' ~ ('' if hk == 1 else 's') ~ ' due or overdue'] -%}
+              {%- endif -%}
+              {%- if ns.l -%}
+                {{ ns.l | join('\n\n') }}
+              {%- else -%}
+                ✅ Nothing needs attention
+              {%- endif -%}
+            card_mod:
+              style: |
+                ha-card {
+                  border-radius: 20px !important;
+                  background: rgba(255, 255, 255, 0.03) !important;
+                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                  font-size: 1.05rem;
+                }
+          - type: heading
+            heading: Updates
+            icon: mdi:package-up
+          - type: custom:auto-entities
+            card:
+              type: entities
+            filter:
+              include:
+                - domain: update
+                  state: "on"
+            sort:
+              method: friendly_name
+            else:
+              type: markdown
+              content: ✅ Everything is up to date
+            card_mod:
+              style: |
+                ha-card {
+                  border-radius: 20px !important;
+                  background: rgba(255, 255, 255, 0.03) !important;
+                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                }
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Vaculina
+            icon: mdi:robot-vacuum
+          - type: entities
             entities:
-              - sensor.theater_mode
-              - binary_sensor.theater_in_use
-              - sensor.basement_palette
-              - sensor.basement_effect
-              - binary_sensor.basement_lights_active
-              - binary_sensor.basement_stairs_door_sensor
-              - binary_sensor.bottom_stairs
-              - switch.batocera
-              - light.theater_dimmer
-              - light.stairlights
-            hours_to_show: 48
-            grid_options:
-              columns: full
-              rows: auto
+              - type: section
+                label: Parts (life left)
+              - type: custom:template-entity-row
+                entity: sensor.vaculina_main_brush_left
+                name: Main Brush
+                state: "{{ states('sensor.vaculina_main_brush_left') }}% · {{ states('sensor.vaculina_main_brush_time_left') }}h"
+              - type: custom:template-entity-row
+                entity: sensor.vaculina_side_brush_left
+                name: Side Brush
+                state: "{{ states('sensor.vaculina_side_brush_left') }}% · {{ states('sensor.vaculina_side_brush_time_left') }}h"
+              - type: custom:template-entity-row
+                entity: sensor.vaculina_filter_left
+                name: Filter
+                state: "{{ states('sensor.vaculina_filter_left') }}% · {{ states('sensor.vaculina_filter_time_left') }}h"
+              - type: custom:template-entity-row
+                entity: sensor.vaculina_sensor_dirty_left
+                name: Sensor Cleaning
+                state: "{{ states('sensor.vaculina_sensor_dirty_left') }}% · {{ states('sensor.vaculina_sensor_dirty_time_left') }}h"
+              - type: custom:template-entity-row
+                entity: sensor.vaculina_wheel_dirty_left
+                name: Wheel Cleaning
+                state: "{{ states('sensor.vaculina_wheel_dirty_left') }}% · {{ states('sensor.vaculina_wheel_dirty_time_left') }}h"
+              - type: custom:template-entity-row
+                entity: sensor.vaculina_scale_inhibitor_left
+                name: Scale Inhibitor
+                state: "{{ states('sensor.vaculina_scale_inhibitor_left') }}% · {{ states('sensor.vaculina_scale_inhibitor_time_left') }}h"
+              - type: section
+                label: Station
+              - entity: sensor.vaculina_dust_bag_status
+                name: Dust Bag
+              - entity: sensor.vaculina_clean_water_tank_status
+                name: Clean Water Tank
+              - entity: sensor.vaculina_dirty_water_tank_status
+                name: Dirty Water Tank
+              - entity: sensor.vaculina_detergent_status
+                name: Detergent
+              - entity: sensor.vaculina_mop_pad
+                name: Mop Pad
+              - type: section
+                label: History
+              - entity: sensor.vaculina_cleaning_history
+                name: Last Clean
+                format: relative
+              - entity: sensor.vaculina_cleaning_count
+                name: Total Cleans
+            card_mod:
+              style: |
+                ha-card {
+                  border-radius: 20px !important;
+                  background: rgba(255, 255, 255, 0.03) !important;
+                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                }
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Printer
+            icon: mdi:printer
+          - type: entities
+            entities:
+              - entity: sensor.brother_black_toner_remaining
+                name: Toner
+              - entity: sensor.brother_drum_remaining_lifetime
+                name: Drum Life
+              - entity: sensor.brother_drum_remaining_pages
+                name: Drum Pages Left
+              - entity: sensor.brother_page_counter
+                name: Total Pages
+              - entity: sensor.brother_status
+                name: Status
+            card_mod:
+              style: |
+                ha-card {
+                  border-radius: 20px !important;
+                  background: rgba(255, 255, 255, 0.03) !important;
+                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                }
+          - type: heading
+            heading: Batteries
+            icon: mdi:battery-heart-variant
+          # Lists every battery sensor, lowest first, so new devices show up on their own.
+          - type: custom:auto-entities
+            card:
+              type: entities
+            filter:
+              include:
+                - domain: sensor
+                  attributes:
+                    device_class: battery
+            sort:
+              method: state
+              numeric: true
             card_mod:
               style: |
                 ha-card {

@@ -69,6 +69,46 @@ views:
                     }
                     ha-card:active { transform: scale(0.95); }
 
+      # Section 1: Whole House (48 Hours)
+      # People come from a person.* filter so no names are written into this repo.
+      # Camera motion and 3D prints can't appear: cameras have no motion sensors
+      # in HA, and camera/printer entities are excluded from the recorder.
+      - type: grid
+        cards:
+          - type: heading
+            heading: Whole House (48h)
+            icon: mdi:home-clock-outline
+          - type: custom:auto-entities
+            card:
+              type: logbook
+              title: ""
+              hours_to_show: 48
+              grid_options:
+                columns: full
+                rows: auto
+              card_mod:
+                style: |
+                  ha-card {
+                    border-radius: 20px !important;
+                    background: rgba(255, 255, 255, 0.03) !important;
+                    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                  }
+            filter:
+              include:
+                - domain: person
+                - entity_id: vacuum.vaculina
+                - entity_id: event.home_keeper_events
+                - entity_id: event.backup_automatic_backup
+                - entity_id: binary_sensor.verizon_router_wan_status
+                - entity_id: binary_sensor.ssd_health_problem
+                - entity_id: binary_sensor.transit_microservice
+                - entity_id: binary_sensor.gaming_pc_online
+                - entity_id: "switch.*_cam_motion_detection"
+                - entity_id: "switch.*_cam_power"
+                - entity_id: switch.wyze_notifications
+              exclude:
+                - entity_id: person.kitchen_display
+
       # Section 2: Theater History (48 Hours)
       - type: grid
         cards:
@@ -114,6 +154,7 @@ views:
               - binary_sensor.basement_stairs_door_sensor
               - binary_sensor.bottom_stairs
               - light.theater_dimmer
+              - light.stairlights
             hours_to_show: 48
             grid_options:
               columns: full

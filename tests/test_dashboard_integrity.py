@@ -68,7 +68,48 @@ REGISTERED_ENTITIES = {
     "sensor.hdhomerun_tuner_allocation", "binary_sensor.hdhomerun_contention_risk",
     "input_boolean.xteve_tuner_reservation", "sensor.tuner0", "sensor.tuner1",
     "sensor.tuner0_target_ip", "sensor.tuner0_signal_quality", "sensor.tuner0_network_rate",
-    "sensor.tuner1_target_ip", "sensor.tuner1_signal_quality", "sensor.tuner1_network_rate"
+    "sensor.tuner1_target_ip", "sensor.tuner1_signal_quality", "sensor.tuner1_network_rate",
+
+    # System health, backups & network (Diagnostics)
+    "binary_sensor.ssd_health_problem", "binary_sensor.ssd_health_report_stale", "binary_sensor.verizon_router_wan_status",
+    "sensor.backup_last_successful_automatic_backup", "sensor.backup_next_scheduled_automatic_backup", "sensor.ssd_last_health_report",
+    "sensor.ssd_life_remaining", "sensor.ssd_temperature", "sensor.system_monitor_processor_temperature",
+    "sensor.verizon_router_download_speed", "sensor.verizon_router_upload_speed", "sensor.watchman_missing_actions",
+    "sensor.watchman_missing_entities", "sensor.whole_house_google_drive_backup_used_storage",
+
+    # Maintenance view
+    "sensor.brother_black_toner_remaining", "sensor.brother_drum_remaining_lifetime", "sensor.brother_drum_remaining_pages",
+    "sensor.brother_page_counter", "sensor.brother_status", "sensor.vaculina_cleaning_count",
+    "sensor.vaculina_cleaning_history", "sensor.vaculina_clean_water_tank_status", "sensor.vaculina_detergent_status",
+    "sensor.vaculina_dirty_water_tank_status", "sensor.vaculina_dust_bag_status", "sensor.vaculina_error",
+    "sensor.vaculina_filter_left", "sensor.vaculina_filter_time_left", "sensor.vaculina_low_water_warning",
+    "sensor.vaculina_main_brush_left", "sensor.vaculina_main_brush_time_left", "sensor.vaculina_mop_pad",
+    "sensor.vaculina_scale_inhibitor_left", "sensor.vaculina_scale_inhibitor_time_left", "sensor.vaculina_sensor_dirty_left",
+    "sensor.vaculina_sensor_dirty_time_left", "sensor.vaculina_side_brush_left", "sensor.vaculina_side_brush_time_left",
+    "sensor.vaculina_wheel_dirty_left", "sensor.vaculina_wheel_dirty_time_left",
+
+    # 3D printer pop-up (Home)
+    "image.office_creality_printer_current_print_preview", "light.office_creality_printer_light", "sensor.office_creality_printer_bed_temperature",
+    "sensor.office_creality_printer_chamber_temperature", "sensor.office_creality_printer_current_object", "sensor.office_creality_printer_filament_status",
+    "sensor.office_creality_printer_nozzle_temperature", "sensor.office_creality_printer_print_speed", "sensor.office_creality_printer_print_time_left",
+    "sensor.office_creality_printer_total_layers", "sensor.office_creality_printer_working_layer",
+
+    # Home Keeper (chores)
+    "sensor.home_keeper_tasks",
+
+    # Vacuum floor & cleaning settings (Home vacuum pop-up)
+    "select.vaculina_selected_map", "select.vaculina_cleangenius", "select.vaculina_cleangenius_mode",
+    "select.vaculina_cleaning_mode", "select.vaculina_suction_level", "select.vaculina_mop_pad_humidity",
+
+    # Whole-house activity log
+    "vacuum.vaculina", "event.home_keeper_events", "event.backup_automatic_backup",
+    "binary_sensor.transit_microservice", "binary_sensor.gaming_pc_online",
+    "person.kitchen_display", "media_player.theater_onn_pro_adb",
+
+    # Camera controls (Home security pop-up)
+    "switch.back_deck_cam_motion_detection", "switch.back_deck_cam_notifications", "switch.back_yard_cam_motion_detection",
+    "switch.back_yard_cam_notifications", "switch.front_porch_cam_motion_detection", "switch.front_porch_cam_notifications",
+    "switch.wyze_notifications"
 }
 
 REGISTERED_SERVICES = {

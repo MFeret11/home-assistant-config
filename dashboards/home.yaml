@@ -108,9 +108,8 @@ views:
                   icon: mdi:printer-3d
                   icon_color: amber
                   tap_action:
-                    action: more-info
-                    target:
-                      entity_id: sensor.office_creality_printer_print_status
+                    action: navigate
+                    navigation_path: '#printer-3d'
                     haptic: light
                   card_mod:
                     style: |
@@ -259,13 +258,284 @@ views:
                       margin-bottom: 4px !important;
                     }
 
-              # Interactive Floorplan Map Card
+              # Floor and cleaning settings. Switching floors only changes which saved
+              # map the robot uses: carry it to that floor first, as in the Dreame app.
+              # Suction/mode/humidity only apply with CleanGenius off, so they hide otherwise.
+              - type: entities
+                entities:
+                  - entity: select.vaculina_selected_map
+                    name: Floor
+                    icon: mdi:layers-outline
+                  - entity: select.vaculina_cleangenius
+                    name: CleanGenius
+                  - entity: select.vaculina_cleangenius_mode
+                    name: CleanGenius Mode
+                  - type: conditional
+                    conditions:
+                      - entity: select.vaculina_cleaning_mode
+                        state_not: unavailable
+                    row:
+                      entity: select.vaculina_cleaning_mode
+                      name: Cleaning Mode
+                  - type: conditional
+                    conditions:
+                      - entity: select.vaculina_suction_level
+                        state_not: unavailable
+                    row:
+                      entity: select.vaculina_suction_level
+                      name: Suction
+                  - type: conditional
+                    conditions:
+                      - entity: select.vaculina_mop_pad_humidity
+                        state_not: unavailable
+                    row:
+                      entity: select.vaculina_mop_pad_humidity
+                      name: Mop Humidity
+                card_mod:
+                  style: |
+                    ha-card {
+                      border-radius: 18px !important;
+                      background: rgba(255, 255, 255, 0.04) !important;
+                      border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                      margin-bottom: 4px !important;
+                    }
+
+              # Live map with room, zone and go-to cleaning. One preset per floor; the
+              # card shows the preset whose condition matches the selected floor.
+              # Room ids/positions were generated from camera.vaculina_map_1..4 on
+              # 2026-10-26: regenerate if rooms are renamed or re-split in the app.
               - type: custom:xiaomi-vacuum-map-card
                 entity: vacuum.vaculina
+                vacuum_platform: Tasshack/dreame-vacuum
+                preset_name: First floor
+                conditions:
+                  - entity: select.vaculina_selected_map
+                    value: "First floor"
                 map_source:
                   camera: camera.vaculina_map
                 calibration_source:
                   camera: true
+                map_modes:
+                  - template: vacuum_clean_segment
+                    predefined_selections:
+                      - id: "1"
+                        icon:
+                          name: mdi:toilet
+                          x: -1525
+                          y: -925
+                        label:
+                          text: "Bathroom"
+                          x: -1525
+                          y: -925
+                          offset_y: 35
+                      - id: "2"
+                        icon:
+                          name: mdi:room-service-outline
+                          x: 2525
+                          y: -725
+                        label:
+                          text: "Dining Room"
+                          x: 2525
+                          y: -725
+                          offset_y: 35
+                      - id: "3"
+                        icon:
+                          name: mdi:sofa-outline
+                          x: -525
+                          y: 5175
+                        label:
+                          text: "Living Room"
+                          x: -525
+                          y: 5175
+                          offset_y: 35
+                      - id: "4"
+                        icon:
+                          name: mdi:chef-hat
+                          x: 4375
+                          y: 5425
+                        label:
+                          text: "Kitchen"
+                          x: 4375
+                          y: 5425
+                          offset_y: 35
+                      - id: "5"
+                        icon:
+                          name: mdi:monitor-shimmer
+                          x: -75
+                          y: -3575
+                        label:
+                          text: "Office"
+                          x: -75
+                          y: -3575
+                          offset_y: 35
+                  - template: vacuum_clean_zone
+                  - template: vacuum_goto
+                additional_presets:
+                  - preset_name: Basement
+                    entity: vacuum.vaculina
+                    vacuum_platform: Tasshack/dreame-vacuum
+                    conditions:
+                      - entity: select.vaculina_selected_map
+                        value: "Basement"
+                    map_source:
+                      camera: camera.vaculina_map
+                    calibration_source:
+                      camera: true
+                    map_modes:
+                      - template: vacuum_clean_segment
+                        predefined_selections:
+                          - id: "1"
+                            icon:
+                              name: mdi:gamepad-variant-outline
+                              x: -2375
+                              y: -2125
+                            label:
+                              text: "Recreation Area"
+                              x: -2375
+                              y: -2125
+                              offset_y: 35
+                          - id: "2"
+                            icon:
+                              name: mdi:home-outline
+                              x: 2275
+                              y: -4175
+                            label:
+                              text: "Theater"
+                              x: 2275
+                              y: -4175
+                              offset_y: 35
+                          - id: "3"
+                            icon:
+                              name: mdi:home-outline
+                              x: -2375
+                              y: 3825
+                            label:
+                              text: "Bar"
+                              x: -2375
+                              y: 3825
+                              offset_y: 35
+                      - template: vacuum_clean_zone
+                      - template: vacuum_goto
+                  - preset_name: 2nd floor
+                    entity: vacuum.vaculina
+                    vacuum_platform: Tasshack/dreame-vacuum
+                    conditions:
+                      - entity: select.vaculina_selected_map
+                        value: "2nd floor"
+                    map_source:
+                      camera: camera.vaculina_map
+                    calibration_source:
+                      camera: true
+                    map_modes:
+                      - template: vacuum_clean_segment
+                        predefined_selections:
+                          - id: "1"
+                            icon:
+                              name: mdi:home-outline
+                              x: 3025
+                              y: 3375
+                            label:
+                              text: "Guest room"
+                              x: 3025
+                              y: 3375
+                              offset_y: 35
+                          - id: "2"
+                            icon:
+                              name: mdi:home-outline
+                              x: -2725
+                              y: 475
+                            label:
+                              text: "Guest bathroom"
+                              x: -2725
+                              y: 475
+                              offset_y: 35
+                          - id: "3"
+                            icon:
+                              name: mdi:foot-print
+                              x: 4625
+                              y: 225
+                            label:
+                              text: "Hallway"
+                              x: 4625
+                              y: 225
+                              offset_y: 35
+                          - id: "4"
+                            icon:
+                              name: mdi:home-outline
+                              x: -1825
+                              y: -2675
+                            label:
+                              text: "Master closet"
+                              x: -1825
+                              y: -2675
+                              offset_y: 35
+                          - id: "5"
+                            icon:
+                              name: mdi:home-outline
+                              x: -1525
+                              y: -5025
+                            label:
+                              text: "Master bathroom"
+                              x: -1525
+                              y: -5025
+                              offset_y: 35
+                          - id: "6"
+                            icon:
+                              name: mdi:bed-king-outline
+                              x: 2075
+                              y: -3775
+                            label:
+                              text: "Master Bedroom"
+                              x: 2075
+                              y: -3775
+                              offset_y: 35
+                          - id: "7"
+                            icon:
+                              name: mdi:home-outline
+                              x: -2125
+                              y: 4425
+                            label:
+                              text: "Room 7"
+                              x: -2125
+                              y: 4425
+                              offset_y: 35
+                      - template: vacuum_clean_zone
+                      - template: vacuum_goto
+                  - preset_name: 3rd floor
+                    entity: vacuum.vaculina
+                    vacuum_platform: Tasshack/dreame-vacuum
+                    conditions:
+                      - entity: select.vaculina_selected_map
+                        value: "3rd floor"
+                    map_source:
+                      camera: camera.vaculina_map
+                    calibration_source:
+                      camera: true
+                    map_modes:
+                      - template: vacuum_clean_segment
+                        predefined_selections:
+                          - id: "2"
+                            icon:
+                              name: mdi:home-outline
+                              x: 2625
+                              y: -1475
+                            label:
+                              text: "Palace"
+                              x: 2625
+                              y: -1475
+                              offset_y: 35
+                          - id: "3"
+                            icon:
+                              name: mdi:home-outline
+                              x: -775
+                              y: -325
+                            label:
+                              text: "Loft"
+                              x: -775
+                              y: -325
+                              offset_y: 35
+                      - template: vacuum_clean_zone
+                      - template: vacuum_goto
                 card_mod:
                   style: |
                     ha-card {
@@ -457,14 +727,14 @@ views:
               primary: >-
                 3D Print: {{ states('sensor.office_creality_printer_print_status') | title }}
               secondary: >-
-                Progress: {{ states('sensor.office_creality_printer_print_progress') }}%
+                {% set left = states('sensor.office_creality_printer_print_time_left') %}
+                Progress: {{ states('sensor.office_creality_printer_print_progress') }}%{% if left | is_number and left | int > 0 %} · {{ (left | int // 3600) }}h {{ ((left | int % 3600) // 60) }}m left{% endif %}
               icon: mdi:printer-3d
               icon_color: amber
               layout: horizontal
               tap_action:
-                action: more-info
-                target:
-                  entity_id: sensor.office_creality_printer_print_status
+                action: navigate
+                navigation_path: '#printer-3d'
               card_mod:
                 style: |
                   ha-card {
@@ -701,6 +971,47 @@ views:
                     }
                     ha-card:active { transform: scale(0.95); }
 
+              # Counts the same items as the "Needs Attention" card on the
+              # Diagnostics > Maintenance view; keep the thresholds in sync.
+              - type: custom:mushroom-template-card
+                primary: Maintenance
+                secondary: >-
+                  {%- set parts = ['sensor.vaculina_main_brush_left', 'sensor.vaculina_side_brush_left',
+                     'sensor.vaculina_filter_left', 'sensor.vaculina_sensor_dirty_left',
+                     'sensor.vaculina_wheel_dirty_left', 'sensor.vaculina_scale_inhibitor_left',
+                     'sensor.brother_black_toner_remaining', 'sensor.brother_drum_remaining_lifetime'] -%}
+                  {%- set flags = ['binary_sensor.vaculina_problem', 'binary_sensor.vaculina_maintenance',
+                     'binary_sensor.brother_low_toner', 'binary_sensor.brother_no_toner',
+                     'binary_sensor.brother_no_paper', 'binary_sensor.brother_paper_jam',
+                     'binary_sensor.brother_door_open'] -%}
+                  {%- set n = parts | map('states') | select('is_number') | map('float') | select('le', 20) | list | count
+                     + flags | select('is_state', 'on') | list | count
+                     + states.sensor | selectattr('attributes.device_class', 'defined')
+                       | selectattr('attributes.device_class', 'eq', 'battery')
+                       | rejectattr('entity_id', 'search', 'pixel_8|iphone|vaculina')
+                       | map(attribute='state') | select('is_number') | map('float') | select('le', 20) | list | count
+                     + (0 if states('sensor.vaculina_error') in ['no_error', 'unknown', 'unavailable'] else 1)
+                     + (0 if states('sensor.vaculina_low_water_warning') in ['no_warning', 'unknown', 'unavailable'] else 1)
+                     + state_attr('sensor.home_keeper_tasks', 'overdue') | int(0)
+                     + state_attr('sensor.home_keeper_tasks', 'due_today') | int(0) -%}
+                  {{ 'All good' if n == 0 else n ~ ' need' ~ ('s' if n == 1 else '') ~ ' attention' }}
+                icon: mdi:tools
+                icon_color: orange
+                layout: horizontal
+                tap_action:
+                  action: navigate
+                  navigation_path: /dashboard-diagnostics/maintenance
+                  haptic: light
+                card_mod:
+                  style: |
+                    ha-card {
+                      background: rgba(255, 255, 255, 0.04) !important;
+                      border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                      border-radius: 20px !important;
+                      padding: 6px 8px !important;
+                    }
+                    ha-card:active { transform: scale(0.95); }
+
           # --- SECURITY CAMERAS LIVE FEED POP-UP MODAL (ON-DEMAND) ---
           - type: custom:bubble-card
             card_type: pop-up
@@ -712,6 +1023,37 @@ views:
             bg_blur: 24
             shadow_opacity: 0.8
             cards:
+              # Sirens are left off on purpose so a stray tap can't set one off.
+              - type: entities
+                title: Camera Controls
+                show_header_toggle: false
+                entities:
+                  - entity: switch.wyze_notifications
+                    name: All Wyze Notifications
+                  - type: section
+                    label: Motion Detection
+                  - entity: switch.front_porch_cam_motion_detection
+                    name: Front Porch
+                  - entity: switch.back_deck_cam_motion_detection
+                    name: Back Deck
+                  - entity: switch.back_yard_cam_motion_detection
+                    name: Back Yard
+                  - type: section
+                    label: Notifications
+                  - entity: switch.front_porch_cam_notifications
+                    name: Front Porch
+                  - entity: switch.back_deck_cam_notifications
+                    name: Back Deck
+                  - entity: switch.back_yard_cam_notifications
+                    name: Back Yard
+                card_mod:
+                  style: |
+                    ha-card {
+                      border-radius: 20px !important;
+                      margin-bottom: 8px !important;
+                      background: rgba(255, 255, 255, 0.03) !important;
+                      border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                    }
               - type: picture-entity
                 entity: camera.front_porch_cam
                 name: Front Porch
@@ -752,6 +1094,67 @@ views:
                       border: 1px solid rgba(255, 255, 255, 0.08) !important;
                     }
 
+          # --- 3D PRINTER POP-UP (opened from the print chip and progress card) ---
+          - type: custom:bubble-card
+            card_type: pop-up
+            hash: '#printer-3d'
+            name: 3D Printer
+            icon: mdi:printer-3d
+            show_header: true
+            bg_color: rgba(10, 15, 26, 0.96)
+            bg_blur: 24
+            shadow_opacity: 0.8
+            cards:
+              - type: picture-entity
+                entity: image.office_creality_printer_current_print_preview
+                show_name: false
+                show_state: false
+                card_mod:
+                  style: |
+                    ha-card {
+                      border-radius: 20px !important;
+                      margin-bottom: 8px !important;
+                      background: rgba(255, 255, 255, 0.03) !important;
+                    }
+              - type: custom:mushroom-template-card
+                primary: >-
+                  {{ states('sensor.office_creality_printer_current_object') | default('Print', true) }}
+                secondary: >-
+                  {% set left = states('sensor.office_creality_printer_print_time_left') %}
+                  {{ states('sensor.office_creality_printer_print_status') | title }} ·
+                  {{ states('sensor.office_creality_printer_print_progress') }}% ·
+                  layer {{ states('sensor.office_creality_printer_working_layer') }}/{{ states('sensor.office_creality_printer_total_layers') }}{% if left | is_number and left | int > 0 %} · {{ (left | int // 3600) }}h {{ ((left | int % 3600) // 60) }}m left{% endif %}
+                icon: mdi:printer-3d-nozzle
+                icon_color: amber
+                layout: horizontal
+                card_mod:
+                  style: |
+                    ha-card {
+                      border-radius: 20px !important;
+                      margin-bottom: 8px !important;
+                    }
+              - type: entities
+                entities:
+                  - entity: sensor.office_creality_printer_nozzle_temperature
+                    name: Nozzle
+                  - entity: sensor.office_creality_printer_bed_temperature
+                    name: Bed
+                  - entity: sensor.office_creality_printer_chamber_temperature
+                    name: Chamber
+                  - entity: sensor.office_creality_printer_print_speed
+                    name: Print Speed
+                  - entity: sensor.office_creality_printer_filament_status
+                    name: Filament
+                  - entity: light.office_creality_printer_light
+                    name: Printer Light
+                card_mod:
+                  style: |
+                    ha-card {
+                      border-radius: 20px !important;
+                      background: rgba(255, 255, 255, 0.03) !important;
+                      border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                    }
+
       # =========================================================
       # SECTION 4: FORECAST
       # =========================================================
@@ -761,9 +1164,10 @@ views:
             heading: Forecast
             icon: mdi:weather-partly-cloudy
           - type: weather-forecast
-            entity: weather.forecast_home
-            forecast_type: daily
-            forecast_slots: 5
+            # Same NWS source as the kitchen kiosk. NWS has no "daily" forecast, only day/night pairs.
+            entity: weather.whole_house_national_weather_service_kphl
+            forecast_type: twice_daily
+            forecast_slots: 6
             show_current: true
             show_forecast: true
             card_mod:
