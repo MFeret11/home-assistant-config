@@ -1921,6 +1921,105 @@ def test_walkout_cancelled_when_door_reopens():
     print("  ✓ [Temporal] test_walkout_cancelled_when_door_reopens PASSED")
 
 
+def test_walkout_cancelled_when_mmwave_sees_someone():
+    """One person leaves, another sits still on the couch: mmWave keeps the lights on."""
+    import time
+    setup_clean_environment()
+    state.set("binary_sensor.theater_mmwave_sensor", "on")
+    orig_time = time.time
+    try:
+        time.time = lambda: 4000.0
+        basement.LAST_MOTION_BOTTOM_TS = 3990.0
+        basement.DIRECTION_OF_TRAVEL = "up"
+        spy.clear()
+        basement.stair_door_closed("on")
+    finally:
+        time.time = orig_time
+    assert not spy.was_called("light", "turn_off", "light.zigbee_basement_lights"), \
+        "FAIL: Walk-out blacked out someone the mmWave could see!"
+    print("  ✓ [Temporal] test_walkout_cancelled_when_mmwave_sees_someone PASSED")
+
+
+def test_walkout_ignores_unavailable_mmwave():
+    """A dead mmWave sensor must not block the normal walk-out shutoff."""
+    setup_clean_environment()
+    state.set("binary_sensor.theater_mmwave_sensor", "unavailable")
+    basement.DIRECTION_OF_TRAVEL = "up"
+    basement.stair_door_closed("on")
+    assert spy.was_called("light", "turn_off", "light.zigbee_basement_lights"), \
+        "FAIL: Unavailable mmWave blocked the walk-out!"
+    print("  ✓ [Temporal] test_walkout_ignores_unavailable_mmwave PASSED")
+
+
+def test_vacancy_guard_skipped_when_mmwave_occupied():
+    """4h of no stairs motion, but someone is sitting still: leave the lights on."""
+    setup_clean_environment()
+    state.set("binary_sensor.theater_mmwave_sensor", "on")
+    basement.basement_door_open_vacancy_guard()
+    assert not spy.was_called("light", "turn_off", "light.theater_dimmer"), \
+        "FAIL: Vacancy guard turned off lights on someone sitting still!"
+    print("  ✓ [Temporal] test_vacancy_guard_skipped_when_mmwave_occupied PASSED")
+
+
+def test_mmwave_vacancy_turns_off_quiet_room():
+    """mmWave and stairs both quiet for 30 min in Daily Driver: lights off."""
+    import time
+    setup_clean_environment()
+    state.set("binary_sensor.theater_mmwave_sensor", "off")
+    state.set("binary_sensor.bottom_stairs", "off")
+    state.set("binary_sensor.basement_lights_active", "on")
+    basement.LAST_MOTION_SEEN_TS = time.time() - 2400
+    basement.basement_mmwave_vacancy()
+    assert spy.was_called("light", "turn_off", "light.zigbee_basement_lights"), \
+        "FAIL: Quiet room left lit!"
+    print("  ✓ [Temporal] test_mmwave_vacancy_turns_off_quiet_room PASSED")
+
+
+def test_mmwave_vacancy_waits_for_recent_stairs_motion():
+    """Someone just walked past the stairs (out of mmWave range): no shutoff yet."""
+    import time
+    setup_clean_environment()
+    state.set("binary_sensor.theater_mmwave_sensor", "off")
+    state.set("binary_sensor.bottom_stairs", "off")
+    state.set("binary_sensor.basement_lights_active", "on")
+    basement.LAST_MOTION_SEEN_TS = time.time() - 300
+    basement.basement_mmwave_vacancy()
+    assert not spy.was_called("light", "turn_off", "light.zigbee_basement_lights"), \
+        "FAIL: mmWave vacancy ignored recent stairs motion!"
+    print("  ✓ [Temporal] test_mmwave_vacancy_waits_for_recent_stairs_motion PASSED")
+
+
+def test_mmwave_vacancy_never_touches_theater_or_social():
+    import time
+    for mode, in_use in (("Social Mode", "off"), ("Daily Driver", "on")):
+        setup_clean_environment()
+        state.set("input_select.basement_lighting_mode", mode)
+        state.set("binary_sensor.theater_in_use", in_use)
+        state.set("binary_sensor.theater_mmwave_sensor", "off")
+        state.set("binary_sensor.bottom_stairs", "off")
+        state.set("binary_sensor.basement_lights_active", "on")
+        basement.LAST_MOTION_SEEN_TS = time.time() - 7200
+        basement.basement_mmwave_vacancy()
+        assert not spy.was_called("light", "turn_off"), f"FAIL: mmWave vacancy fired in {mode} / theater {in_use}!"
+    print("  ✓ [Temporal] test_mmwave_vacancy_never_touches_theater_or_social PASSED")
+
+
+def test_nightly_reset_ignores_stuck_mmwave():
+    """4 AM: a stuck mmWave "occupied" must not keep forgotten lights on all night."""
+    import time
+    setup_clean_environment()
+    state.set("input_select.basement_lighting_mode", "Social Mode")
+    state.set("binary_sensor.basement_lights_active", "on")
+    state.set("binary_sensor.bottom_stairs", "off")
+    state.set("binary_sensor.theater_mmwave_sensor", "on")
+    basement.LAST_MOTION_SEEN_TS = time.time() - 3 * 3600
+    spy.clear()
+    basement.safe_nightly_social_reset()
+    assert spy.was_called("light", "turn_off", "light.zigbee_basement_lights"), \
+        "FAIL: Stuck mmWave kept forgotten lights on at 4 AM!"
+    print("  ✓ [Atmospheric] test_nightly_reset_ignores_stuck_mmwave PASSED")
+
+
 def test_nightly_reset_turns_off_forgotten_social_lights():
     """4 AM: Social left on, no stairs motion for 2h+, theater idle -> everything off."""
     import time
@@ -2886,6 +2985,13 @@ if __name__ == "__main__":
         test_walkout_cancelled_when_door_reopens,
         test_nightly_reset_turns_off_forgotten_social_lights,
         test_nightly_reset_keeps_lights_with_recent_motion,
+        test_walkout_cancelled_when_mmwave_sees_someone,
+        test_walkout_ignores_unavailable_mmwave,
+        test_vacancy_guard_skipped_when_mmwave_occupied,
+        test_mmwave_vacancy_turns_off_quiet_room,
+        test_mmwave_vacancy_waits_for_recent_stairs_motion,
+        test_mmwave_vacancy_never_touches_theater_or_social,
+        test_nightly_reset_ignores_stuck_mmwave,
         test_manual_social_survives_movie_but_sports_social_does_not,
         test_master_basement_all_off_service,
         test_toggle_all_basement_lights_when_loads_active,

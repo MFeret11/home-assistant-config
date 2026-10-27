@@ -18,6 +18,10 @@ BEDROOM_LAMP_2 = "light.bedroom_light_2"
 
 DOOR_SENSOR = "binary_sensor.basement_stairs_door_sensor"
 BOTTOM_STAIRS_MOTION = "binary_sensor.bottom_stairs"
+# mmWave presence sensor (Sonoff SNZB-06P) covering the basement. Unlike the PIR at
+# the foot of the stairs, it sees people sitting still. Its own clear delay is set
+# on the device (number.theater_mmwave_sensor_presence_detection_timeout).
+MMWAVE_PRESENCE = "binary_sensor.theater_mmwave_sensor"
 LIGHTS_ACTIVE_SENSOR = "binary_sensor.basement_lights_active"
 
 LIGHTING_MODE_SELECT = "input_select.basement_lighting_mode"
@@ -135,6 +139,8 @@ ENTRY_FOLLOW_WINDOW_S = 180
 GLOW_PCT = 3
 # 4 AM reset: turn a forgotten room off if the stairs have seen no motion for this long.
 NIGHTLY_IDLE_OFF_S = 7200
+# Daily Driver: lights off once the mmWave and the stairs have both been quiet this long.
+MMWAVE_VACANCY_S = 1800
 BLACKOUT_IN_PROGRESS = False
 # Team green already painted for this sports session. After that, a palette the
 # user picks (Social source becomes "manual") is left alone.
@@ -349,6 +355,7 @@ def safe_nightly_social_reset():
     forgotten = (
         safe_state_get(LIGHTS_ACTIVE_SENSOR) == "on"
         and safe_state_get(THEATER_IN_USE) != "on"
+        # mmWave deliberately not checked: a stuck "occupied" must not keep lights on all night.
         and _seconds_since_bottom_stairs_activity() >= NIGHTLY_IDLE_OFF_S
     )
 
@@ -529,6 +536,12 @@ def _seconds_since_bottom_stairs_activity() -> float:
     return max(0.0, time.time() - LAST_MOTION_SEEN_TS)
 
 
+def _mmwave_occupied() -> bool:
+    """True only while the mmWave sensor reports someone. Unavailable counts as no,
+    so a dead sensor falls back to the door + stairs logic alone."""
+    return safe_state_get(MMWAVE_PRESENCE) == "on"
+
+
 def _recent_bottom_stairs_motion() -> bool:
     """True if someone was just at the foot of the stairs (motion now, or started/cleared within EXIT_WINDOW_S)."""
     if safe_state_get(BOTTOM_STAIRS_MOTION) == "on":
@@ -583,6 +596,12 @@ def stair_door_closed(old_value=None):
     if LAST_MOTION_BOTTOM_TS > close_ts or LAST_DOOR_OPEN_TS > close_ts:
         log.info("[Basement] Walk-out cancelled: activity downstairs after the door closed")
         return
+    # Someone sitting still never trips the stairs sensor, but the mmWave sees them.
+    # If it is still holding from the person who left, the mmWave vacancy check
+    # below turns the lights off once the room goes quiet.
+    if _mmwave_occupied():
+        log.info("[Basement] Walk-out cancelled: mmWave still sees someone downstairs")
+        return
     if (
         not is_presence_locked()
         and get_lighting_mode() == MODE_DAILY
@@ -603,7 +622,26 @@ def basement_door_open_vacancy_guard():
         and safe_state_get(THEATER_IN_USE) == "off"
         and not is_presence_locked()
         and safe_state_get(CURTAIN_CALL) == "off"
+        and not _mmwave_occupied()
     ):
+        light.turn_off(entity_id=[THEATER_DIMMER, MASTER_ZIGBEE_GROUP, STAIRLIGHTS], transition=4)
+        if safe_state_get(BIAS_LIGHTS) == "on":
+            switch.turn_off(entity_id=BIAS_LIGHTS)
+
+
+@state_trigger(f"{MMWAVE_PRESENCE} == 'off'", state_hold=MMWAVE_VACANCY_S)
+def basement_mmwave_vacancy():
+    """Daily Driver: nobody seen by the mmWave or the stairs sensor for MMWAVE_VACANCY_S -> lights off.
+    Catches walk-outs the door logic missed or cancelled."""
+    if (
+        get_lighting_mode() == MODE_DAILY
+        and safe_state_get(THEATER_IN_USE) == "off"
+        and not is_presence_locked()
+        and safe_state_get(CURTAIN_CALL) == "off"
+        and safe_state_get(LIGHTS_ACTIVE_SENSOR) == "on"
+        and _seconds_since_bottom_stairs_activity() >= MMWAVE_VACANCY_S
+    ):
+        log.info("[Basement] mmWave vacancy: room quiet for 30 min, turning lights off")
         light.turn_off(entity_id=[THEATER_DIMMER, MASTER_ZIGBEE_GROUP, STAIRLIGHTS], transition=4)
         if safe_state_get(BIAS_LIGHTS) == "on":
             switch.turn_off(entity_id=BIAS_LIGHTS)

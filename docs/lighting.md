@@ -27,7 +27,9 @@ _Moved verbatim from AGENTS.md. "§N" references point to the old AGENTS.md sect
   - Upward exit in `Daily Driver` shuts down all room lights after a 20s confirmation window (`WALKOUT_CONFIRM_S`). New `bottom_stairs` motion or the door reopening during the window cancels it, so someone still downstairs isn't blacked out. The sensor clears within ~7–11s, so a person left near the stairs re-trips it in time.
   - Group coming down: if the door opened under 3 minutes ago (`ENTRY_FOLLOW_WINDOW_S = 180`) and the bottom-stairs motion came after that opening, the close is the last person shutting the door behind the first, not a walk-out. Lights stay on.
   - Door left open while downstairs: there is no "open" event on the way up, so a door **close** within 25s (`EXIT_WINDOW_S`) of `bottom_stairs` motion starting or clearing also counts as an upward exit. On entry the close comes before motion, so it is not misread.
-  - Vacancy: If `bottom_stairs` holds `off` for 14400s (4 hours) with no theater activity, cut room lights.
+  - mmWave presence (`binary_sensor.theater_mmwave_sensor`): after the walk-out confirm window, the shutoff is also cancelled if the mmWave still sees someone (e.g. one person leaves while another sits still on the couch). `unavailable` counts as empty, so a dead sensor falls back to the door + stairs logic.
+  - Vacancy: If `bottom_stairs` holds `off` for 14400s (4 hours) with no theater activity, cut room lights, unless the mmWave sees someone.
+  - mmWave vacancy (`basement_mmwave_vacancy`): in Daily Driver with the theater not in use, once the mmWave has read `off` for 30 minutes (`MMWAVE_VACANCY_S`) and `bottom_stairs` has also been quiet that long, cut room lights. Backstop for walk-outs the door logic cancelled or missed. The 4 AM check ignores the mmWave on purpose, so a sensor stuck on "occupied" can't keep lights on all night.
 
 ### Sports & Game-Day Reaction Engine (`sports.py`)
 - **Kelly Green Primary Color**: Live team color defaults to authentic Philadelphia Eagles Kelly Green (`[0, 170, 35]`) rather than dark teal Midnight Green (`[0, 76, 84]`) or cyan-tinted green.
