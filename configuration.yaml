@@ -70,6 +70,14 @@ recorder:
       - sensor.theater_total_power
       - sensor.small_pad_charger_type
       - sensor.septa_commute
+      # Dashboard summary sensors (packages/house_status.yaml, commute.yaml,
+      # theater.yaml); derived values with no history worth keeping.
+      - sensor.commute_am_severity
+      - sensor.commute_pm_severity
+      - sensor.maintenance_attention
+      - sensor.next_calendar_event
+      - binary_sensor.theater_media_playing
+      - sensor.cameras_online
   # No include list on purpose: with exclude-only filters HA records everything
   # not listed above, so the receiver and projector power state stay recorded.
 

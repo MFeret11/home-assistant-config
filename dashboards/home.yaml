@@ -760,12 +760,15 @@ views:
               - condition: state
                 entity: binary_sensor.theater_in_use
                 state: "off"
+              # Mirror of the vacuum card's states, so one of the two always shows
+              # (including when the vacuum is unavailable).
               - condition: state
                 entity: vacuum.vaculina
-                state:
-                  - docked
-                  - idle
-                  - "off"
+                state_not:
+                  - cleaning
+                  - returning
+                  - paused
+                  - error
               - condition: state
                 entity: sensor.office_creality_printer_print_status
                 state:
@@ -791,34 +794,8 @@ views:
 
           # 7. Next Calendar Event
           - type: custom:mushroom-template-card
-            primary: >-
-              {%- set cals = ['calendar.matt', 'calendar.partner', 'calendar.family', 'calendar.birthdays'] -%}
-              {%- set ns = namespace(ts=none, msg='No upcoming events') -%}
-              {%- for c in cals -%}
-                {%- set st = state_attr(c, 'start_time') -%}
-                {%- if st -%}
-                  {%- set ts = as_timestamp(st) -%}
-                  {%- if ns.ts is none or ts < ns.ts -%}
-                    {%- set ns.ts = ts -%}
-                    {%- set ns.msg = state_attr(c, 'message') -%}
-                  {%- endif -%}
-                {%- endif -%}
-              {%- endfor -%}
-              {{ ns.msg }}
-            secondary: >-
-              {%- set cals = ['calendar.matt', 'calendar.partner', 'calendar.family', 'calendar.birthdays'] -%}
-              {%- set ns = namespace(ts=none, allday=true) -%}
-              {%- for c in cals -%}
-                {%- set st = state_attr(c, 'start_time') -%}
-                {%- if st -%}
-                  {%- set ts = as_timestamp(st) -%}
-                  {%- if ns.ts is none or ts < ns.ts -%}
-                    {%- set ns.ts = ts -%}
-                    {%- set ns.allday = state_attr(c, 'all_day') -%}
-                  {%- endif -%}
-                {%- endif -%}
-              {%- endfor -%}
-              {{ ns.ts | timestamp_custom('%a %b %-d' ~ ('' if ns.allday else ' • %-I:%M %p')) if ns.ts is not none else '' }}
+            primary: "{{ states('sensor.next_calendar_event') }}"
+            secondary: "{{ state_attr('sensor.next_calendar_event', 'when') or '' }}"
             icon: mdi:calendar-clock
             icon_color: orange
             layout: horizontal
@@ -954,12 +931,10 @@ views:
               - type: custom:mushroom-template-card
                 primary: Security
                 secondary: >-
-                  {% set cams = ['camera.front_porch_cam', 'camera.back_deck_cam', 'camera.back_yard_cam'] %}
-                  {{ cams | reject('is_state', 'unavailable') | list | length }}/{{ cams | length }} cameras online
+                  {{ states('sensor.cameras_online') }}/{{ state_attr('sensor.cameras_online', 'total') }} cameras online
                 icon: mdi:cctv
                 icon_color: >-
-                  {% set cams = ['camera.front_porch_cam', 'camera.back_deck_cam', 'camera.back_yard_cam'] %}
-                  {{ 'red' if cams | select('is_state', 'unavailable') | list | length > 0 else 'cyan' }}
+                  {{ 'red' if state_attr('sensor.cameras_online', 'offline') else 'cyan' }}
                 layout: horizontal
                 tap_action:
                   action: navigate
@@ -967,8 +942,7 @@ views:
                   haptic: light
                 card_mod:
                   style: |
-                    {% set cams = ['camera.front_porch_cam', 'camera.back_deck_cam', 'camera.back_yard_cam'] %}
-                    {% set down = cams | select('is_state', 'unavailable') | list | length > 0 %}
+                    {% set down = state_attr('sensor.cameras_online', 'offline') %}
                     ha-card {
                       background: {{ 'rgba(244, 67, 54, 0.12)' if down else 'rgba(0, 188, 212, 0.06)' }} !important;
                       border: 1px solid {{ 'rgba(244, 67, 54, 0.5)' if down else 'rgba(0, 188, 212, 0.2)' }} !important;
@@ -977,29 +951,10 @@ views:
                     }
                     ha-card:active { transform: scale(0.95); }
 
-              # Counts the same items as the "Needs Attention" card on the
-              # Diagnostics > Maintenance view; keep the thresholds in sync.
               - type: custom:mushroom-template-card
                 primary: Maintenance
                 secondary: >-
-                  {%- set parts = ['sensor.vaculina_main_brush_left', 'sensor.vaculina_side_brush_left',
-                     'sensor.vaculina_filter_left', 'sensor.vaculina_sensor_dirty_left',
-                     'sensor.vaculina_wheel_dirty_left', 'sensor.vaculina_scale_inhibitor_left',
-                     'sensor.brother_black_toner_remaining', 'sensor.brother_drum_remaining_lifetime'] -%}
-                  {%- set flags = ['binary_sensor.vaculina_problem', 'binary_sensor.vaculina_maintenance',
-                     'binary_sensor.brother_low_toner', 'binary_sensor.brother_no_toner',
-                     'binary_sensor.brother_no_paper', 'binary_sensor.brother_paper_jam',
-                     'binary_sensor.brother_door_open'] -%}
-                  {%- set n = parts | map('states') | select('is_number') | map('float') | select('le', 20) | list | count
-                     + flags | select('is_state', 'on') | list | count
-                     + states.sensor | selectattr('attributes.device_class', 'defined')
-                       | selectattr('attributes.device_class', 'eq', 'battery')
-                       | rejectattr('entity_id', 'search', 'pixel_8|iphone|vaculina')
-                       | map(attribute='state') | select('is_number') | map('float') | select('le', 20) | list | count
-                     + (0 if states('sensor.vaculina_error') in ['no_error', 'unknown', 'unavailable'] else 1)
-                     + (0 if states('sensor.vaculina_low_water_warning') in ['no_warning', 'unknown', 'unavailable'] else 1)
-                     + state_attr('sensor.home_keeper_tasks', 'overdue') | int(0)
-                     + state_attr('sensor.home_keeper_tasks', 'due_today') | int(0) -%}
+                  {%- set n = states('sensor.maintenance_attention') | int(0) -%}
                   {{ 'All good' if n == 0 else n ~ ' need' ~ ('s' if n == 1 else '') ~ ' attention' }}
                 icon: mdi:tools
                 icon_color: orange
@@ -1183,4 +1138,4 @@ views:
                   background: rgba(255, 255, 255, 0.03) !important;
                   border: 1px solid rgba(255, 255, 255, 0.08) !important;
                   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
-                }
+                }

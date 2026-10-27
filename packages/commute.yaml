@@ -87,3 +87,40 @@ template:
         state: "{{ now().weekday() < 5 and now().hour in [6, 7] }}"
       - name: "Septa PM Window"
         state: "{{ now().weekday() < 5 and now().hour in [16, 17] }}"
+
+  # How urgent the kitchen commute cards look: ok, warn or alert.
+  # The card text explains why; these only pick the colour.
+  - sensor:
+      - name: "Commute AM Severity"
+        unique_id: commute_am_severity
+        icon: mdi:train
+        state: >-
+          {% set c = states.sensor.septa_commute.attributes if states.sensor.septa_commute is not none else {} %}
+          {% set no_data = c.get('origin_train') is none or states('sensor.septa_commute') in ['unavailable', 'unknown', 'error', 'idle'] %}
+          {% set alert = (c.get('service_alerts') or []) | length > 0
+             or c.get('leave_now', false) or c.get('is_cancelled', false)
+             or c.get('connection_cancelled', false) or c.get('planned_connection_cancelled', false)
+             or c.get('missed_connection', false) %}
+          {% set warn = no_data
+             or c.get('is_stalled', false) or c.get('connection_is_stalled', false)
+             or c.get('at_risk', false)
+             or c.get('origin_delay_unknown', false) or c.get('connection_delay_unknown', false)
+             or (c.get('total_delay_minutes', 0) or 0) > 0 %}
+          {{ 'alert' if alert else ('warn' if warn else 'ok') }}
+
+      - name: "Commute PM Severity"
+        unique_id: commute_pm_severity
+        icon: mdi:train
+        state: >-
+          {% set c = states.sensor.septa_commute.attributes if states.sensor.septa_commute is not none else {} %}
+          {% set delay = c.get('total_delay_minutes', 0) or 0 %}
+          {% set no_data = c.get('origin_line') is none or states('sensor.septa_commute') in ['unavailable', 'unknown', 'error', 'idle'] %}
+          {% set alert = (c.get('service_alerts') or []) | length > 0
+             or c.get('missed_connection', false) or delay >= 10
+             or c.get('is_cancelled', false) or c.get('connection_cancelled', false)
+             or c.get('planned_connection_cancelled', false) %}
+          {% set warn = no_data or delay > 0
+             or c.get('at_risk', false)
+             or c.get('is_stalled', false) or c.get('connection_is_stalled', false)
+             or c.get('origin_delay_unknown', false) or c.get('connection_delay_unknown', false) %}
+          {{ 'alert' if alert else ('warn' if warn else 'ok') }}

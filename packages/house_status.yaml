@@ -1,0 +1,48 @@
+# ==============================================================================
+# PACKAGE: HOUSE STATUS SUMMARIES
+# ==============================================================================
+# Summary sensors the dashboards read, so each card shows a value instead of
+# carrying its own copy of the logic. The logic is in
+# custom_templates/house_status.jinja; after editing it, run
+# homeassistant.reload_custom_templates, then template.reload.
+
+template:
+  - sensor:
+      # Home "Maintenance" tile shows the count; the Maintenance page's
+      # "Needs Attention" card lists `items`.
+      - name: "Maintenance Attention"
+        unique_id: maintenance_attention
+        icon: mdi:tools
+        state: >-
+          {% from 'house_status.jinja' import maintenance_status %}
+          {{ (maintenance_status() | from_json)['count'] }}
+        attributes:
+          items: >-
+            {% from 'house_status.jinja' import maintenance_status %}
+            {{ (maintenance_status() | from_json)['items'] }}
+
+      # Home "Security" tile: how many cameras are reachable. `offline` lists
+      # the ones that aren't (empty when all are up).
+      - name: "Cameras Online"
+        unique_id: cameras_online
+        icon: mdi:cctv
+        state: >-
+          {% set cams = ['camera.front_porch_cam', 'camera.back_deck_cam', 'camera.back_yard_cam'] %}
+          {{ cams | reject('is_state', ['unavailable', 'unknown']) | list | count }}
+        attributes:
+          total: 3
+          offline: >-
+            {% set cams = ['camera.front_porch_cam', 'camera.back_deck_cam', 'camera.back_yard_cam'] %}
+            {{ cams | select('is_state', ['unavailable', 'unknown']) | list }}
+
+      # Soonest event across the household calendars (Home "Live Activity").
+      - name: "Next Calendar Event"
+        unique_id: next_calendar_event
+        icon: mdi:calendar-clock
+        state: >-
+          {% from 'house_status.jinja' import next_calendar_event %}
+          {{ (next_calendar_event() | from_json)['message'] | truncate(250, true, '…', 0) }}
+        attributes:
+          when: >-
+            {% from 'house_status.jinja' import next_calendar_event %}
+            {{ (next_calendar_event() | from_json)['when'] }}

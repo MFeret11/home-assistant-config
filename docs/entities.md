@@ -73,6 +73,7 @@ _Moved verbatim from AGENTS.md. "§N" references point to the old AGENTS.md sect
 - `binary_sensor.theater_in_use`: High when `media_player.theater_receiver == 'on'`.
 - `binary_sensor.theater_announcer_bar`: Set by `theater.py` `update_announcer_bar()`. On while the theater is in use and in sports mode, or in movie mode with a sports app or Prime Video in the foreground. Shows the booth announcer bar.
 - `binary_sensor.basement_lights_active`: High when dimmer, lounge, or bias strip are ON.
+- `binary_sensor.theater_media_playing`: Template (`packages/theater.yaml`). On while theater media is playing: `media_player.whole_house_spotify` in music mode, otherwise `media_player.theater_onn_pro_adb` or the mediasession2mqtt playback state. Drives the header play/pause chip.
 - `input_select.basement_lighting_mode`: Active room mode (`Daily Driver`, `Social Mode`). ("Movie Mode" is a legacy input value, auto-converted to `Daily Driver` by `set_lighting_mode()` — theater lighting behavior is driven by `binary_sensor.theater_in_use` / `sensor.theater_mode`, not a distinct lighting-mode value.)
 - `input_select.basement_theater_mode`: AV intent (`Movie`, `Game`, `Music`, `Sports`, `Off`).
 - `sensor.theater_mode`: Hardware status resolver (`movie`, `game`, `music`, `sports`, `off`).
@@ -88,3 +89,10 @@ _Moved verbatim from AGENTS.md. "§N" references point to the old AGENTS.md sect
 - `input_boolean.xteve_tuner_reservation`: Master policy switch enforcing 1-tuner reservation buffer for the basement theater.
 - `pyscript.preempt_tuner_for_theater`: Force-releases a tuner (default Tuner 1) so the basement can lock it, dropping whatever remote Tailscale/xTeVe stream held it. Talks to the HDHomeRun FLEX DUO over its TCP control protocol (port 65001: `/tunerN/lockkey force`, then `/tunerN/channel none`); the device has no HTTP endpoint for this. Returns `False` and sends a failure ntfy if the device refuses.
 
+### Dashboard Summary Sensors
+Template sensors that hold logic the dashboards used to repeat inline. Cards read these instead of recomputing.
+- `sensor.commute_am_severity` / `sensor.commute_pm_severity` (`packages/commute.yaml`): `ok`, `warn` or `alert`, from `sensor.septa_commute`. Sets the colour of the kitchen commute cards.
+- `sensor.maintenance_attention` (`packages/house_status.yaml`): number of things needing attention (worn parts, batteries at or below 20%, device problem flags, due or overdue chores, each chore counted once). The `items` attribute holds the display lines for the Maintenance page's "Needs Attention" card; the Home tile shows the count.
+- `sensor.cameras_online` (`packages/house_status.yaml`): number of reachable cameras; attributes `total` and `offline` (list of cameras that are unavailable or unknown). Feeds the Home Security tile.
+- `sensor.next_calendar_event` (`packages/house_status.yaml`): title of the soonest event across the household calendars; the `when` attribute is the formatted date and time.
+- The maintenance and calendar logic lives in `custom_templates/house_status.jinja`. After editing it, run `homeassistant.reload_custom_templates`, then `template.reload`.

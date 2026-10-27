@@ -1,0 +1,80 @@
+{#- Shared logic for the template sensors in packages/house_status.yaml.
+    Macros can only return strings, so each one returns JSON and the
+    caller parses it with from_json. -#}
+
+{#- Everything the Maintenance page lists under "Needs Attention":
+    worn vacuum and printer parts, low batteries, device problem flags,
+    and chores that are due or overdue. Returns {count, items}: items are
+    display lines, and count is the number of things needing attention
+    (each due chore counts once, though they share one line). -#}
+{%- macro maintenance_status() -%}
+  {%- set ns = namespace(l=[]) -%}
+  {%- set parts = {
+    'sensor.vaculina_main_brush_left': 'Vacuum main brush',
+    'sensor.vaculina_side_brush_left': 'Vacuum side brush',
+    'sensor.vaculina_filter_left': 'Vacuum filter',
+    'sensor.vaculina_sensor_dirty_left': 'Vacuum sensors (clean them)',
+    'sensor.vaculina_wheel_dirty_left': 'Vacuum wheel (clean it)',
+    'sensor.vaculina_scale_inhibitor_left': 'Station scale inhibitor',
+    'sensor.brother_black_toner_remaining': 'Printer toner',
+    'sensor.brother_drum_remaining_lifetime': 'Printer drum'
+  } -%}
+  {%- for e, n in parts.items() if states(e) | is_number and states(e) | float <= 20 -%}
+    {%- set ns.l = ns.l + ['🧰 ' ~ n ~ ': ' ~ states(e) | int ~ '%'] -%}
+  {%- endfor -%}
+  {#- Phones and the vacuum are left out: they charge daily. -#}
+  {%- for s in states.sensor
+       | selectattr('attributes.device_class', 'defined')
+       | selectattr('attributes.device_class', 'eq', 'battery')
+       if s.state | is_number and s.state | float <= 20
+       and not (s.entity_id is search('pixel_8|iphone|vaculina')) -%}
+    {%- set ns.l = ns.l + ['🔋 ' ~ s.name ~ ': ' ~ s.state | int ~ '%'] -%}
+  {%- endfor -%}
+  {%- set flags = {
+    'binary_sensor.vaculina_problem': 'Vacuum reports a problem',
+    'binary_sensor.vaculina_maintenance': 'Vacuum wants maintenance',
+    'binary_sensor.brother_low_toner': 'Printer toner low',
+    'binary_sensor.brother_no_toner': 'Printer out of toner',
+    'binary_sensor.brother_no_paper': 'Printer out of paper',
+    'binary_sensor.brother_paper_jam': 'Printer paper jam',
+    'binary_sensor.brother_door_open': 'Printer door open'
+  } -%}
+  {%- for e, n in flags.items() if is_state(e, 'on') -%}
+    {%- set ns.l = ns.l + ['⚠️ ' ~ n] -%}
+  {%- endfor -%}
+  {%- set err = states('sensor.vaculina_error') -%}
+  {%- if err not in ['no_error', 'unknown', 'unavailable'] -%}
+    {%- set ns.l = ns.l + ['⚠️ Vacuum error: ' ~ err | replace('_', ' ')] -%}
+  {%- endif -%}
+  {%- set water = states('sensor.vaculina_low_water_warning') -%}
+  {%- if water not in ['no_warning', 'unknown', 'unavailable'] -%}
+    {%- set ns.l = ns.l + ['💧 Vacuum: ' ~ water | replace('_', ' ')] -%}
+  {%- endif -%}
+  {%- set hk = state_attr('sensor.home_keeper_tasks', 'overdue') | int(0)
+             + state_attr('sensor.home_keeper_tasks', 'due_today') | int(0) -%}
+  {%- set count = ns.l | count + hk -%}
+  {%- if hk > 0 -%}
+    {%- set ns.l = ns.l + ['📋 ' ~ hk ~ ' chore' ~ ('' if hk == 1 else 's') ~ ' due or overdue'] -%}
+  {%- endif -%}
+  {{- {'count': count, 'items': ns.l} | to_json -}}
+{%- endmacro -%}
+
+{#- The soonest event across the household calendars.
+    Returns {message, when} where `when` is ready to display. -#}
+{%- macro next_calendar_event() -%}
+  {%- set cals = ['calendar.matt', 'calendar.partner', 'calendar.family', 'calendar.birthdays'] -%}
+  {%- set ns = namespace(ts=none, msg='No upcoming events', all_day=true) -%}
+  {%- for c in cals -%}
+    {%- set st = state_attr(c, 'start_time') -%}
+    {%- if st -%}
+      {%- set ts = as_timestamp(st, none) -%}
+      {%- if ts is not none and (ns.ts is none or ts < ns.ts) -%}
+        {%- set ns.ts = ts -%}
+        {%- set ns.msg = state_attr(c, 'message') or 'Untitled event' -%}
+        {%- set ns.all_day = state_attr(c, 'all_day') -%}
+      {%- endif -%}
+    {%- endif -%}
+  {%- endfor -%}
+  {%- set when = ns.ts | timestamp_custom('%a %b %-d' ~ ('' if ns.all_day else ' • %-I:%M %p')) if ns.ts is not none else '' -%}
+  {{- {'message': ns.msg, 'when': when} | to_json -}}
+{%- endmacro -%}

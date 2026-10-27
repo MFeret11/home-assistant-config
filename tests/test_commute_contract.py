@@ -5,7 +5,9 @@ packages/commute.yaml, and the commute cards in dashboards/kitchen.yaml.
 
 The kitchen cards are rendered with Jinja2 against fake sensor states, so a
 template change that breaks a scenario (or reads an attribute the package
-never imports) fails here instead of on the kitchen screen.
+never imports) fails here instead of on the kitchen screen. The card colours
+come from the Commute AM/PM Severity template sensors in the package, which
+are rendered first from the same fake states.
 
 Run: python3 ~/ha_config/tests/test_commute_contract.py
 """
@@ -51,6 +53,21 @@ def _declared_attributes(sensor_name: str) -> set:
             if sensor["name"] == sensor_name:
                 return set(sensor.get("json_attributes", []))
     raise AssertionError(f"{sensor_name} not found in packages/commute.yaml")
+
+
+def _severity_templates() -> dict:
+    """{'am': template, 'pm': template} for the Commute AM/PM Severity sensors."""
+    with open(PACKAGE, encoding="utf-8") as f:
+        package = yaml.safe_load(f)
+    found = {}
+    for block in package["template"]:
+        for sensor in block.get("sensor", []):
+            if sensor["name"] == "Commute AM Severity":
+                found["am"] = sensor["state"]
+            elif sensor["name"] == "Commute PM Severity":
+                found["pm"] = sensor["state"]
+    assert set(found) == {"am", "pm"}, f"severity sensors not found in commute.yaml: {set(found)}"
+    return found
 
 
 def _kitchen_cards() -> dict:
@@ -117,7 +134,14 @@ def _render(template: str, commute_state: str, commute: dict, weather: dict | No
         }),
     }
     env = jinja2.Environment(undefined=jinja2.StrictUndefined)
+    for window, severity in _severity_templates().items():
+        level = env.from_string(severity).render(states=_States(entities)).strip()
+        entities[f"sensor.commute_{window}_severity"] = _Entity(level, {})
     return env.from_string(template).render(states=_States(entities))
+
+
+def _severity(window: str, commute_state: str, commute: dict) -> str:
+    return _render("{{ states('sensor.commute_%s_severity') }}" % window, commute_state, commute)
 
 
 def _attribute_lookups(text: str, var: str = "c") -> set:
@@ -203,6 +227,8 @@ def test_kitchen_reads_only_imported_attributes():
     print("  [2/3] Auditing kitchen dashboard attribute lookups...")
     with open(KITCHEN, encoding="utf-8") as f:
         lookups = _attribute_lookups(f.read())
+    for template in _severity_templates().values():
+        lookups |= _attribute_lookups(template)
     undeclared = lookups - _declared_attributes("SEPTA Commute")
     assert not undeclared, (
         f"kitchen.yaml reads attributes HA never imports (always empty): {sorted(undeclared)}"
@@ -244,6 +270,24 @@ def test_commute_card_rendering_matrix():
         assert red in _render(style, "alert", alert), f"{window} card not red for a line alert"
         assert red not in _render(style, "ok", BASE), f"{window} card red with nothing wrong"
     print("    ✓ Card turns red for a line alert")
+
+    # (scenario, expected AM level, expected PM level)
+    levels = [
+        ({}, "ok", "ok"),
+        ({"total_delay_minutes": 4}, "warn", "warn"),
+        ({"total_delay_minutes": 10}, "warn", "alert"),
+        ({"leave_now": True}, "alert", "ok"),
+        ({"at_risk": True}, "warn", "warn"),
+        ({"is_cancelled": True}, "alert", "alert"),
+        ({"service_alerts": ["Line A: Suspended"]}, "alert", "alert"),
+    ]
+    for overrides, am_level, pm_level in levels:
+        commute = {**BASE, **overrides}
+        assert _severity("am", "ok", commute) == am_level, (overrides, "am")
+        assert _severity("pm", "ok", commute) == pm_level, (overrides, "pm")
+    assert _severity("am", "unavailable", {}) == "warn"
+    assert _severity("pm", "unavailable", {}) == "warn"
+    print("    ✓ Severity sensors pick ok / warn / alert")
 
 
 if __name__ == "__main__":

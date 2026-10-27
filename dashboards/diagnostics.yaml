@@ -574,59 +574,12 @@ views:
           - type: heading
             heading: Needs Attention
             icon: mdi:alert-circle-outline
-          # Same thresholds as the Maintenance tile on home.yaml; keep the two in sync.
+          # Lines come from sensor.maintenance_attention (packages/house_status.yaml),
+          # which also feeds the Maintenance tile on home.yaml.
           - type: markdown
             content: >-
-              {%- set ns = namespace(l=[]) -%}
-              {%- set parts = {
-                'sensor.vaculina_main_brush_left': 'Vacuum main brush',
-                'sensor.vaculina_side_brush_left': 'Vacuum side brush',
-                'sensor.vaculina_filter_left': 'Vacuum filter',
-                'sensor.vaculina_sensor_dirty_left': 'Vacuum sensors (clean them)',
-                'sensor.vaculina_wheel_dirty_left': 'Vacuum wheel (clean it)',
-                'sensor.vaculina_scale_inhibitor_left': 'Station scale inhibitor',
-                'sensor.brother_black_toner_remaining': 'Printer toner',
-                'sensor.brother_drum_remaining_lifetime': 'Printer drum'
-              } -%}
-              {%- for e, n in parts.items() if states(e) | is_number and states(e) | float <= 20 -%}
-                {%- set ns.l = ns.l + ['🧰 ' ~ n ~ ': ' ~ states(e) | int ~ '%'] -%}
-              {%- endfor -%}
-              {%- for s in states.sensor
-                   | selectattr('attributes.device_class', 'defined')
-                   | selectattr('attributes.device_class', 'eq', 'battery')
-                   if s.state | is_number and s.state | float <= 20
-                   and not (s.entity_id is search('pixel_8|iphone|vaculina')) -%}
-                {%- set ns.l = ns.l + ['🔋 ' ~ s.name ~ ': ' ~ s.state | int ~ '%'] -%}
-              {%- endfor -%}
-              {%- set flags = {
-                'binary_sensor.vaculina_problem': 'Vacuum reports a problem',
-                'binary_sensor.vaculina_maintenance': 'Vacuum wants maintenance',
-                'binary_sensor.brother_low_toner': 'Printer toner low',
-                'binary_sensor.brother_no_toner': 'Printer out of toner',
-                'binary_sensor.brother_no_paper': 'Printer out of paper',
-                'binary_sensor.brother_paper_jam': 'Printer paper jam',
-                'binary_sensor.brother_door_open': 'Printer door open'
-              } -%}
-              {%- for e, n in flags.items() if is_state(e, 'on') -%}
-                {%- set ns.l = ns.l + ['⚠️ ' ~ n] -%}
-              {%- endfor -%}
-              {%- set err = states('sensor.vaculina_error') -%}
-              {%- if err not in ['no_error', 'unknown', 'unavailable'] -%}
-                {%- set ns.l = ns.l + ['⚠️ Vacuum error: ' ~ err | replace('_', ' ')] -%}
-              {%- endif -%}
-              {%- if states('sensor.vaculina_low_water_warning') not in ['no_warning', 'unknown', 'unavailable'] -%}
-                {%- set ns.l = ns.l + ['💧 Vacuum: ' ~ states('sensor.vaculina_low_water_warning') | replace('_', ' ')] -%}
-              {%- endif -%}
-              {%- set hk = state_attr('sensor.home_keeper_tasks', 'overdue') | int(0)
-                         + state_attr('sensor.home_keeper_tasks', 'due_today') | int(0) -%}
-              {%- if hk > 0 -%}
-                {%- set ns.l = ns.l + ['📋 ' ~ hk ~ ' chore' ~ ('' if hk == 1 else 's') ~ ' due or overdue'] -%}
-              {%- endif -%}
-              {%- if ns.l -%}
-                {{ ns.l | join('\n\n') }}
-              {%- else -%}
-                ✅ Nothing needs attention
-              {%- endif -%}
+              {%- set items = state_attr('sensor.maintenance_attention', 'items') or [] -%}
+              {{ items | join('\n\n') if items else '✅ Nothing needs attention' }}
             card_mod:
               style: |
                 ha-card {

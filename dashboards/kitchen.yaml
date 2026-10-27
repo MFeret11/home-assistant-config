@@ -143,10 +143,9 @@ views:
                     border-radius: 22px;
                     padding: 18px 14px;
                     backdrop-filter: blur(16px);
-                    {% set c = states.sensor.septa_commute.attributes if states.sensor.septa_commute is not none else {} %}
-                    {% set no_data = c.get('origin_train') is none or states('sensor.septa_commute') in ['unavailable', 'unknown', 'error', 'idle'] %}
-                    {% set is_alert = (c.get('service_alerts') or []) | length > 0 or c.get('leave_now', false) or c.get('is_cancelled', false) or c.get('connection_cancelled', false) or c.get('planned_connection_cancelled', false) or c.get('missed_connection', false) %}
-                    {% set is_warn = no_data or c.get('is_stalled', false) or c.get('connection_is_stalled', false) or c.get('at_risk', false) or c.get('origin_delay_unknown', false) or c.get('connection_delay_unknown', false) or (c.get('total_delay_minutes', 0) or 0) > 0 %}
+                    {% set level = states('sensor.commute_am_severity') %}
+                    {% set is_alert = level == 'alert' %}
+                    {% set is_warn = level == 'warn' %}
                     background: {{ 'linear-gradient(135deg, rgba(244, 67, 54, 0.4), rgba(183, 28, 28, 0.2))' if is_alert else ('linear-gradient(135deg, rgba(255, 179, 0, 0.35), rgba(255, 111, 0, 0.18))' if is_warn else 'rgba(255, 255, 255, 0.04)') }} !important;
                     border: {{ '2px solid rgba(244, 67, 54, 0.8)' if is_alert else ('1.5px solid rgba(255, 179, 0, 0.7)' if is_warn else '1px solid rgba(255, 255, 255, 0.1)') }} !important;
                     box-shadow: {{ '0 6px 24px rgba(244, 67, 54, 0.35)' if is_alert else '0 6px 20px rgba(0, 0, 0, 0.2)' }};
@@ -296,11 +295,9 @@ views:
                     border-radius: 22px;
                     padding: 18px 14px;
                     backdrop-filter: blur(16px);
-                    {% set c = states.sensor.septa_commute.attributes if states.sensor.septa_commute is not none else {} %}
-                    {% set delay = c.get('total_delay_minutes', 0) or 0 %}
-                    {% set no_data = c.get('origin_line') is none or states('sensor.septa_commute') in ['unavailable', 'unknown', 'error', 'idle'] %}
-                    {% set is_danger = (c.get('service_alerts') or []) | length > 0 or c.get('missed_connection', false) or delay >= 10 or c.get('is_cancelled', false) or c.get('connection_cancelled', false) or c.get('planned_connection_cancelled', false) %}
-                    {% set is_warn = no_data or delay > 0 or c.get('at_risk', false) or c.get('is_stalled', false) or c.get('connection_is_stalled', false) or c.get('origin_delay_unknown', false) or c.get('connection_delay_unknown', false) %}
+                    {% set level = states('sensor.commute_pm_severity') %}
+                    {% set is_danger = level == 'alert' %}
+                    {% set is_warn = level == 'warn' %}
                     background: {{ 'linear-gradient(135deg, rgba(244, 67, 54, 0.4), rgba(183, 28, 28, 0.2))' if is_danger else ('linear-gradient(135deg, rgba(255, 179, 0, 0.35), rgba(255, 111, 0, 0.18))' if is_warn else 'rgba(255, 255, 255, 0.04)') }} !important;
                     border: {{ '2px solid rgba(244, 67, 54, 0.8)' if is_danger else ('1.5px solid rgba(255, 179, 0, 0.7)' if is_warn else '1px solid rgba(255, 255, 255, 0.1)') }} !important;
                     color: var(--primary-text-color);
