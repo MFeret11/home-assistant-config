@@ -53,6 +53,8 @@ rest:
           - planned_connection_train
           - planned_arrival_time
           - data_stale
+          - transfer_fallback
+          - preferred_transfer_station
           - service_alerts
           - alerts_unavailable
 

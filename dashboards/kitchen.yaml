@@ -118,6 +118,10 @@ views:
                   {% endif %}
                 {% endif %}
 
+                {% if c.get('transfer_fallback', false) %}
+                  🔀 No connection at {{ c.get('preferred_transfer_station') }} right now · change at **{{ c.get('connection_station') }}**
+                {% endif %}
+
                 {% if c.get('data_stale', false) %}
                   ⏳ SEPTA didn't respond just now; times are from a few minutes ago.
                 {% endif %}
@@ -277,6 +281,10 @@ views:
 
                   {% if w.get('evening_warning') %}
                   ☔ {{ w.get('evening_warning') }} on the way home
+                  {% endif %}
+
+                  {% if c.get('transfer_fallback', false) %}
+                  🔀 No connection at {{ c.get('preferred_transfer_station') }} right now · change at **{{ c.get('connection_station') }}**
                   {% endif %}
 
                   {% if c.get('data_stale', false) %}
