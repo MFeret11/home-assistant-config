@@ -182,8 +182,8 @@ def test_preflight_diagnostics_error_on_missing():
 def test_theater_force_reconcile_when_active():
     setup_healthy_environment()
     mock_state.set("media_player.theater_receiver", "on", {"source": "HDMI1"})
-    mock_state.set("sensor.mediasession2mqtt_1_application_id", "com.stremio.one")
-    mock_state.set("sensor.mediasession2mqtt_1_media_title", "Dune Part Two")
+    mock_state._attrs.setdefault("media_player.onn_pro", {})["app_id"] = "com.stremio.one"
+    mock_state._attrs.setdefault("media_player.onn_pro", {})["media_title"] = "Dune Part Two"
 
     theater.theater_force_reconcile()
 

@@ -218,7 +218,7 @@ def setup_clean_environment():
     state.set("pyscript.basement_social_source", "none")
     state.set("pyscript.curtain_call_active", "off")
     state.set("pyscript.mode_selector_expanded", "off")
-    state.set("sensor.mediasession2mqtt_1_playback_state", "idle")
+    state.set("media_player.theater_onn_pro_adb", "idle")
     state.set("sensor.batocera_state", "idle")
     state.set("input_number.theater_announcer_volume", "-10.0")
     state.set("sensor.philadelphia_eagles", "PRE")
@@ -267,7 +267,7 @@ def test_cinema_shield_blackout():
     state.set("input_select.basement_lighting_mode", "Movie Mode")
     state.set("binary_sensor.theater_in_use", "on")
     state.set("sensor.theater_mode", "movie")
-    state.set("sensor.mediasession2mqtt_1_playback_state", "playing")
+    state.set("media_player.theater_onn_pro_adb", "playing")
 
     basement.theater_lighting_sync()
     mock_task.run_deferred_tasks()
@@ -277,13 +277,37 @@ def test_cinema_shield_blackout():
     print("  ✓ [Core] test_cinema_shield_blackout PASSED")
 
 
+def test_theater_pauses_adaptive_lighting():
+    """Game menu glow must not be overridden by Adaptive Lighting (came up at 30%)."""
+    al = "switch.basement_adaptive_lighting_adaptive_lighting_basement_adaptive_lighting"
+    setup_clean_environment()
+    basement.ADAPTIVE_PAUSED_BY_THEATER = False
+    state.set("input_select.basement_lighting_mode", "Daily Driver")
+    state.set(al, "on")
+    state.set("binary_sensor.theater_in_use", "on")
+    state.set("sensor.theater_mode", "game")
+    state.set("sensor.batocera_state", "idle")
+    basement.theater_lighting_sync()
+    mock_task.run_deferred_tasks()
+    assert spy.was_called("switch", "turn_off", al), "FAIL: Adaptive Lighting not paused for theater!"
+
+    # Session ends without Curtain Call: Adaptive Lighting comes back
+    state.set(al, "off")
+    state.set("binary_sensor.theater_in_use", "off")
+    state.set("sensor.theater_mode", "off")
+    spy.clear()
+    basement.theater_lighting_sync()
+    assert spy.was_called("switch", "turn_on", al), "FAIL: Adaptive Lighting not restored after theater!"
+    print("  ✓ [Core] test_theater_pauses_adaptive_lighting PASSED")
+
+
 def test_movie_intermission_glow():
     setup_clean_environment()
     state.set("input_select.basement_lighting_mode", "Movie Mode")
     state.set("binary_sensor.theater_in_use", "on")
     state.set("sensor.theater_mode", "movie")
     state.set("media_player.onn_pro", "on")
-    state.set("sensor.mediasession2mqtt_1_playback_state", "paused")
+    state.set("media_player.theater_onn_pro_adb", "paused")
 
     basement.theater_lighting_sync()
     mock_task.run_deferred_tasks()
@@ -299,13 +323,12 @@ def test_movie_intermission_glow():
 
 
 def test_adb_player_drives_movie_lighting():
-    # mediasession2mqtt is gone; the ADB player alone must drive blackout and pause glow.
+    # The ADB player alone must drive blackout and pause glow.
     setup_clean_environment()
     state.set("input_select.basement_lighting_mode", "Movie Mode")
     state.set("binary_sensor.theater_in_use", "on")
     state.set("sensor.theater_mode", "movie")
     state.set("media_player.onn_pro", "on")
-    state.set("sensor.mediasession2mqtt_1_playback_state", "unavailable")
     state.set("media_player.theater_onn_pro_adb", "playing")
 
     basement.theater_lighting_sync()
@@ -405,7 +428,7 @@ def test_transition_social_to_movie():
     state.set("pyscript.basement_social_source", "manual")
     state.set("binary_sensor.theater_in_use", "on")
     state.set("sensor.theater_mode", "movie")
-    state.set("sensor.mediasession2mqtt_1_playback_state", "playing")
+    state.set("media_player.theater_onn_pro_adb", "playing")
 
     basement.on_lighting_mode_changed("Movie Mode", "Social Mode")
     mock_task.run_deferred_tasks()
@@ -465,12 +488,12 @@ def test_pause_debounce_not_triggering_on_quick_seek():
     state.set("binary_sensor.theater_in_use", "on")
     state.set("sensor.theater_mode", "movie")
     state.set("media_player.onn_pro", "on")
-    state.set("sensor.mediasession2mqtt_1_playback_state", "playing")
+    state.set("media_player.theater_onn_pro_adb", "playing")
 
     basement.theater_lighting_sync()
     spy.clear()
 
-    state.set("sensor.mediasession2mqtt_1_playback_state", "playing")
+    state.set("media_player.theater_onn_pro_adb", "playing")
     basement.theater_lighting_sync()
     mock_task.run_deferred_tasks()
 
@@ -585,7 +608,7 @@ def test_telemetry_hdmi1_spotify_sets_music_mode():
     setup_clean_environment()
     state.set("media_player.theater_receiver", "on")
     state._attrs.setdefault("media_player.theater_receiver", {})["source"] = "HDMI1"
-    state.set("sensor.mediasession2mqtt_1_application_id", "com.spotify.tv.android")
+    state._attrs.setdefault("media_player.onn_pro", {})["app_id"] = "com.spotify.tv.android"
     theater.update_theater_mode()
     assert state.get("sensor.theater_mode") == "music", "FAIL: Spotify on HDMI1 did not evaluate to 'music'!"
     print("  ✓ [Telemetry] test_telemetry_hdmi1_spotify_sets_music_mode PASSED")
@@ -752,7 +775,7 @@ def test_moonlight_app_triggers_game_mode():
     setup_clean_environment()
     state.set("media_player.theater_receiver", "on")
     state._attrs.setdefault("media_player.theater_receiver", {})["source"] = "HDMI1"
-    state.set("sensor.mediasession2mqtt_1_application_id", "com.limelight")
+    state._attrs.setdefault("media_player.onn_pro", {})["app_id"] = "com.limelight"
 
     theater.update_theater_mode()
 
@@ -821,7 +844,7 @@ def test_audio_routing_youtube_engages_surround_decoder():
     setup_clean_environment()
     state.set("binary_sensor.theater_in_use", "on")
     state._attrs.setdefault("media_player.theater_receiver", {})["source"] = "HDMI1"
-    state.set("sensor.mediasession2mqtt_1_application_id", "com.google.android.youtube.tv")
+    state._attrs.setdefault("media_player.onn_pro", {})["app_id"] = "com.google.android.youtube.tv"
 
     theater.route_app_audio_mode()
     call = spy.last_call_for("media_player", "select_sound_mode")
@@ -834,7 +857,7 @@ def test_audio_routing_stremio_engages_standard_surround():
     setup_clean_environment()
     state.set("binary_sensor.theater_in_use", "on")
     state._attrs.setdefault("media_player.theater_receiver", {})["source"] = "HDMI1"
-    state.set("sensor.mediasession2mqtt_1_application_id", "com.stremio.one")
+    state._attrs.setdefault("media_player.onn_pro", {})["app_id"] = "com.stremio.one"
 
     theater.route_app_audio_mode()
     call = spy.last_call_for("media_player", "select_sound_mode")
@@ -847,7 +870,7 @@ def test_audio_routing_spotify_engages_7ch_stereo():
     setup_clean_environment()
     state.set("binary_sensor.theater_in_use", "on")
     state._attrs.setdefault("media_player.theater_receiver", {})["source"] = "HDMI1"
-    state.set("sensor.mediasession2mqtt_1_application_id", "com.spotify.tv.android")
+    state._attrs.setdefault("media_player.onn_pro", {})["app_id"] = "com.spotify.tv.android"
 
     theater.route_app_audio_mode()
     call = spy.last_call_for("media_player", "select_sound_mode")
@@ -860,7 +883,7 @@ def test_audio_routing_ignored_when_on_hdmi2_gaming():
     setup_clean_environment()
     state.set("binary_sensor.theater_in_use", "on")
     state._attrs.setdefault("media_player.theater_receiver", {})["source"] = "HDMI2"
-    state.set("sensor.mediasession2mqtt_1_application_id", "com.google.android.youtube.tv")
+    state._attrs.setdefault("media_player.onn_pro", {})["app_id"] = "com.google.android.youtube.tv"
 
     theater.route_app_audio_mode()
     assert not spy.was_called("media_player", "select_sound_mode"), \
@@ -873,7 +896,7 @@ def test_audio_routing_hdhomerun_engages_sports_mode_and_ducks_center():
     setup_clean_environment()
     state.set("binary_sensor.theater_in_use", "on")
     state._attrs.setdefault("media_player.theater_receiver", {})["source"] = "HDMI1"
-    state.set("sensor.mediasession2mqtt_1_application_id", "com.silicondust.view")
+    state._attrs.setdefault("media_player.onn_pro", {})["app_id"] = "com.silicondust.view"
     state.set("input_number.theater_announcer_volume", "-8.5")
 
     theater.route_app_audio_mode()
@@ -890,7 +913,7 @@ def test_audio_routing_televizio_defaults_center_to_minus_10_if_slider_missing()
     setup_clean_environment()
     state.set("binary_sensor.theater_in_use", "on")
     state._attrs.setdefault("media_player.theater_receiver", {})["source"] = "HDMI1"
-    state.set("sensor.mediasession2mqtt_1_application_id", "com.armata.televizio")
+    state._attrs.setdefault("media_player.onn_pro", {})["app_id"] = "com.armata.televizio"
     state._states.pop("input_number.theater_announcer_volume", None)
 
     theater.route_app_audio_mode()
@@ -907,7 +930,7 @@ def test_audio_routing_exiting_sports_to_stremio_restores_flat_center():
     setup_clean_environment()
     state.set("binary_sensor.theater_in_use", "on")
     state._attrs.setdefault("media_player.theater_receiver", {})["source"] = "HDMI1"
-    state.set("sensor.mediasession2mqtt_1_application_id", "com.stremio.one")
+    state._attrs.setdefault("media_player.onn_pro", {})["app_id"] = "com.stremio.one"
 
     theater.route_app_audio_mode()
     snd_call = spy.last_call_for("media_player", "select_sound_mode")
@@ -953,9 +976,9 @@ def test_stremio_futurama_episode_art_resolution():
     setup_clean_environment()
     state.set("sensor.theater_mode", "movie")
     state.set("binary_sensor.theater_in_use", "on")
-    state.set("sensor.mediasession2mqtt_1_application_id", "com.stremio.one")
-    state.set("sensor.mediasession2mqtt_1_playback_state", "playing")
-    state.set("sensor.mediasession2mqtt_1_media_title", "Space Pilot 3000 - Futurama")
+    state._attrs.setdefault("media_player.onn_pro", {})["app_id"] = "com.stremio.one"
+    state.set("media_player.theater_onn_pro_adb", "playing")
+    state._attrs.setdefault("media_player.onn_pro", {})["media_title"] = "Space Pilot 3000 - Futurama"
 
     theater.update_theater_media_art()
     poster_title = state.getattr("sensor.theater_current_poster", "title")
@@ -969,9 +992,9 @@ def test_stremio_movie_title_resolution():
     setup_clean_environment()
     state.set("sensor.theater_mode", "movie")
     state.set("binary_sensor.theater_in_use", "on")
-    state.set("sensor.mediasession2mqtt_1_application_id", "com.stremio.one")
-    state.set("sensor.mediasession2mqtt_1_playback_state", "playing")
-    state.set("sensor.mediasession2mqtt_1_media_title", "Inception.2010.1080p.WEBRip.x264.mp4")
+    state._attrs.setdefault("media_player.onn_pro", {})["app_id"] = "com.stremio.one"
+    state.set("media_player.theater_onn_pro_adb", "playing")
+    state._attrs.setdefault("media_player.onn_pro", {})["media_title"] = "Inception.2010.1080p.WEBRip.x264.mp4"
 
     theater.update_theater_media_art()
     poster_title = state.getattr("sensor.theater_current_poster", "title")
@@ -990,7 +1013,7 @@ def test_lobby_browsing_android_launcher():
     state.set("binary_sensor.theater_in_use", "on")
     state.set("sensor.theater_mode", "movie")
     state.set("media_player.onn_pro", "on")
-    state.set("sensor.mediasession2mqtt_1_playback_state", "idle")
+    state.set("media_player.theater_onn_pro_adb", "idle")
     state._attrs.setdefault("remote.onn_pro", {})["current_activity"] = "com.google.android.apps.tv.launcherx"
 
     basement.theater_lighting_sync()
@@ -1218,7 +1241,7 @@ def test_full_evening_story_simulation():
     mock_task.run_deferred_tasks()
     assert spy.was_called("switch", "turn_on", "switch.projector"), "Story Fail: Step 3 Projector plug didn't energize!"
 
-    state.set("sensor.mediasession2mqtt_1_playback_state", "playing")
+    state.set("media_player.theater_onn_pro_adb", "playing")
     basement.theater_lighting_sync()
     mock_task.run_deferred_tasks()
     assert spy.was_called("light", "turn_off", "light.theater_dimmer"), "Story Fail: Step 3 Theater didn't blackout!"
@@ -1234,7 +1257,7 @@ def test_full_evening_story_simulation():
 
     # --- 5. Intermission (9:45 PM) ---
     spy.clear()
-    state.set("sensor.mediasession2mqtt_1_playback_state", "paused")
+    state.set("media_player.theater_onn_pro_adb", "paused")
     basement.theater_lighting_sync()
     mock_task.run_deferred_tasks()
     assert any(c["domain"] == "light" and c["kwargs"].get("brightness_pct") == 3 for c in spy.calls), \
@@ -1279,7 +1302,7 @@ def test_yamaha_rest_timeout_fails_gracefully():
     setup_clean_environment()
     state.set("binary_sensor.theater_in_use", "on")
     state._attrs.setdefault("media_player.theater_receiver", {})["source"] = "HDMI1"
-    state.set("sensor.mediasession2mqtt_1_application_id", "com.silicondust.view")
+    state._attrs.setdefault("media_player.onn_pro", {})["app_id"] = "com.silicondust.view"
 
     # Simulate network timeout on the rest_command
     original_call = builtins.rest_command.yamaha_set_center_trim
@@ -1427,7 +1450,7 @@ def test_telemetry_hdmi1_sports_app_resolves_to_sports_mode():
     setup_clean_environment()
     state.set("media_player.theater_receiver", "on")
     state._attrs.setdefault("media_player.theater_receiver", {})["source"] = "HDMI1"
-    state.set("sensor.mediasession2mqtt_1_application_id", "com.silicondust.view")
+    state._attrs.setdefault("media_player.onn_pro", {})["app_id"] = "com.silicondust.view"
 
     theater.update_theater_mode()
     assert state.get("sensor.theater_mode") == "sports", "FAIL: HDHomeRun on HDMI1 did not resolve to 'sports'!"
@@ -1454,7 +1477,7 @@ def test_audio_routing_ignores_android_launcher():
     state.set("binary_sensor.theater_in_use", "on")
     state._attrs.setdefault("media_player.theater_receiver", {})["source"] = "HDMI1"
     state.set("sensor.theater_mode", "sports")
-    state.set("sensor.mediasession2mqtt_1_application_id", "com.google.android.apps.tv.launcherx")
+    state._attrs.setdefault("media_player.onn_pro", {})["app_id"] = "com.google.android.apps.tv.launcherx"
 
     spy.clear()
     theater.route_app_audio_mode()
@@ -1697,6 +1720,52 @@ def test_cross_mode_session_teardown_music_and_sports():
     assert home_call and home_call["kwargs"].get("command") == "HOME", "FAIL: HOME command not sent to release tuner!"
     assert state.get("input_select.basement_lighting_mode") == "Daily Driver", "FAIL: Sports Social not released when leaving sports!"
     print("  ✓ [Teardown] test_cross_mode_session_teardown_music_and_sports PASSED")
+
+
+def test_game_holds_receiver_on_hdmi2():
+    """Remote press wakes the Onn; CEC pulls the receiver to HDMI1 a few seconds later.
+    The game guard must switch it back, and must not fight a session end."""
+    setup_clean_environment()
+    theater.play_game()
+    state.set("media_player.theater_receiver", "on")
+    state._attrs.setdefault("media_player.theater_receiver", {})["source"] = "HDMI1"
+    state.set("switch.batocera", "on")
+    spy.clear()
+    mock_task.run_deferred_tasks()
+    calls = [c for c in spy.calls if c["service"] == "select_source"]
+    assert calls and calls[-1]["kwargs"].get("source") == "HDMI2", "FAIL: guard didn't restore HDMI2!"
+
+    # Session end cancels the guard
+    mock_task.clear()
+    theater.play_game()
+    theater._session_seq += 1
+    spy.clear()
+    mock_task.run_deferred_tasks()
+    assert not any(c["service"] == "select_source" for c in spy.calls), "FAIL: guard ran after session ended!"
+    mock_task.clear()
+    print("  ✓ [Game] test_game_holds_receiver_on_hdmi2 PASSED")
+
+
+def test_pc_on_without_stream_does_not_claim_moonlight():
+    """Gaming PC on but nothing streaming: poster must not say Moonlight."""
+    setup_clean_environment()
+    state.set("switch.gaming_pc", "on")
+    state.set("switch.batocera", "on")
+    state.set("sensor.batocera_state", "idle")
+    state.set("sensor.batocera_current_game", "")
+    state.set("sensor.theater_mode", "game")
+    theater.update_game_poster()
+    sub = (state.getattr("sensor.theater_current_poster") or {}).get("subtitle", "")
+    assert sub and "Moonlight" not in sub, f"FAIL: idle PC shown as Moonlight: {sub}"
+
+    # Moonlight running on Batocera reads as a stream
+    state.set("sensor.batocera_state", "playing")
+    state.set("sensor.batocera_current_game", "Desktop")
+    state.set("sensor.batocera_system", "moonlight")
+    theater.update_game_poster()
+    sub = (state.getattr("sensor.theater_current_poster") or {}).get("subtitle", "")
+    assert "Moonlight" in sub, f"FAIL: Batocera Moonlight stream not labeled: {sub}"
+    print("  ✓ [Game] test_pc_on_without_stream_does_not_claim_moonlight PASSED")
 
 
 def test_bidirectional_theater_select_sync():
@@ -2097,7 +2166,6 @@ def test_recorder_telemetry_noise_suppression_contract():
     # 1. High-frequency write flooders MUST be excluded in recorder block
     assert "sensor.projector_current" in recorder_block, "FAIL: raw sensor.projector_current must be excluded"
     assert "sensor.batocera_current" in recorder_block, "FAIL: raw sensor.batocera_current must be excluded"
-    assert "sensor.mediasession2mqtt_1_playback_position" in recorder_block, "FAIL: 1Hz playback position ticker must be excluded"
 
     # 2. Essential usage telemetry MUST NOT be excluded in entities list
     # Find the entities: section under exclude
@@ -3032,6 +3100,9 @@ if __name__ == "__main__":
         test_unmanaged_exit_receiver_power_off_triggers_safe_teardown,
         test_cross_mode_session_teardown_game_to_movie,
         test_cross_mode_session_teardown_music_and_sports,
+        test_game_holds_receiver_on_hdmi2,
+        test_theater_pauses_adaptive_lighting,
+        test_pc_on_without_stream_does_not_claim_moonlight,
         test_bidirectional_theater_select_sync,
         test_curtain_call_warm_white_lighting_restoration,
         test_curtain_call_after_gaming_never_wakes_onn_or_leaks_hdmi1,

@@ -586,27 +586,79 @@ views:
             heading: Live Activity
             icon: mdi:radar
 
-          # 1. Eagles & Sixers: next game, live score, final (today only).
-          # Hidden when both teams are off-season. The 76ers sensor is a
-          # TeamTracker entry added in the UI; the card skips it until it exists.
+          # 1. Philly games: each team shows only while its game is live, starts
+          # within 24 hours, or ended in the last 12 (binary_sensor.*_game_soon
+          # in packages/sports.yaml).
           - type: conditional
             conditions:
-              - condition: or
-                conditions:
-                  - condition: state
-                    entity: sensor.philadelphia_eagles
-                    state: [PRE, IN, POST]
-                  - condition: state
-                    entity: sensor.philadelphia_76ers
-                    state: [PRE, IN, POST]
+              - condition: state
+                entity: binary_sensor.eagles_game_soon
+                state: "on"
             card:
               type: custom:compact-team-tracker
               entities:
                 - sensor.philadelphia_eagles
-                - sensor.philadelphia_76ers
               layout: standard
-              hide_offseason: true
-              only_today: true
+              show_day_of_week: true
+              show_tv_network: true
+              show_league: false
+              show_event_name: false
+              card_mod:
+                style: |
+                  ha-card {
+                    border-radius: 20px !important;
+                    margin-bottom: 6px !important;
+                  }
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: binary_sensor.sixers_game_soon
+                state: "on"
+            card:
+              type: custom:compact-team-tracker
+              entities:
+                - sensor.nba_philadelphia_76ers
+              layout: standard
+              show_day_of_week: true
+              show_tv_network: true
+              show_league: false
+              show_event_name: false
+              card_mod:
+                style: |
+                  ha-card {
+                    border-radius: 20px !important;
+                    margin-bottom: 6px !important;
+                  }
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: binary_sensor.phillies_game_soon
+                state: "on"
+            card:
+              type: custom:compact-team-tracker
+              entities:
+                - sensor.mlb_philadelphia_phillies
+              layout: standard
+              show_day_of_week: true
+              show_tv_network: true
+              show_league: false
+              show_event_name: false
+              card_mod:
+                style: |
+                  ha-card {
+                    border-radius: 20px !important;
+                    margin-bottom: 6px !important;
+                  }
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: binary_sensor.flyers_game_soon
+                state: "on"
+            card:
+              type: custom:compact-team-tracker
+              entities:
+                - sensor.nhl_philadelphia_flyers
+              layout: standard
               show_day_of_week: true
               show_tv_network: true
               show_league: false

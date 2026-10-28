@@ -2,7 +2,7 @@
 
 ## 1. System & File Modifications
 - **Secrets Management**: Never inline API keys or credentials in code or dashboards. Always reference `secrets.yaml`.
-- **Database Health**: The system runs on a DRAM-less SSD via USB. Do NOT remove exclusions for micro-jitter sensors (e.g., `sensor.projector_current`, `sensor.batocera_current`, `sensor.mediasession2mqtt_1_playback_position`) from the recorder. Keep database writes to a minimum.
+- **Database Health**: The system runs on a DRAM-less SSD via USB. Do NOT remove exclusions for micro-jitter sensors (e.g., `sensor.projector_current`, `sensor.batocera_current`) from the recorder. Keep database writes to a minimum.
 - **PyScript Conventions**: 
   - Always `await` async functions (especially metadata/art lookups like `_fetch_movie_or_tv_art()`).
   - Use `@state_trigger` for debounced automations alongside raw service entry points.

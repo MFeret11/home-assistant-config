@@ -19,7 +19,6 @@ _Moved verbatim from AGENTS.md. "§N" references point to the old AGENTS.md sect
 - `remote.onn_pro`: Android TV Remote entity used for D-pad, `BACK`, and `HOME` commands on the dashboard remote.
 - `media_player.theater_onn_pro_adb` / `remote.theater_onn_pro_adb`: Onn 4K Pro over ADB (Android Debug Bridge integration, added 2026-10-24). The target for `androidtv.adb_command` (`am start`, `monkey`); `media_player.onn_pro` belongs to Android TV Remote and rejects ADB commands. Its state (`playing`/`paused`/`idle`) is the playback source for theater lighting (`get_media_state()` in `basement.py`), stream status labels in `theater.py`, and the dashboard play/pause chip. `theater.py` sends app launches and the Stremio deep link through it only when `remote.onn_pro` is unavailable (`_onn_adb_command()`).
 - `media_player.whole_house_spotify`: Spotify Connect target — Spotify audio/playback state lives here, not on `media_player.onn_pro`. Does not support `media_pause` on every state; `pause_spotify_if_playing()` checks `supported_features` first.
-- `sensor.mediasession2mqtt_1_playback_state` / `sensor.mediasession2mqtt_1_application_id`: Onn media-session playback state and foreground app package ID. The MQTT publisher stopped reporting before 2026-10 (no recorder history), so these are fallbacks only; the ADB player above supplies playback state. Reports whichever session changed last, not necessarily the foreground app; `media_player.onn_pro` `app_id` is the foreground source of truth.
 - `switch.batocera`: Smart plug hardware relay powering Batocera PC (Endpoint on Third Reality Dual Plug 2).
 - `switch.batocera_console`: Template switch. Off = clean shutdown via `button.batocera_shutdown_2` (never opens the relay directly; the relay opens only via the 12s current-draw interlock). On = closes `switch.batocera` relay (PC boots via BIOS power-on-after-AC-restore). State reflects `sensor.batocera_state` in (`playing`, `idle`).
 - `button.batocera_shutdown_2`: Clean Batocera shutdown button (dashboard power sub-button).
@@ -57,6 +56,7 @@ _Moved verbatim from AGENTS.md. "§N" references point to the old AGENTS.md sect
 - `binary_sensor.basement_stairs_door_sensor`: Top door contact sensor (`device_class: opening`).
 - `binary_sensor.bottom_stairs`: Foot-of-stairs motion sensor (`device_class: motion`).
 - `binary_sensor.theater_mmwave_sensor`: Sonoff SNZB-06P mmWave presence sensor (ZHA, area Theater). Sees people sitting still. Device settings: `select.theater_mmwave_sensor_detection_sensitivity`, `number.theater_mmwave_sensor_presence_detection_timeout` (clear delay, seconds).
+- `binary_sensor.mmwave_sensor_bar`: Second Sonoff SNZB-06P mmWave presence sensor (ZHA), in the bar area. Not used by `basement.py` yet. Device settings: `select.mmwave_sensor_bar_detection_sensitivity`, `number.mmwave_sensor_bar_presence_detection_timeout`.
 - `switch.basement_adaptive_lighting_adaptive_lighting_basement_adaptive_lighting`: Adaptive Lighting master switch.
 - `input_select.basement_lighting_mode`: `Daily Driver` / `Social Mode`. The single source of truth for Social Mode (which is also the presence lock). The old `input_boolean.party_mode` / `input_boolean.presence_override` were removed.
 - `pyscript.basement_social_source`: who engaged Social Mode: `manual`, `sports`, or `none`. Only `sports` Social drops back to Daily when the theater switches to a movie or game.
@@ -69,11 +69,13 @@ _Moved verbatim from AGENTS.md. "§N" references point to the old AGENTS.md sect
 
 ### Sports, State Flags & Virtual Entities
 - `sensor.philadelphia_eagles`: ESPN Team Tracker (`PRE`, `IN`, `POST`; Attributes: `team_score`, `team_colors`, `opponent_name`).
+- `sensor.nba_philadelphia_76ers`, `sensor.mlb_philadelphia_phillies`, `sensor.nhl_philadelphia_flyers`: the other Team Tracker teams, shown on the home dashboard's game card only (no lighting effects). Excluded from the recorder.
+- `binary_sensor.eagles_game_soon`, `binary_sensor.sixers_game_soon`, `binary_sensor.phillies_game_soon`, `binary_sensor.flyers_game_soon`: Template (`packages/sports.yaml`, macro in `custom_templates/sports.jinja`). On while that team's game is live, starts within 24 hours, or started less than 12 hours ago. Each one gates its team's card on the home dashboard.
 - `binary_sensor.basement_automation_allowed`: Master safety gate; if `off`, suppresses automated sports flashes and macros.
 - `binary_sensor.theater_in_use`: High when `media_player.theater_receiver == 'on'`.
 - `binary_sensor.theater_announcer_bar`: Set by `theater.py` `update_announcer_bar()`. On while the theater is in use and in sports mode, or in movie mode with a sports app or Prime Video in the foreground. Shows the booth announcer bar.
 - `binary_sensor.basement_lights_active`: High when dimmer, lounge, or bias strip are ON.
-- `binary_sensor.theater_media_playing`: Template (`packages/theater.yaml`). On while theater media is playing: `media_player.whole_house_spotify` in music mode, otherwise `media_player.theater_onn_pro_adb` or the mediasession2mqtt playback state. Drives the header play/pause chip.
+- `binary_sensor.theater_media_playing`: Template (`packages/theater.yaml`). On while theater media is playing: `media_player.whole_house_spotify` in music mode, otherwise `media_player.theater_onn_pro_adb`. Drives the header play/pause chip.
 - `input_select.basement_lighting_mode`: Active room mode (`Daily Driver`, `Social Mode`). ("Movie Mode" is a legacy input value, auto-converted to `Daily Driver` by `set_lighting_mode()` — theater lighting behavior is driven by `binary_sensor.theater_in_use` / `sensor.theater_mode`, not a distinct lighting-mode value.)
 - `input_select.basement_theater_mode`: AV intent (`Movie`, `Game`, `Music`, `Sports`, `Off`).
 - `sensor.theater_mode`: Hardware status resolver (`movie`, `game`, `music`, `sports`, `off`).

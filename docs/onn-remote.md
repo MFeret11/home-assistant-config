@@ -46,4 +46,4 @@ Use scrcpy over ADB to see and control the Onn's screen without the remote, for 
 ## Known gaps
 
 - **Power button gives a half-on theater.** The cooldown cuts `switch.projector` mains after every session, so a power-button press wakes the Onn and, over CEC, the receiver, but the projector stays dark. `binary_sensor.theater_in_use` still turns on and the theater lighting reacts. The Netflix button (`movie`) is the working "theater on" button. Possible fix: start a mode when the Onn and the receiver both wake within a few seconds while the theater is off. Don't trigger on the Onn waking alone, because scrcpy, casting and updates wake it too.
-- **Game mode and the remote.** The picture is on HDMI2 while the remote still talks to the Onn. A press may wake the Onn, and CEC could pull the receiver back to HDMI1. Not yet confirmed.
+- **Game mode and the remote (fixed 2026-10-28).** The Disney+ press also wakes the Onn, and about 8s later CEC pulls the receiver back to HDMI1. `play_game()` now starts `_hold_receiver_on_hdmi2()`, which checks every 3s for 30s and switches back to HDMI2. Starting another mode or ending the session stops it.

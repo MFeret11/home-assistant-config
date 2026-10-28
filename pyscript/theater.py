@@ -305,8 +305,7 @@ def normalize_app_id(app_id):
 
 
 def get_active_app_id():
-    """Single source of truth for the foreground app.
-    Prefers the Android TV Remote entity (always live); falls back to mediasession2mqtt."""
+    """Single source of truth for the foreground app (Android TV Remote entities)."""
     app_id = (
         safe_state_getattr(ONN_PRO, "app_id")
         or safe_state_getattr(ONN_PRO, "app_name")
@@ -314,10 +313,6 @@ def get_active_app_id():
     )
     if app_id:
         return normalize_app_id(app_id)
-    for eid in MEDIA_APP_ENTITIES:
-        val = safe_state_get(eid)
-        if val and str(val).strip() not in ["unknown", "unavailable", "None", ""]:
-            return normalize_app_id(str(val).strip())
     return None
 
 
@@ -462,54 +457,12 @@ def _read_secret(key_name):
     return val or None
 
 
-# mediasession2mqtt publishes only these _1 sensors (there is no artist sensor;
-# artist comes from the Onn media players below).
-MEDIA_TITLE_ENTITIES = ["sensor.mediasession2mqtt_1_media_title"]
-MEDIA_STATE_ENTITIES = ["sensor.mediasession2mqtt_1_playback_state"]
-MEDIA_APP_ENTITIES = ["sensor.mediasession2mqtt_1_application_id"]
-
-
 def get_active_media_info():
     title = None
     artist = None
     play_state = None
 
-    for eid in MEDIA_TITLE_ENTITIES:
-        val = safe_state_get(eid)
-        if val and str(val).strip() not in ["unknown", "unavailable", "None", ""]:
-            title = str(val).strip()
-            break
-
-    for eid in MEDIA_STATE_ENTITIES:
-        st = safe_state_get(eid)
-        if st and str(st).strip() not in ["unknown", "unavailable", "None", ""]:
-            play_state = str(st).strip()
-        if not title:
-            val = safe_state_getattr(eid, "media_title") or safe_state_getattr(eid, "title") or safe_state_getattr(eid, "track")
-            if val and str(val).strip() not in ["unknown", "unavailable", "None", ""]:
-                title = str(val).strip()
-        if not artist:
-            val = safe_state_getattr(eid, "media_artist") or safe_state_getattr(eid, "artist")
-            if val and str(val).strip() not in ["unknown", "unavailable", "None", ""]:
-                artist = str(val).strip()
-        if title:
-            break
-
-    # Foreground app: Android TV Remote entity first, mediasession as fallback
     app_id = get_active_app_id()
-
-    # mediasession2mqtt reports whichever session changed last, not the foreground one.
-    # If it disagrees with the live foreground app, ignore its metadata.
-    session_app = None
-    for eid in MEDIA_APP_ENTITIES:
-        val = safe_state_get(eid)
-        if val and str(val).strip() not in ["unknown", "unavailable", "None", ""]:
-            session_app = normalize_app_id(str(val).strip())
-            break
-    if app_id and session_app and session_app != app_id:
-        title = None
-        artist = None
-        play_state = None
 
     if not title:
         for mp in [ONN_PRO, ONN_PRO_2]:
@@ -1135,7 +1088,7 @@ def update_theater_media_art():
         )
         return
 
-    # 2. Direct Android TV / Onn MediaSession Cover Art Passthrough
+    # 2. Direct Android TV / Onn Cover Art Passthrough
     if onn_art and onn_art not in ["unknown", "unavailable", "None", ""]:
         set_theater_poster(
             onn_art, raw_title or artist or "Now Playing", subtitle_val,
@@ -1189,9 +1142,6 @@ def update_theater_media_art():
 
 
 @state_trigger(
-    "sensor.mediasession2mqtt_1_media_title, "
-    "sensor.mediasession2mqtt_1_playback_state, "
-    "sensor.mediasession2mqtt_1_application_id, "
     "media_player.onn_pro, "
     "media_player.theater_onn_pro_adb, "
     "media_player.onn_pro.media_title, "
@@ -1274,6 +1224,15 @@ def parse_pc_active_window(raw_window):
     return (clean, "playing", False)
 
 
+RE_CAMEL_GAP = re.compile(r"(?<=[a-z])(?=[A-Z])")
+
+
+def _spaced_title(title):
+    """Process names like "ApeOut" -> "Ape Out" so art lookups match. Titles with spaces are left alone."""
+    t = str(title or "").strip()
+    return t if " " in t else RE_CAMEL_GAP.sub(" ", t)
+
+
 def is_pc_game_playing():
     """Returns True if a PC game is actively running on the ROG Gaming PC."""
     win = safe_state_get(PC_ACTIVE_WINDOW)
@@ -1307,15 +1266,26 @@ def update_game_poster():
     # 6. Default idle arcade
     is_batocera_playing = batocera_st == "playing" and batocera_title and batocera_title not in ["None", "unknown", "unavailable", ""]
     is_pc_playing = pc_st == "playing" and bool(pc_title)
+    # "PC ready via Moonlight" only while a Moonlight/Steam Link app is open on the Onn.
+    # A PC that is just switched on (or Batocera between games) doesn't count.
+    moonlight_open_on_onn = get_active_app_id() in GAME_APPS
 
     if is_batocera_playing:
         clean_title = batocera_title
         system_id = batocera_sys
+        art_system = system_id
+        if system_id == "moonlight" and is_pc_playing:
+            # Batocera only knows it launched Moonlight/Big Picture; the PC knows the game
+            clean_title = _spaced_title(pc_title)
+            art_system = "pc"
         game_state = "playing"
         sys_name = system_id.upper() if system_id else "RETRO"
         display_title = clean_title
-        game_sub = f"🎮 Playing • {sys_name} Gaming"
-        data = _fetch_game_art_from_secrets(clean_title, system_id) if clean_title else None
+        if system_id == "moonlight":
+            game_sub = "🎮 Streaming • PC via Moonlight"
+        else:
+            game_sub = f"🎮 Playing • {sys_name} Gaming"
+        data = _fetch_game_art_from_secrets(clean_title, art_system) if clean_title else None
         sys_defaults = SYSTEM_ART_MAP.get(system_id, SYSTEM_ART_MAP["default"])
         badge_icon = "mdi:gamepad-variant"
         badge_color = "green"
@@ -1354,7 +1324,7 @@ def update_game_poster():
         sys_defaults = SYSTEM_ART_MAP.get(system_id, SYSTEM_ART_MAP["default"])
         badge_icon = "mdi:gamepad-variant"
         badge_color = "green"
-    elif safe_state_get(PC_SWITCH) == "on" or safe_state_get(PC_ONLINE) == "on":
+    elif (safe_state_get(PC_SWITCH) == "on" or safe_state_get(PC_ONLINE) == "on") and moonlight_open_on_onn:
         clean_title = "ASUS ROG Gaming PC"
         system_id = "pc"
         game_state = "idle"
@@ -1491,7 +1461,7 @@ def init_theater_poster_entity():
 @time_trigger("startup")
 @state_trigger(
     "media_player.theater_receiver, media_player.onn_pro, remote.onn_pro, "
-    "sensor.mediasession2mqtt_1_application_id, sensor.batocera_state, switch.batocera, "
+    "sensor.batocera_state, switch.batocera, "
     "sensor.desktop_rspn8nu_activewindow, switch.gaming_pc, binary_sensor.gaming_pc_online"
 )
 def update_theater_mode():
@@ -1723,7 +1693,6 @@ def theater_announcer_mute():
 
 
 @state_trigger(
-    "sensor.mediasession2mqtt_1_application_id, "
     "media_player.onn_pro.app_id, "
     "remote.onn_pro.current_activity"
 )
@@ -1902,10 +1871,15 @@ def end_social_mode():
         safe_service(input_select.select_option, entity_id=LIGHTING_MODE_SELECT, option=MODE_DAILY)
 
 
+_session_seq = 0
+
+
 def _begin_session(target_mode, cancel_cooldown=True):
     """Common start of every play_* service: end curtain call, stop a running projector
     cooldown (play_music keeps it so a cold projector still gets its mains cut), and
     tear down whatever the previous mode left running."""
+    global _session_seq
+    _session_seq += 1  # cancels a running HDMI2 guard
     state.set(CURTAIN_CALL, value="off")
     if cancel_cooldown:
         task.unique("projector_cooldown_worker")
@@ -1968,6 +1942,24 @@ def play_game():
 
     _mark_session_active("game")
     release_sports_social_mode()
+    task.create(_hold_receiver_on_hdmi2, _session_seq)
+
+
+HDMI2_GUARD_SECONDS = 30
+HDMI2_GUARD_STEP = 3
+
+
+def _hold_receiver_on_hdmi2(session):
+    """A remote press also wakes the Onn, and about 8s later CEC pulls the receiver
+    back to HDMI1. Keep putting it back on HDMI2 for a while. Starting any other
+    mode cancels this (_begin_session), and it stops if the session ends."""
+    for _ in range(HDMI2_GUARD_SECONDS // HDMI2_GUARD_STEP):
+        task.sleep(HDMI2_GUARD_STEP)
+        if session != _session_seq or safe_state_get(RECEIVER) != "on" or safe_state_get(BATOCERA_SWITCH) != "on":
+            return
+        if safe_state_getattr(RECEIVER, "source") != "HDMI2":
+            log.info("[Theater Game] Receiver left HDMI2, switching back")
+            media_player.select_source(entity_id=RECEIVER, source="HDMI2")
 
 
 @service
@@ -2160,6 +2152,8 @@ def play_sports(app=None):
 
 @service
 def session_end_house_lights():
+    global _session_seq
+    _session_seq += 1  # stop the HDMI2 guard so it can't undo the AUDIO1 switch
     state.set(CURTAIN_CALL, value="on")
 
     # 1. Restore house lights first so the room isn't dark while the CEC burst runs

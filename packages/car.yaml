@@ -1,0 +1,14 @@
+# Car mileage for Home Keeper's mileage-based car chores (timing belt, fluids,
+# filters). The car isn't connected to HA, so this is updated by hand from the
+# Maintenance page now and then (a fill-up is a good moment). Home Keeper reads
+# it as a meter: a chore comes due once the reading has moved its target miles
+# since the chore was last done, or after its time backstop, whichever is first.
+input_number:
+  acura_tl_odometer:
+    name: Acura TL Odometer
+    min: 0
+    max: 500000
+    step: 1
+    mode: box
+    unit_of_measurement: mi
+    icon: mdi:counter

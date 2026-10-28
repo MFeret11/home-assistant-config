@@ -181,15 +181,14 @@ template:
         icon: mdi:alert-circle-outline
 
       # Drives the dashboard play/pause chip. Music plays on the Spotify
-      # player; everything else on the Onn (ADB or its media session).
+      # player; everything else on the Onn (ADB player).
       - name: "Theater Media Playing"
         unique_id: theater_media_playing
         state: >-
           {% if is_state('sensor.theater_mode', 'music') %}
             {{ is_state('media_player.whole_house_spotify', 'playing') }}
           {% else %}
-            {{ is_state('media_player.theater_onn_pro_adb', 'playing')
-               or is_state('sensor.mediasession2mqtt_1_playback_state', 'playing') }}
+            {{ is_state('media_player.theater_onn_pro_adb', 'playing') }}
           {% endif %}
         icon: mdi:play-pause
 

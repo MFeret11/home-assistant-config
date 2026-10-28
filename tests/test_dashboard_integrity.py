@@ -24,15 +24,15 @@ REGISTERED_ENTITIES = {
     "sensor.gaming_pc_active_game", "sensor.gaming_pc_gpu_temperature",
     "input_number.theater_announcer_volume", "sensor.theater_current_poster",
     "sensor.theater_current_boxart", "input_text.theater_movie_search",
-    "sensor.mediasession2mqtt_1_playback_state", "sensor.mediasession2mqtt_1_media_title",
-    "sensor.mediasession2mqtt_1_application_id", "media_player.whole_house_spotify",
+    "media_player.whole_house_spotify",
 
     # Zone Lighting & Environmental Sensors
     "light.theater_dimmer", "light.theater_lights", "light.stairlights",
     "light.zigbee_basement_lights", "light.zigbee_bar_lights",
     "light.zigbee_lounge_lights_1", "light.zigbee_lounge_lights_2", "light.zigbee_lounge_lights_3",
     "light.zigbee_lounge_lights", "binary_sensor.basement_stairs_door_sensor",
-    "binary_sensor.bottom_stairs", "switch.basement_adaptive_lighting_adaptive_lighting_basement_adaptive_lighting",
+    "binary_sensor.bottom_stairs", "binary_sensor.theater_mmwave_sensor", "binary_sensor.mmwave_sensor_bar",
+    "switch.basement_adaptive_lighting_adaptive_lighting_basement_adaptive_lighting",
     "switch.adaptive_lighting_basement_adaptive_lighting_adaptive_lighting_sleep_mode_basement_adaptive_lighting",
     "switch.adaptive_lighting_basement_adaptive_lighting_adaptive_lighting_adapt_brightness_basement_adaptive_lighting",
     "switch.adaptive_lighting_basement_adaptive_lighting_adaptive_lighting_adapt_color_basement_adaptive_lighting",
@@ -41,7 +41,11 @@ REGISTERED_ENTITIES = {
     "light.bedroom_lamp_1", "light.bedroom_light_2", "light.zigbee_bedroom_lights",
 
     # Sports, State Flags & Virtual Entities
-    "sensor.philadelphia_eagles", "sensor.philadelphia_76ers", "binary_sensor.basement_automation_allowed",
+    "sensor.philadelphia_eagles", "sensor.nba_philadelphia_76ers",
+    "sensor.mlb_philadelphia_phillies", "sensor.nhl_philadelphia_flyers",
+    "binary_sensor.eagles_game_soon", "binary_sensor.sixers_game_soon",
+    "binary_sensor.phillies_game_soon", "binary_sensor.flyers_game_soon",
+    "input_number.acura_tl_odometer", "binary_sensor.basement_automation_allowed",
     "binary_sensor.theater_in_use", "binary_sensor.theater_announcer_bar", "binary_sensor.basement_lights_active",
     "input_select.basement_lighting_mode", "input_select.basement_theater_mode",
     "input_select.basement_drawer", "input_select.theater_announcer_preset",

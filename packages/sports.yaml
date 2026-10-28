@@ -1,0 +1,34 @@
+# Philly Team Tracker teams: one flag per team that is on while its game is
+# live, starts within 24 hours, or finished in the last 12 hours. The home
+# dashboard's game card shows a team only while its flag is on. Shared logic
+# is in custom_templates/sports.jinja; after editing it, run
+# homeassistant.reload_custom_templates.
+template:
+  - binary_sensor:
+      - name: "Eagles Game Soon"
+        unique_id: eagles_game_soon
+        state: >-
+          {% from 'sports.jinja' import game_soon %}
+          {{ game_soon('sensor.philadelphia_eagles') }}
+        icon: mdi:scoreboard
+
+      - name: "Sixers Game Soon"
+        unique_id: sixers_game_soon
+        state: >-
+          {% from 'sports.jinja' import game_soon %}
+          {{ game_soon('sensor.nba_philadelphia_76ers') }}
+        icon: mdi:scoreboard
+
+      - name: "Phillies Game Soon"
+        unique_id: phillies_game_soon
+        state: >-
+          {% from 'sports.jinja' import game_soon %}
+          {{ game_soon('sensor.mlb_philadelphia_phillies') }}
+        icon: mdi:scoreboard
+
+      - name: "Flyers Game Soon"
+        unique_id: flyers_game_soon
+        state: >-
+          {% from 'sports.jinja' import game_soon %}
+          {{ game_soon('sensor.nhl_philadelphia_flyers') }}
+        icon: mdi:scoreboard

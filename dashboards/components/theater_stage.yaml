@@ -176,39 +176,6 @@ cards:
     card:
       type: vertical-stack
       cards:
-        - type: custom:mushroom-template-card
-          primary: >
-            {% if is_state('sensor.batocera_state', 'playing') %}
-              {{ state_attr('sensor.theater_current_boxart', 'title') | default(states('sensor.batocera_current_game'), true) }}
-            {% else %}
-              EmulationStation Menu
-            {% endif %}
-          secondary: >
-            {% if is_state('sensor.batocera_state', 'playing') %}
-              System: {{ states('sensor.batocera_system') | upper }} • In-Game
-            {% else %}
-              System Ready • Select a Game
-            {% endif %}
-          picture: >
-            {% set boxart = states('sensor.theater_current_boxart') %}
-            {% if is_state('sensor.batocera_state', 'playing') and boxart and boxart not in ['none', 'None', 'unknown', 'unavailable', ''] %}
-              {{ boxart }}
-            {% endif %}
-          icon: >
-            {% set boxart = states('sensor.theater_current_boxart') %}
-            {% if not (is_state('sensor.batocera_state', 'playing') and boxart and boxart not in ['none', 'None', 'unknown', 'unavailable', '']) %}
-              {{ 'mdi:nintendo-game-boy' if is_state('sensor.batocera_state', 'playing') else 'mdi:view-carousel' }}
-            {% endif %}
-          icon_color: green
-          card_mod:
-            style: |
-              ha-card {
-                margin: 6px 0 2px 0 !important;
-                border-radius: 18px !important;
-                background: linear-gradient(135deg, rgba(76, 175, 80, 0.20), rgba(27, 94, 32, 0.10)) !important;
-                border: 1px solid rgba(129, 199, 132, 0.4) !important;
-              }
-
         # Batocera Console Safe Switch
         - type: custom:bubble-card
           card_type: button

@@ -288,7 +288,7 @@ def test_cinema_shield_photometric_invariants():
     setup_baseline()
 
     theater.play_movie()
-    mock_state.set("sensor.mediasession2mqtt_1_playback_state", "playing")
+    mock_state.set("media_player.theater_onn_pro_adb", "playing")
     basement.theater_lighting_sync()
     mock_task.run_deferred_tasks()
 
@@ -300,7 +300,7 @@ def test_cinema_shield_photometric_invariants():
     assert mock_state.get("light.zigbee_lounge_lights_2") == "off", "FAIL: Flank lounge light 2 spilled during cinema!"
 
     # Simulate pause debounce
-    mock_state.set("sensor.mediasession2mqtt_1_playback_state", "paused")
+    mock_state.set("media_player.theater_onn_pro_adb", "paused")
     mock_state.set("media_player.onn_pro", "paused", attributes={"app_id": "com.stremio.one"})
     basement.theater_lighting_sync()
     mock_task.run_deferred_tasks()

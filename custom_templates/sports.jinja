@@ -1,0 +1,12 @@
+{#- Shared logic for the game-soon sensors in packages/sports.yaml.
+    Returns 'true' while a Team Tracker team's game is live, starts within
+    24 hours, or ended (started) less than 12 hours ago, so the final
+    score stays up for the evening. -#}
+{%- macro game_soon(entity) -%}
+  {%- set s = states(entity) -%}
+  {%- set d = as_datetime(state_attr(entity, 'date')) -%}
+  {{- (s == 'IN'
+       or (d is not none and (
+         (s == 'PRE' and d - now() < timedelta(hours=24))
+         or (s == 'POST' and now() - d < timedelta(hours=12))))) | lower -}}
+{%- endmacro -%}

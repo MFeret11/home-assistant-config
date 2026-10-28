@@ -36,10 +36,8 @@ ADAPTIVE_SWITCH = "switch.basement_adaptive_lighting_adaptive_lighting_basement_
 THEATER_IN_USE = "binary_sensor.theater_in_use"
 THEATER_MODE = "sensor.theater_mode"
 BATOCERA_STATE = "sensor.batocera_state"
-MEDIA_STATE = "sensor.mediasession2mqtt_1_playback_state"
-# The ADB player reports the Onn's playing/paused state; mediasession2mqtt is a fallback.
+# The ADB player reports the Onn's playing/paused state.
 ONN_ADB = "media_player.theater_onn_pro_adb"
-ADB_PLAYBACK_STATES = {"playing", "paused", "idle"}
 ONN_PRO = "media_player.onn_pro"
 ONN_REMOTE = "remote.onn_pro"
 PC_ACTIVE_WINDOW = "sensor.desktop_rspn8nu_activewindow"
@@ -661,15 +659,32 @@ def on_movie_screen() -> bool:
 
 
 def get_media_state():
-    """Onn playback state: the ADB player first, mediasession2mqtt as a fallback."""
-    adb = safe_state_get(ONN_ADB)
-    if adb in ADB_PLAYBACK_STATES:
-        return adb
-    return safe_state_get(MEDIA_STATE)
+    """Onn playback state from the ADB player."""
+    return safe_state_get(ONN_ADB)
+
+
+ADAPTIVE_PAUSED_BY_THEATER = False
+
+
+def _pause_adaptive_for_theater():
+    global ADAPTIVE_PAUSED_BY_THEATER
+    if safe_state_get(ADAPTIVE_SWITCH) == "on":
+        switch.turn_off(entity_id=ADAPTIVE_SWITCH)
+        ADAPTIVE_PAUSED_BY_THEATER = True
+
+
+def _resume_adaptive_after_theater():
+    """Turn Adaptive Lighting back on if a theater session paused it and ended without
+    Curtain Call (which re-enables it itself)."""
+    global ADAPTIVE_PAUSED_BY_THEATER
+    if ADAPTIVE_PAUSED_BY_THEATER:
+        ADAPTIVE_PAUSED_BY_THEATER = False
+        if safe_state_get(ADAPTIVE_SWITCH) != "on":
+            switch.turn_on(entity_id=ADAPTIVE_SWITCH)
 
 
 @state_trigger(
-    f"{THEATER_MODE}, {MEDIA_STATE}, {ONN_ADB}, {BATOCERA_STATE}, {THEATER_IN_USE}, "
+    f"{THEATER_MODE}, {ONN_ADB}, {BATOCERA_STATE}, {THEATER_IN_USE}, "
     "remote.onn_pro.current_activity, media_player.onn_pro, pyscript.curtain_call_active, "
     "sensor.desktop_rspn8nu_activewindow"
 )
@@ -708,9 +723,14 @@ def theater_lighting_sync():
         return
 
     # Social Mode: theater never touches lights here — full stop
-    if lighting_mode == MODE_SOCIAL or not in_use or mode == "off":
+    if lighting_mode == MODE_SOCIAL:
+        return
+    if not in_use or mode == "off":
+        _resume_adaptive_after_theater()
         return
 
+    # Adaptive Lighting would grab the dimmer on turn_on (3% glow came up at AL's 30%)
+    _pause_adaptive_for_theater()
     task.unique("theater_lighting_transition")
 
     # Music: always full dark + bias, no glow state, no pause nuance
@@ -742,15 +762,24 @@ def theater_lighting_sync():
     if mode == "movie" and media == "paused" and on_movie_screen():
         task.sleep(4.0)
         if get_media_state() == "paused" and get_lighting_mode() != MODE_SOCIAL:
-            light.turn_on(entity_id=THEATER_DIMMER, brightness_pct=GLOW_PCT, transition=2)
+            _theater_glow()
             light.turn_off(entity_id=MASTER_ZIGBEE_GROUP, transition=2)
             switch.turn_on(entity_id=BIAS_LIGHTS)
         return
 
     # PRE-SHOW, MENUS, IDLE (game not yet playing): subtle glow, whole basement dark
-    light.turn_on(entity_id=THEATER_DIMMER, brightness_pct=GLOW_PCT, transition=2)
+    _theater_glow()
     light.turn_off(entity_id=MASTER_ZIGBEE_GROUP, transition=2)
     switch.turn_on(entity_id=BIAS_LIGHTS)
+
+
+def _theater_glow():
+    """3% dimmer glow. From off, skip the fade: the Leviton (Matter) dimmer would start
+    at its last level (often 100% from daytime use) and visibly fade down from there."""
+    if safe_state_get(THEATER_DIMMER) == "on":
+        light.turn_on(entity_id=THEATER_DIMMER, brightness_pct=GLOW_PCT, transition=2)
+    else:
+        light.turn_on(entity_id=THEATER_DIMMER, brightness_pct=GLOW_PCT)
 
 
 @state_trigger(f"{CURTAIN_CALL} == 'on'")

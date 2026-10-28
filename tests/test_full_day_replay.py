@@ -95,7 +95,7 @@ def run_full_day_replay():
             'binary_sensor.basement_stairs_door_sensor',
             'binary_sensor.bottom_stairs',
             'media_player.theater_receiver',
-            'sensor.mediasession2mqtt_1_playback_state',
+            'media_player.theater_onn_pro_adb',
             'sensor.batocera_state'
         )
         ORDER BY s.last_updated_ts ASC;
@@ -110,7 +110,7 @@ def run_full_day_replay():
             'binary_sensor.basement_stairs_door_sensor',
             'binary_sensor.bottom_stairs',
             'media_player.theater_receiver',
-            'sensor.mediasession2mqtt_1_playback_state',
+            'media_player.theater_onn_pro_adb',
             'sensor.batocera_state'
         }
         for item in data:
@@ -147,7 +147,7 @@ def run_full_day_replay():
         elif entity_id == "binary_sensor.bottom_stairs" and state_val == "on":
             motion_events += 1
             basement.motion_at_foot_of_stairs(old_state)
-        elif entity_id in ["sensor.mediasession2mqtt_1_playback_state", "sensor.batocera_state"]:
+        elif entity_id in ["media_player.theater_onn_pro_adb", "sensor.batocera_state"]:
             media_events += 1
             basement.theater_lighting_sync()
 

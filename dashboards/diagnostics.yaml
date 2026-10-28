@@ -400,6 +400,10 @@ views:
                 name: Top Stair Door Sensor
               - entity: binary_sensor.bottom_stairs
                 name: Foot of Stairs Motion
+              - entity: binary_sensor.theater_mmwave_sensor
+                name: Theater mmWave Presence
+              - entity: binary_sensor.mmwave_sensor_bar
+                name: Bar mmWave Presence
               - entity: light.stairlights
                 name: Stairlights (3 Bulbs)
               - entity: light.theater_dimmer
@@ -571,6 +575,18 @@ views:
             filter: all
             sort: due
             group_by: none
+          # Car chores (Acura TL) count miles from this number; update it now and then.
+          - type: entities
+            entities:
+              - entity: input_number.acura_tl_odometer
+                name: Acura TL odometer
+            card_mod:
+              style: |
+                ha-card {
+                  border-radius: 20px !important;
+                  background: rgba(255, 255, 255, 0.03) !important;
+                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                }
           - type: heading
             heading: Needs Attention
             icon: mdi:alert-circle-outline

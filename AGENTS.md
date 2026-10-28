@@ -19,9 +19,9 @@ You are an expert Home Assistant and PyScript engineer. This file holds the rule
 - **DSP modes**: `set_receiver_sound_mode()` only selects names from the RX-V673 `sound_mode_list` (there are no `PLII ...` programs); use `SOUND_MODE_FALLBACKS` when needed.
 - **Center trim**: hardware range is `-10.0 dB` to `+10.0 dB`. Never set Center to `None`; it downmixes commentary into Front L/R.
 - **Sports flashes**: pulse brightness only, between 100% and `DIM_FLOOR_PCT = 15`, in solid team Kelly Green (`[0, 170, 35]` via `get_team_rgb()`). Never alternate RGB mid-flash (Zigbee congestion on 3rd Reality bulbs). Flashes end holding solid team green.
-- **Recorder exclusions**: keep `sensor.projector_current`, `sensor.batocera_current` and `sensor.mediasession2mqtt_1_playback_position` excluded (DRAM-less SSD over USB). Keep `media_player.theater_receiver`, `media_player.theater_onn_pro_adb` (Onn playback source for theater lighting), `sensor.projector_current_rounded` and `sensor.projector_power_state` recorded.
+- **Recorder exclusions**: keep `sensor.projector_current` and `sensor.batocera_current` excluded (DRAM-less SSD over USB). Keep `media_player.theater_receiver`, `media_player.theater_onn_pro_adb` (Onn playback source for theater lighting), `sensor.projector_current_rounded` and `sensor.projector_power_state` recorded.
 - **Spotify**: playback state lives on `media_player.whole_house_spotify`, not `media_player.onn_pro`; check `supported_features` before `media_pause`.
-- **Foreground app**: `media_player.onn_pro` `app_id` is the source of truth; `mediasession2mqtt` reports whichever session changed last.
+- **Foreground app**: `media_player.onn_pro` `app_id` is the source of truth.
 
 ## Theater lighting (Daily Driver, `binary_sensor.theater_in_use` ON)
 Theater governs the whole basement (`light.theater_dimmer` + `light.zigbee_basement_lights`):
