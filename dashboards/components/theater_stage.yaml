@@ -232,8 +232,8 @@ cards:
           card:
             type: custom:mushroom-template-card
             primary: >-
-              {% set win = states('sensor.desktop_rspn8nu_activewindow') %}
-              {{ win if win not in ['unknown', 'unavailable', 'None', ''] else 'PC Online' }}
+              {% set win = states('sensor.gaming_pc_active_game') %}
+              {{ win if win not in ['unknown', 'unavailable', 'Idle / Desktop', ''] else 'PC Online' }}
             secondary: >-
               {% set temp = states('sensor.desktop_rspn8nu_gputemperature') %}
               {{ ('GPU: ' ~ temp ~ '°C • ') if temp not in ['unknown', 'unavailable', 'None', ''] else '' }}Tap to stream via Moonlight

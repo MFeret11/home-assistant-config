@@ -47,7 +47,7 @@ cards:
           haptic: light
       - type: template
         icon: mdi:power
-        content: Off
+        content: "Off"
         icon_color: red
         tap_action:
           action: perform-action

@@ -42,7 +42,9 @@ BATOCERA_GAME = "sensor.batocera_current_game"
 # ASUS ROG Gaming PC (HASS.Agent & Moonlight)
 PC_SWITCH = "switch.gaming_pc"
 PC_ONLINE = "binary_sensor.gaming_pc_online"
-PC_ACTIVE_WINDOW = "sensor.desktop_rspn8nu_activewindow"
+# Pre-filtered by the "Gaming PC Active Game" template (configuration.yaml):
+# a game title, "Steam Big Picture" or "Idle / Desktop".
+PC_ACTIVE_WINDOW = "sensor.gaming_pc_active_game"
 PC_GPU_TEMP = "sensor.desktop_rspn8nu_gputemperature"
 
 THEATER_MODE = "sensor.theater_mode"
@@ -1171,7 +1173,7 @@ def on_theater_media_changed():
 # PC GAMING & ACTIVE WINDOW CONDUCTION (HASS.AGENT & MOONLIGHT)
 # ------------------------------------------------------------------------------
 PC_SYSTEM_WINDOWS = {
-    "desktop", "task switching", "taskbar", "explorer", "start",
+    "desktop", "idle / desktop", "task switching", "taskbar", "explorer", "start",
     "windows shell experience host", "program manager", "none",
     "unknown", "unavailable", "null", "undefined", ""
 }
@@ -1190,7 +1192,7 @@ RE_PC_CLEANUP = re.compile(
 
 def parse_pc_active_window(raw_window):
     """
-    Parses sensor.desktop_rspn8nu_activewindow into (game_title, state, is_steam).
+    Parses sensor.gaming_pc_active_game into (game_title, state, is_steam).
     States: 'playing' (in-game), 'idle' (Steam BPM / launcher / ready), 'desktop' / 'off'
     """
     if not raw_window or str(raw_window).strip() in ["", "none", "None", "unknown", "unavailable"]:
@@ -1251,7 +1253,7 @@ def update_game_poster():
     batocera_sys = (safe_state_get(BATOCERA_SYSTEM) or "").lower()
     batocera_st = safe_state_get(BATOCERA_STATE)
 
-    # Check PC Gaming (HASS.Agent sensor.desktop_rspn8nu_activewindow)
+    # Check PC Gaming (sensor.gaming_pc_active_game, filtered from HASS.Agent's active window)
     pc_win = safe_state_get(PC_ACTIVE_WINDOW)
     pc_title, pc_st, is_steam = parse_pc_active_window(pc_win)
     gpu_temp = safe_state_get(PC_GPU_TEMP)
@@ -1381,7 +1383,7 @@ def update_game_poster():
     "sensor.batocera_current_game, "
     "sensor.batocera_state, "
     "sensor.batocera_system, "
-    "sensor.desktop_rspn8nu_activewindow, "
+    "sensor.gaming_pc_active_game, "
     "sensor.desktop_rspn8nu_gputemperature, "
     "switch.gaming_pc, "
     "binary_sensor.gaming_pc_online, "
@@ -1462,7 +1464,7 @@ def init_theater_poster_entity():
 @state_trigger(
     "media_player.theater_receiver, media_player.onn_pro, remote.onn_pro, "
     "sensor.batocera_state, switch.batocera, "
-    "sensor.desktop_rspn8nu_activewindow, switch.gaming_pc, binary_sensor.gaming_pc_online"
+    "sensor.gaming_pc_active_game, switch.gaming_pc, binary_sensor.gaming_pc_online"
 )
 def update_theater_mode():
     receiver_state = state.get(RECEIVER)

@@ -27,7 +27,8 @@ _Moved verbatim from AGENTS.md. "§N" references point to the old AGENTS.md sect
 - `sensor.batocera_current_game` / `sensor.batocera_system`: Active ROM metadata. When Batocera is streaming the ROG PC through its Moonlight client, the system is `moonlight` and the game is `steam-big-picture`; Steam shortcuts report as `<appid>_<Title_With_Underscores>` and are cleaned before art lookup.
 - `switch.gaming_pc`: ASUS ROG Gaming PC power switch (WOL boot, clean shutdown via `button.desktop_rspn8nu_shutdown`).
 - `binary_sensor.gaming_pc_online`: High-speed ICMP connectivity ping for ROG Gaming PC.
-- `sensor.desktop_rspn8nu_activewindow`: HASS.Agent active window title sensor; sanitized to extract active PC game titles, Steam Big Picture Mode, and idle launcher states. Drives SteamGridDB / RAWG poster resolution and Cinema Shield blackout.
+- `sensor.desktop_rspn8nu_activewindow`: HASS.Agent's raw active-window title. Not recorded, and pyscript does not trigger on it.
+- `sensor.gaming_pc_active_game`: template in `configuration.yaml` that filters the raw window to a game title, `Steam Big Picture` or `Idle / Desktop` (browsers, VS Code, Citrix and other apps collapse to idle, so ordinary PC use never changes theater mode or reaches the recorder). `theater.py` and `basement.py` read and trigger on this one; it drives box-art lookup and the Cinema Shield blackout. New non-game apps go in its suffix list.
 - `sensor.desktop_rspn8nu_gputemperature`: HASS.Agent GPU temperature telemetry in °C; surfaced live on dashboard cards and Now Playing marquee subtitle.
 - `button.desktop_rspn8nu_shutdown`: Clean Windows OS software shutdown button.
 - `switch.bias_lights`: Screen backlight strip relay (Endpoint on Third Reality Dual Plug 1).

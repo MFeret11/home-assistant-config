@@ -40,7 +40,7 @@ BATOCERA_STATE = "sensor.batocera_state"
 ONN_ADB = "media_player.theater_onn_pro_adb"
 ONN_PRO = "media_player.onn_pro"
 ONN_REMOTE = "remote.onn_pro"
-PC_ACTIVE_WINDOW = "sensor.desktop_rspn8nu_activewindow"
+PC_ACTIVE_WINDOW = "sensor.gaming_pc_active_game"  # pre-filtered; see theater.py
 THEATER_BOXART = "sensor.theater_current_boxart"
 SPOTIFY_PLAYER = "media_player.whole_house_spotify"
 
@@ -109,6 +109,7 @@ PC_IDLE_WINDOWS = {
     "desktop", "task switching", "taskbar", "explorer", "start",
     "windows shell experience host", "program manager", "none",
     "unknown", "unavailable", "null", "undefined", "", "steam big picture mode", "steam",
+    "idle / desktop", "steam big picture",
     # Non-game apps, same as PC_NON_GAME_APPS in theater.py
     "hass.agent", "settings", "calculator", "task manager",
     "device manager", "command prompt", "powershell", "terminal",
@@ -686,7 +687,7 @@ def _resume_adaptive_after_theater():
 @state_trigger(
     f"{THEATER_MODE}, {ONN_ADB}, {BATOCERA_STATE}, {THEATER_IN_USE}, "
     "remote.onn_pro.current_activity, media_player.onn_pro, pyscript.curtain_call_active, "
-    "sensor.desktop_rspn8nu_activewindow"
+    "sensor.gaming_pc_active_game"
 )
 def theater_lighting_sync():
     """Single master synchronizer for theater sessions."""

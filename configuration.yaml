@@ -168,11 +168,31 @@ template:
       - name: "Gaming PC Active Game"
         unique_id: gaming_pc_active_game
         icon: mdi:gamepad-variant
+        # Game title, "Steam Big Picture", or "Idle / Desktop". Browsers, editors and
+        # other non-game windows collapse to "Idle / Desktop", so pyscript (which
+        # triggers on this sensor, not the raw window) ignores ordinary PC use and
+        # window titles never reach the recorder. Edge puts a zero-width space in
+        # its title, hence the regex_replace.
         state: >-
-          {% set win = states('sensor.desktop_rspn8nu_activewindow') %}
-          {% if win in ['unknown', 'unavailable', 'None', '', 'Desktop', 'task switching'] %}
+          {% set win = states('sensor.desktop_rspn8nu_activewindow')
+             | regex_replace('[\u200b-\u200f\u2060\ufeff]', '') | trim %}
+          {% set low = win | lower %}
+          {% set ns = namespace(app=false) %}
+          {% for s in ['- google chrome', '- microsoft edge', '- mozilla firefox', '- brave',
+                       '- visual studio code', '- desktop viewer', '- citrix workspace',
+                       '- home assistant', '- file explorer', '- notepad', '- notepad++',
+                       '- word', '- excel', '- powerpoint', '- outlook', '- microsoft teams',
+                       '- slack', '- discord', '- obsidian'] %}
+            {% if low.endswith(s) %}{% set ns.app = true %}{% endif %}
+          {% endfor %}
+          {% if ns.app or low in ['', 'unknown', 'unavailable', 'none', 'null', 'undefined',
+                'desktop', 'task switching', 'taskbar', 'explorer', 'start',
+                'windows shell experience host', 'program manager', 'home assistant',
+                'hass.agent', 'settings', 'calculator', 'task manager', 'device manager',
+                'command prompt', 'powershell', 'terminal', 'notepad', 'discord',
+                'spotify', 'spotify free', 'spotify premium'] %}
             Idle / Desktop
-          {% elif 'Steam Big Picture' in win %}
+          {% elif 'steam big picture' in low or low == 'steam' %}
             Steam Big Picture
           {% else %}
             {{ win }}

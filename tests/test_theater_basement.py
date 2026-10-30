@@ -726,7 +726,7 @@ def test_pc_gaming_active_window_detection_and_sanitization():
     setup_clean_environment()
     state.set("sensor.theater_mode", "game")
     state.set("switch.gaming_pc", "on")
-    state.set("sensor.desktop_rspn8nu_activewindow", "Cyberpunk 2077 (C) 2020 by CD Projekt RED")
+    state.set("sensor.gaming_pc_active_game", "Cyberpunk 2077 (C) 2020 by CD Projekt RED")
 
     theater.update_game_poster()
 
@@ -742,7 +742,7 @@ def test_steam_big_picture_mode_carousel():
     setup_clean_environment()
     state.set("sensor.theater_mode", "game")
     state.set("switch.gaming_pc", "on")
-    state.set("sensor.desktop_rspn8nu_activewindow", "Steam Big Picture Mode")
+    state.set("sensor.gaming_pc_active_game", "Steam Big Picture Mode")
 
     theater.update_game_poster()
 
@@ -758,7 +758,7 @@ def test_pc_gaming_gpu_temp_telemetry_in_subtitle():
     setup_clean_environment()
     state.set("sensor.theater_mode", "game")
     state.set("switch.gaming_pc", "on")
-    state.set("sensor.desktop_rspn8nu_activewindow", "Elden Ring")
+    state.set("sensor.gaming_pc_active_game", "Elden Ring")
     state.set("sensor.desktop_rspn8nu_gputemperature", "68.4")
 
     theater.update_game_poster()
@@ -790,7 +790,7 @@ def test_pc_gaming_blackout_in_theater_lighting_sync():
     state.set("binary_sensor.theater_in_use", "on")
     state.set("sensor.theater_mode", "game")
     state.set("switch.gaming_pc", "on")
-    state.set("sensor.desktop_rspn8nu_activewindow", "Cyberpunk 2077")
+    state.set("sensor.gaming_pc_active_game", "Cyberpunk 2077")
     state.set("light.theater_dimmer", "on")
 
     basement.theater_lighting_sync()
@@ -2951,13 +2951,26 @@ def test_pc_discord_window_does_not_black_out_game_mode():
     state.set("binary_sensor.theater_in_use", "on")
     state.set("sensor.theater_mode", "game")
     state.set("input_select.basement_lighting_mode", "Daily Driver")
-    state.set("sensor.desktop_rspn8nu_activewindow", "Discord")
+    state.set("sensor.gaming_pc_active_game", "Discord")
     state.set("sensor.theater_current_boxart", "x", {"state": "idle"})
 
     basement.theater_lighting_sync()
     glow = spy.last_call_for("light", "turn_on")
     assert glow and glow["kwargs"].get("entity_id") == "light.theater_dimmer", "FAIL: Discord blacked out the room!"
     print("  ✓ [Lighting] test_pc_discord_window_does_not_black_out_game_mode PASSED")
+
+
+def test_pc_desktop_does_not_force_game_mode_over_bluetooth():
+    """PC on the desktop (template reports "Idle / Desktop") must not turn Bluetooth music into game mode."""
+    setup_clean_environment()
+    state.set("media_player.theater_receiver", "on")
+    state._attrs.setdefault("media_player.theater_receiver", {})["source"] = "Bluetooth"
+    state.set("switch.gaming_pc", "on")
+    state.set("sensor.gaming_pc_active_game", "Idle / Desktop")
+    assert not theater.is_pc_game_playing(), "FAIL: Idle / Desktop counted as a PC game!"
+    theater.update_theater_mode()
+    assert state.get("sensor.theater_mode") == "music", f"FAIL: expected music, got '{state.get('sensor.theater_mode')}'!"
+    print("  ✓ [PC Gaming] test_pc_desktop_does_not_force_game_mode_over_bluetooth PASSED")
 
 
 def test_prime_video_brand_art_is_not_netflix():
@@ -3049,6 +3062,7 @@ if __name__ == "__main__":
         test_onn_launch_falls_back_to_adb_when_remote_down,
         test_sports_keeps_palette_picked_mid_game,
         test_pc_discord_window_does_not_black_out_game_mode,
+        test_pc_desktop_does_not_force_game_mode_over_bluetooth,
         test_prime_video_brand_art_is_not_netflix,
         test_walkout_cancelled_when_door_reopens,
         test_nightly_reset_turns_off_forgotten_social_lights,
