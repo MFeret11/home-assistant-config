@@ -388,19 +388,40 @@ views:
                   backdrop-filter: blur(16px);
                   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
                 }
-          - type: calendar
-            initial_view: dayGridWeek
-            entities:
-              - calendar.matt
-              - calendar.partner
+          - type: custom:week-planner-card
+            calendars:
+              - entity: calendar.matt
+                name: Matt
+                color: "#4fc3f7"
+              - entity: calendar.partner
+                name: Partner
+                color: "#f48fb1"
+            days: 7
+            startingDay: today
+            showWeekDayText: true
+            timeFormat: "h:mm a"
+            showLocation: true
+            showLegend: true
+            weather:
+              entity: weather.whole_house_national_weather_service_kphl
+              useTwiceDaily: true
+              showCondition: true
+              showTemperature: true
+              showLowTemperature: false
+              roundTemperature: true
+            columns:
+              extraLarge: 7
+              large: 7
+              medium: 4
+              small: 2
+            eventBackground: "rgba(255, 255, 255, 0.06)"
             grid_options:
               columns: full
-              rows: 6
+              rows: auto
             theme: Kitchen Dark
             card_mod:
-              style: >
+              style: |
                 ha-card {
-                  --fc-event-text-color: #ffffff;
                   border-radius: 22px !important;
                   background: rgba(255, 255, 255, 0.04) !important;
                   border: 1px solid rgba(255, 255, 255, 0.08) !important;
@@ -408,12 +429,3 @@ views:
                   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
                   padding: 8px 12px;
                 }
-
-                .fc { font-size: 18px; }
-
-                .fc-col-header-cell-cushion { font-size: 20px; font-weight: 700;
-                color: var(--primary-text-color); }
-
-                .fc-daygrid-day-number { font-size: 18px; font-weight: 600; }
-
-                .fc-event-title { font-size: 16px; font-weight: 500; }
