@@ -1036,74 +1036,28 @@ views:
             bg_blur: 24
             shadow_opacity: 0.8
             cards:
-              # Sirens are left off on purpose so a stray tap can't set one off.
-              - type: entities
-                title: Camera Controls
-                show_header_toggle: false
-                entities:
-                  - entity: switch.wyze_notifications
-                    name: All Wyze Notifications
-                  - type: section
-                    label: Motion Detection
-                  - entity: switch.front_porch_cam_motion_detection
-                    name: Front Porch
-                  - entity: switch.back_deck_cam_motion_detection
-                    name: Back Deck
-                  - entity: switch.back_yard_cam_motion_detection
-                    name: Back Yard
-                  - type: section
-                    label: Notifications
-                  - entity: switch.front_porch_cam_notifications
-                    name: Front Porch
-                  - entity: switch.back_deck_cam_notifications
-                    name: Back Deck
-                  - entity: switch.back_yard_cam_notifications
-                    name: Back Yard
+              # All three cams in a grid by default; tap one to enlarge it, or use
+              # the menu for fullscreen or single-camera view.
+              - type: custom:advanced-camera-card
+                cameras:
+                  - camera_entity: camera.front_porch_cam
+                    title: Front Porch
+                  - camera_entity: camera.back_deck_cam
+                    title: Back Deck
+                  - camera_entity: camera.back_yard_cam
+                    title: Back Yard
+                view:
+                  default: live
+                live:
+                  display:
+                    mode: grid
+                menu:
+                  style: hover
                 card_mod:
                   style: |
                     ha-card {
                       border-radius: 20px !important;
-                      margin-bottom: 8px !important;
-                      background: rgba(255, 255, 255, 0.03) !important;
-                      border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                    }
-              - type: picture-entity
-                entity: camera.front_porch_cam
-                name: Front Porch
-                camera_view: live
-                show_state: false
-                card_mod:
-                  style: |
-                    ha-card {
-                      border-radius: 20px !important;
-                      margin-bottom: 8px !important;
-                      background: rgba(255, 255, 255, 0.03) !important;
-                      border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                    }
-              - type: picture-entity
-                entity: camera.back_deck_cam
-                name: Back Deck
-                camera_view: live
-                show_state: false
-                card_mod:
-                  style: |
-                    ha-card {
-                      border-radius: 20px !important;
-                      margin-bottom: 8px !important;
-                      background: rgba(255, 255, 255, 0.03) !important;
-                      border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                    }
-              - type: picture-entity
-                entity: camera.back_yard_cam
-                name: Back Yard
-                camera_view: live
-                show_state: false
-                card_mod:
-                  style: |
-                    ha-card {
-                      border-radius: 20px !important;
-                      margin-bottom: 8px !important;
-                      background: rgba(255, 255, 255, 0.03) !important;
+                      overflow: hidden;
                       border: 1px solid rgba(255, 255, 255, 0.08) !important;
                     }
 
@@ -1190,4 +1144,4 @@ views:
                   background: rgba(255, 255, 255, 0.03) !important;
                   border: 1px solid rgba(255, 255, 255, 0.08) !important;
                   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
-                }
+                }
