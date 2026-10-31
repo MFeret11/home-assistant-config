@@ -162,6 +162,7 @@ builtins.rest_command = MockDomain("rest_command")
 builtins.scene = MockDomain("scene")
 builtins.pyscript = MockDomain("pyscript")
 builtins.notify = MockDomain("notify")
+builtins.persistent_notification = MockDomain("persistent_notification")
 builtins.shell_command = MockDomain("shell_command")
 
 # Mock Decorators
@@ -175,8 +176,26 @@ import theater
 import basement
 import sports
 import watchdog
+import interlocks
 
 builtins.pyscript.get_team_rgb = sports.get_team_rgb
+
+
+def _wire_pyscript_service(name, func, deferred=False):
+    """Route pyscript.<name>() to the real function, recording the call. Deferred
+    services run later, like a real fire-and-forget service call."""
+    def _call(**kwargs):
+        spy.record("pyscript", name, **kwargs)
+        if deferred:
+            mock_task.create(func, **kwargs)
+        else:
+            func(**kwargs)
+    setattr(builtins.pyscript, name, _call)
+
+
+_wire_pyscript_service("safe_projector_cooldown", interlocks.safe_projector_cooldown, deferred=True)
+_wire_pyscript_service("cancel_projector_cooldown", interlocks.cancel_projector_cooldown)
+_wire_pyscript_service("shutdown_batocera", interlocks.shutdown_batocera)
 
 # ==============================================================================
 # 2. ENVIRONMENT RESET
@@ -190,6 +209,7 @@ def setup_clean_environment():
 
     # Bypass 30s startup grace checks
     theater.BOOT_TIMESTAMP = 0
+    interlocks.BOOT_TIMESTAMP = 0
     theater._SELECT_SYNC_PENDING.clear()
     basement.BOOT_TIMESTAMP = 0
     watchdog._alert_latched.update({"thermal": False, "storage": False})
@@ -551,7 +571,7 @@ def test_projector_cooldown_fan_timeout_keeps_mains_on():
     state.set("sensor.projector_current", "0.18")
     state.set("sensor.theater_mode", "off")
 
-    theater.safe_projector_cooldown()
+    interlocks.safe_projector_cooldown()
     mock_task.run_deferred_tasks()
     assert not spy.was_called("switch", "turn_off", "switch.projector"), \
         "FAIL: Projector plug cut while fan was still spinning! Thermal hazard!"
@@ -564,7 +584,7 @@ def test_projector_cooldown_double_low_reads_requirement():
     state.set("sensor.projector_current", "0.03")
     state.set("sensor.theater_mode", "off")
 
-    theater.safe_projector_cooldown()
+    interlocks.safe_projector_cooldown()
     mock_task.run_deferred_tasks()
     assert spy.was_called("switch", "turn_off", "switch.projector"), \
         "FAIL: Projector plug not cut after verified double low reads!"
@@ -577,7 +597,7 @@ def test_projector_cooldown_aborts_on_movie_resumed():
     state.set("sensor.projector_current", "0.03")
     state.set("sensor.theater_mode", "movie")
 
-    theater.safe_projector_cooldown()
+    interlocks.safe_projector_cooldown()
     mock_task.run_deferred_tasks()
     assert not spy.was_called("switch", "turn_off", "switch.projector"), \
         "FAIL: Cooldown power-cut executed despite movie resuming!"
@@ -630,7 +650,7 @@ def test_batocera_auto_cut_when_current_drops():
     setup_clean_environment()
     state.set("switch.batocera", "on")
     state.set("sensor.batocera_current", "0.02")
-    theater.batocera_auto_power_off()
+    interlocks.batocera_auto_power_off()
     assert spy.was_called("switch", "turn_off", "switch.batocera"), "FAIL: Batocera plug not cut on halt!"
     print("  ✓ [Batocera] test_batocera_auto_cut_when_current_drops PASSED")
 
@@ -711,7 +731,8 @@ def test_batocera_boxart_reset_on_power_off():
     state.set("sensor.batocera_current", "0.02")
     state.set("sensor.theater_current_boxart", "https://custom.art/game.png")
 
-    theater.batocera_auto_power_off()
+    interlocks.batocera_auto_power_off()
+    theater.reset_boxart_on_batocera_halt()
 
     attrs = state._attrs.get("sensor.theater_current_boxart", {})
     assert attrs.get("state") == "off", "FAIL: Boxart sensor state attribute not reset to 'off' on halt!"
@@ -1464,7 +1485,7 @@ def test_projector_cooldown_aborts_on_sports_active():
     state.set("sensor.projector_current", "0.03")
     state.set("sensor.theater_mode", "sports")
 
-    theater.safe_projector_cooldown()
+    interlocks.safe_projector_cooldown()
     mock_task.run_deferred_tasks()
     assert not spy.was_called("switch", "turn_off", "switch.projector"), \
         "FAIL: Projector cut power while watching sports!"
@@ -2915,11 +2936,142 @@ def test_cooldown_in_music_mode_never_sleeps_onn():
     state.set("media_player.onn_pro", "on")
     state.set("media_player.theater_receiver", "on")
 
-    theater.safe_projector_cooldown()
+    interlocks.safe_projector_cooldown()
     assert not spy.was_called("media_player", "turn_off", "media_player.onn_pro"), "FAIL: Cooldown slept the Onn mid-music!"
     assert not spy.was_called("media_player", "turn_off", "media_player.theater_receiver"), "FAIL: Cooldown dropped the receiver!"
     assert not spy.was_called("switch", "turn_off", "switch.projector"), "FAIL: Mains cut with lamp still lit!"
     print("  ✓ [Thermal] test_cooldown_in_music_mode_never_sleeps_onn PASSED")
+
+
+
+# ==============================================================================
+# INTERLOCK ISOLATION (interlocks.py runs apart from theater.py)
+# ==============================================================================
+def test_interlocks_file_stands_alone():
+    """interlocks.py must not use theater.py, and theater.py must not open the
+    Batocera relay or run the projector cooldown itself."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    with open(os.path.join(here, "..", "pyscript", "interlocks.py"), encoding="utf-8") as f:
+        interlocks_src = f.read()
+    with open(os.path.join(here, "..", "pyscript", "theater.py"), encoding="utf-8") as f:
+        theater_src = f.read()
+    assert not re.search(r"^\s*(import|from)\s+theater", interlocks_src, re.M), "FAIL: interlocks.py imports theater!"
+    interlocks_code = "\n".join(line.split("#")[0] for line in interlocks_src.splitlines())
+    assert not re.search(r"\btheater\.(?!py\b)[A-Za-z_]+\s*\(", interlocks_code), "FAIL: interlocks.py calls into theater!"
+    assert "turn_off(entity_id=BATOCERA_SWITCH" not in theater_src, "FAIL: theater.py opens the Batocera relay!"
+    assert "_projector_cooldown_body" not in theater_src, "FAIL: cooldown loop is back in theater.py!"
+    assert 'task.unique("projector_cooldown_worker")' not in theater_src, \
+        "FAIL: theater.py uses task.unique for the cooldown (names are per file; it can't reach interlocks.py)!"
+    print("  ✓ [Interlocks] test_interlocks_file_stands_alone PASSED")
+
+
+def test_session_end_leaves_projector_in_standby():
+    """Session end leaves projector mains on (standby, so CEC can wake it) and starts no cooldown."""
+    setup_clean_environment()
+    state.set("switch.projector", "on")
+    state.set("sensor.projector_current", "0.03")
+    state.set("sensor.theater_mode", "movie")
+    state.set("media_player.theater_receiver", "on")
+
+    theater.session_end_house_lights()
+    mock_task.run_deferred_tasks()
+    assert not spy.was_called("pyscript", "safe_projector_cooldown"), "FAIL: Session end started a cooldown!"
+    assert not spy.was_called("switch", "turn_off", "switch.projector"), "FAIL: Session end cut projector mains!"
+    assert state.get("sensor.theater_mode") == "off", "FAIL: Session did not end!"
+    print("  ✓ [Interlocks] test_session_end_leaves_projector_in_standby PASSED")
+
+
+def _stray_wake_setup(onn="on"):
+    setup_clean_environment()
+    state.set("switch.projector", "on")
+    state.set("sensor.projector_current", "2.4")
+    state.set("binary_sensor.theater_in_use", "off")
+    state.set("media_player.theater_receiver", "off")
+    state.set("media_player.onn_pro", onn)
+
+
+def _sleep_commands():
+    return [c for c in spy.calls if c["domain"] == "remote" and c["kwargs"].get("command") == "SLEEP"]
+
+
+def test_stray_wake_guard_sends_standby_once_lamp_goes_out():
+    """Lamp lit with the theater idle and the Onn awake: CEC standby, never a mains cut."""
+    _stray_wake_setup()
+    mock_task.sleep_hook = lambda secs: state.set("sensor.projector_current", "0.04")
+    interlocks.projector_stray_wake_guard()
+    assert len(_sleep_commands()) == 1, "FAIL: Expected exactly one CEC standby!"
+    assert not spy.was_called("switch", "turn_off", "switch.projector"), "FAIL: Guard cut projector mains!"
+    assert spy.was_called("persistent_notification", "create"), "FAIL: No notification about the stray wake!"
+    print("  ✓ [Interlocks] test_stray_wake_guard_sends_standby_once_lamp_goes_out PASSED")
+
+
+def test_stray_wake_guard_retries_then_warns():
+    """If standby doesn't take, retry once, then warn and leave mains on."""
+    _stray_wake_setup()
+    mock_task.sleep_hook = lambda secs: state.set("media_player.onn_pro", "on")  # keeps waking
+    interlocks.projector_stray_wake_guard()
+    assert len(_sleep_commands()) == 2, "FAIL: Expected two CEC standby tries!"
+    assert not spy.was_called("switch", "turn_off", "switch.projector"), "FAIL: Guard cut hot projector mains!"
+    msg = spy.last_call_for("persistent_notification", "create")["kwargs"]["message"]
+    assert "didn't turn it off" in msg, "FAIL: Wrong notification when standby failed!"
+    print("  ✓ [Interlocks] test_stray_wake_guard_retries_then_warns PASSED")
+
+
+def test_stray_wake_guard_ignores_sessions_and_onn_off():
+    """In use: do nothing. Onn off (woken some other way, someone may be there): only notify."""
+    _stray_wake_setup()
+    state.set("binary_sensor.theater_in_use", "on")
+    interlocks.projector_stray_wake_guard()
+    assert not _sleep_commands() and not spy.was_called("persistent_notification", "create"), \
+        "FAIL: Guard acted during a session!"
+
+    _stray_wake_setup(onn="off")
+    interlocks.projector_stray_wake_guard()
+    assert not _sleep_commands(), "FAIL: Guard slept the Onn when it wasn't the source!"
+    assert not spy.was_called("switch", "turn_off", "switch.projector"), "FAIL: Guard cut projector mains!"
+    assert spy.was_called("persistent_notification", "create"), "FAIL: No warning for a lamp it can't turn off!"
+    print("  ✓ [Interlocks] test_stray_wake_guard_ignores_sessions_and_onn_off PASSED")
+
+
+def test_new_session_cancels_cooldown_but_music_keeps_it():
+    """play_movie cancels a running cooldown via the interlocks service; play_music leaves it running."""
+    setup_clean_environment()
+    state.set("switch.projector", "on")
+    state.set("sensor.projector_current", "1.5")
+    theater.play_movie()
+    assert spy.was_called("pyscript", "cancel_projector_cooldown"), "FAIL: play_movie did not cancel the cooldown!"
+
+    setup_clean_environment()
+    state.set("switch.projector", "on")
+    state.set("sensor.projector_current", "1.5")
+    theater.play_music()
+    assert not spy.was_called("pyscript", "cancel_projector_cooldown"), "FAIL: play_music cancelled the cooldown!"
+    print("  ✓ [Interlocks] test_new_session_cancels_cooldown_but_music_keeps_it PASSED")
+
+
+def test_theater_survives_missing_interlocks():
+    """If interlocks.py isn't loaded the wrappers log and carry on, and nothing cuts mains."""
+    setup_clean_environment()
+    state.set("switch.projector", "on")
+    state.set("sensor.projector_current", "0.03")
+    state.set("switch.batocera", "on")
+    saved = {n: builtins.pyscript.__dict__.pop(n) for n in
+             ("safe_projector_cooldown", "cancel_projector_cooldown", "shutdown_batocera")}
+
+    def _missing(**kwargs):
+        raise NameError("service not found")
+    try:
+        for n in saved:
+            setattr(builtins.pyscript, n, _missing)
+        theater.play_movie()
+        theater.session_end_house_lights()
+        mock_task.run_deferred_tasks()
+    finally:
+        for n, f in saved.items():
+            setattr(builtins.pyscript, n, f)
+    assert state.get("sensor.theater_mode") == "off", "FAIL: Session end did not finish!"
+    assert not spy.was_called("switch", "turn_off", "switch.projector"), "FAIL: Mains cut without the interlock!"
+    print("  ✓ [Interlocks] test_theater_survives_missing_interlocks PASSED")
 
 
 def _green_calls():
@@ -3059,6 +3211,13 @@ if __name__ == "__main__":
         test_announcer_bar_shows_for_prime_video,
         test_announcer_slider_drives_center_on_prime,
         test_cooldown_in_music_mode_never_sleeps_onn,
+        test_interlocks_file_stands_alone,
+        test_session_end_leaves_projector_in_standby,
+        test_stray_wake_guard_sends_standby_once_lamp_goes_out,
+        test_stray_wake_guard_retries_then_warns,
+        test_stray_wake_guard_ignores_sessions_and_onn_off,
+        test_new_session_cancels_cooldown_but_music_keeps_it,
+        test_theater_survives_missing_interlocks,
         test_onn_launch_falls_back_to_adb_when_remote_down,
         test_sports_keeps_palette_picked_mid_game,
         test_pc_discord_window_does_not_black_out_game_mode,

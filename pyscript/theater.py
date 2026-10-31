@@ -1720,8 +1720,11 @@ def route_app_audio_mode():
 
 
 # ------------------------------------------------------------------------------
-# AUTO POWER-OFF & PROJECTOR COOLDOWN
+# HARDWARE INTERLOCK CALLS (logic lives in interlocks.py)
 # ------------------------------------------------------------------------------
+# The projector cooldown and the Batocera halt/relay logic run in interlocks.py
+# so a reload of this file can't kill them. These wrappers call its services and
+# never raise: if interlocks.py isn't loaded, nothing cuts mains (the safe side).
 def is_batocera_on():
     """Determines if the Batocera x86 laptop client is powered on or active."""
     return (
@@ -1731,32 +1734,25 @@ def is_batocera_on():
     )
 
 
-@service
 def shutdown_batocera():
-    """Performs clean software shutdown of Batocera console to protect filesystems and states."""
-    if not is_batocera_on():
-        return
-    log.info("[Batocera] Clean software shutdown dispatched.")
-    for btn in ["button.batocera_shutdown_2", "button.batocera_shutdown"]:
-        try:
-            button.press(entity_id=btn)
-            return
-        except Exception:
-            continue
     try:
-        shell_cmd = getattr(builtins, "shell_command", None) if "builtins" in globals() else None
-        if shell_cmd:
-            shell_cmd.batocera_shutdown()
-    except Exception:
-        pass
+        pyscript.shutdown_batocera()
+    except Exception as e:
+        log.warning(f"[Theater] pyscript.shutdown_batocera failed (interlocks.py loaded?): {e}")
+
+
+def cancel_projector_cooldown():
+    try:
+        pyscript.cancel_projector_cooldown()
+    except Exception as e:
+        log.warning(f"[Theater] pyscript.cancel_projector_cooldown failed: {e}")
 
 
 @state_trigger("float(sensor.batocera_current) < 0.05", state_hold=12)
-def batocera_auto_power_off():
+def reset_boxart_on_batocera_halt():
+    """Same trigger as interlocks.batocera_auto_power_off (which opens the relay); this only resets the art."""
     if is_booting():
         return
-    if safe_state_get(BATOCERA_SWITCH) == "on":
-        switch.turn_off(entity_id=BATOCERA_SWITCH)
     reset_boxart_idle(source="idle", boxart_state="off")
 
 
@@ -1776,62 +1772,6 @@ def _cec_standby_burst(rounds=2, drop_receiver=True):
         if safe_float(safe_state_get(PROJECTOR_CURRENT), 99.0) < 0.5:
             return True
     return False
-
-
-def safe_projector_cooldown():
-    task.unique("projector_cooldown_worker")
-    _projector_cooldown_body()
-
-
-def _projector_cooldown_body():
-    if safe_state_get(PROJECTOR_SWITCH) != "on":
-        return
-
-    log.info("[Theater Projector] Shutdown initiated. Commencing 90s thermal lock...")
-    task.sleep(90)
-
-    fan_stopped = False
-    consecutive_low_reads = 0
-
-    for attempt in range(25):
-        mode = safe_state_get(THEATER_MODE)
-        if mode in ["movie", "game", "sports"]:
-            log.info("[Theater Projector] Session resumed. Cooldown power cut cancelled.")
-            return
-
-        try:
-            current_val = float(safe_state_get(PROJECTOR_CURRENT))
-        except (ValueError, TypeError):
-            consecutive_low_reads = 0
-            log.warning(f"[Theater Projector] Transient sensor reading on attempt {attempt + 1}/25. Retrying...")
-            task.sleep(10)
-            continue
-
-        if current_val <= 0.06:
-            consecutive_low_reads += 1
-            if consecutive_low_reads >= 2:
-                fan_stopped = True
-                break
-        else:
-            consecutive_low_reads = 0
-            # Lamp still lit: re-send CEC standby (twice total, ~110s and ~170s in)
-            if current_val > 0.5 and attempt in (2, 8) and mode == "off":
-                log.warning("[Theater Projector] Lamp drawing >0.5A. Re-sending CEC standby...")
-                _cec_standby_burst(rounds=1, drop_receiver=True)
-                state.set(THEATER_MODE, value="off")
-                state.set(THEATER_IN_USE, value="off")
-            elif current_val > 0.5 and attempt in (2, 8) and mode == "music":
-                # The Onn is playing the music: sleeping it takes the receiver down over CEC
-                # and ends the session (2026-10-23). Leave the lamp; session end puts it out.
-                log.warning("[Theater Projector] Lamp still lit during music. Not sleeping the Onn; mains stay on.")
-
-        task.sleep(10)
-
-    if fan_stopped and safe_state_get(THEATER_MODE) in ["music", "off"]:
-        log.info("[Theater Projector] Cooldown double-verified. Cutting projector mains.")
-        switch.turn_off(entity_id=PROJECTOR_SWITCH)
-    else:
-        log.warning("[Theater Projector] Cooldown could not be verified. Mains left ON for safety.")
 
 
 # ------------------------------------------------------------------------------
@@ -1884,7 +1824,7 @@ def _begin_session(target_mode, cancel_cooldown=True):
     _session_seq += 1  # cancels a running HDMI2 guard
     state.set(CURTAIN_CALL, value="off")
     if cancel_cooldown:
-        task.unique("projector_cooldown_worker")
+        cancel_projector_cooldown()
     _teardown_conflicting_sources(target_mode)
 
 
@@ -2207,9 +2147,9 @@ def session_end_house_lights():
 
     reset_boxart_idle(source="idle", boxart_state="off")
     reset_poster_idle(source="session_end")
-
-    if safe_state_get(PROJECTOR_SWITCH) == "on":
-        task.create(safe_projector_cooldown)
+    # The projector stays in standby with mains on (2026-10-29), so the remote's power
+    # button can wake it over CEC. Only play_music() cuts mains, and only when cold.
+    # interlocks.projector_stray_wake_guard covers a standby that didn't take.
 
 
 @service

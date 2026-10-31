@@ -18,9 +18,9 @@ This repo is the production config. It is mounted straight into the Home Assista
 
 Some of this automation can damage hardware if it gets the order wrong, so these paths are guarded and covered by tests ([details](docs/safety-interlocks.md)):
 
-1. **Projector thermal cutoff.** The lamp needs its fans after power-off. Mains are cut only after a 90 s cooldown *and* two consecutive current readings at or below 0.06 A. If the sensor is unavailable, power stays on.
+1. **Projector thermal safety.** The lamp needs its fans after power-off, so the projector goes to standby instead of losing power, and HDMI-CEC can wake it again. Mains are cut automatically only when it is already cold (0.06 A or less). If the lamp lights while nobody is using the theater, a guard puts it back to standby over CEC and sends a notification, without ever cutting power.
 2. **Retro-gaming PC.** The OS gets a clean software shutdown first, and the relay opens only after current stays below 0.05 A for 12 s, so the file system is never cut mid-write.
-3. **Ordered shutdown.** TV box, then receiver zones, then lighting and center-channel reset, then the projector cooldown above.
+3. **Ordered shutdown.** TV box, then receiver zones, then lighting and center-channel reset; the projector is left in standby.
 4. **Power-outage sweep.** After a real power cut (detected from host uptime, so ordinary restarts are skipped), it turns off any basement and bedroom bulbs that came back on, unless someone is down there.
 5. **TV tuner preemption.** If both HDHomeRun tuners are busy when the theater wants live TV, it releases one over the tuner's TCP control protocol and sends a notification.
 
@@ -31,6 +31,7 @@ flowchart LR
     UI["Dashboards<br/>(Lovelace YAML)"] --> SVC["pyscript services<br/>play_movie / play_game / play_sports ..."]
     SVC --> AV["theater.py<br/>receiver input + DSP, app launch, artwork"]
     AV --> MODE["sensor.theater_mode<br/>(resolver)"]
+    AV -- "pyscript services" --> IL["interlocks.py<br/>projector guard, Batocera power-off"]
     MODE --> LIGHT["basement.py<br/>lighting state machine"]
     EAGLES["sensor.philadelphia_eagles"] --> SPORTS["sports.py<br/>score flashes"]
     SPORTS --> LIGHT
@@ -39,7 +40,7 @@ flowchart LR
 
 | Path | What lives there |
 |---|---|
-| [`pyscript/`](pyscript/) | All automation logic in Python (pyscript): `theater.py`, `basement.py`, `sports.py`, `watchdog.py`, `health_check.py` |
+| [`pyscript/`](pyscript/) | All automation logic in Python (pyscript): `theater.py`, `interlocks.py` (projector stray-wake guard and cooldown, Batocera power-off, isolated from theater.py reloads), `basement.py`, `sports.py`, `watchdog.py`, `health_check.py` |
 | [`packages/`](packages/) | Helpers, template sensors and REST commands per subsystem |
 | [`dashboards/`](dashboards/) | Lovelace dashboards; `basement.yaml` is assembled from `components/` |
 | [`tests/`](tests/) | Standalone test suites, plus telemetry tools that query the recorder DB |

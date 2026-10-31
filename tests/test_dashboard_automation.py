@@ -80,9 +80,20 @@ class MockTask:
 
 
 class MockPyscript:
-    def __init__(self, sports_mod=None, basement_mod=None):
+    def __init__(self, sports_mod=None, basement_mod=None, interlocks_mod=None):
         self._sports = sports_mod
         self._basement = basement_mod
+        self._interlocks = interlocks_mod
+
+    # interlocks.py services; the cooldown runs later, like a real service call
+    def safe_projector_cooldown(self):
+        mock_task.create(self._interlocks.safe_projector_cooldown)
+
+    def cancel_projector_cooldown(self):
+        self._interlocks.cancel_projector_cooldown()
+
+    def shutdown_batocera(self):
+        self._interlocks.shutdown_batocera()
 
     def get_team_rgb(self):
         if self._sports and hasattr(self._sports, "get_team_rgb"):
@@ -150,8 +161,9 @@ sys.path.insert(0, PYSCRIPT_DIR)
 import sports
 import basement
 import theater
+import interlocks
 
-mock_pyscript = MockPyscript(sports, basement)
+mock_pyscript = MockPyscript(sports, basement, interlocks)
 builtins.pyscript = mock_pyscript
 
 # ------------------------------------------------------------------------------
@@ -165,6 +177,7 @@ def setup_baseline():
     mock_state._attrs.clear()
 
     theater.BOOT_TIMESTAMP = 0
+    interlocks.BOOT_TIMESTAMP = 0
     basement.BOOT_TIMESTAMP = 0
 
     # Base safety and hardware entities

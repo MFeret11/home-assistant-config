@@ -8,7 +8,7 @@
   - Use `@state_trigger` for debounced automations alongside raw service entry points.
 
 ## 2. Hardware Safety Interlocks (CRITICAL)
-- **Projector (`switch.projector`)**: Never cut power directly. Always use `safe_projector_cooldown()` which enforces a 90s cooldown and mandates 2 consecutive `sensor.projector_current` reads `<= 0.06A`.
+- **Projector (`switch.projector`)**: Stays in standby (mains on) after sessions. Never cut power directly; the only automatic cut is `play_music()` when already cold. Otherwise use `pyscript.safe_projector_cooldown` (in `pyscript/interlocks.py`), which enforces a 90s cooldown and mandates 2 consecutive `sensor.projector_current` reads `<= 0.06A`.
 - **Batocera (`switch.batocera`)**: Clean shutdown via `button.batocera_shutdown_2` first. Only open relay when `sensor.batocera_current < 0.05A` holds continuously for 12 seconds.
 - **HDHomeRun Tuners**: Honor `ensure_hdhomerun_tuner_available` to prevent broadcast lockout. Respect 1-tuner reservation and execute `pyscript.preempt_tuner_for_theater` when required.
 
