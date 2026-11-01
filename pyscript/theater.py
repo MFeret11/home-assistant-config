@@ -306,6 +306,13 @@ def normalize_app_id(app_id):
     return app_id
 
 
+LAUNCHER_APPS = {"com.google.android.apps.tv.launcherx", "com.google.android.tvlauncher"}
+
+
+def _is_launcher(app_id):
+    return not app_id or app_id in LAUNCHER_APPS
+
+
 def get_active_app_id():
     """Single source of truth for the foreground app (Android TV Remote entities)."""
     app_id = (
@@ -1560,6 +1567,23 @@ def handle_receiver_power_off():
         session_end_house_lights()
 
 
+@state_trigger("media_player.onn_pro == 'off'", state_hold=4)
+def onn_power_button_curtain_call(old_value=None):
+    """The Onn remote's power button (sleeping the Onn mid-session) runs curtain call.
+    CEC alone often leaves the receiver and projector on. Waking is handled by
+    onn_power_button_wake."""
+    if is_booting() or old_value != "on":
+        return
+    if safe_state_get(CURTAIN_CALL) == "on":
+        return  # session end is already running (it sleeps the Onn itself)
+    if safe_state_get(THEATER_IN_USE) != "on" or safe_state_get(RECEIVER) != "on":
+        return  # nothing running; a receiver that went off is handled above
+    if _gaming_on_hdmi2():
+        return  # the Onn sleeps normally while Batocera is on HDMI2
+    log.info("[Theater] Onn powered off mid-session. Running curtain call.")
+    session_end_house_lights()
+
+
 # ------------------------------------------------------------------------------
 # SOUND MODES & AUDIO CONDUCTION
 # ------------------------------------------------------------------------------
@@ -1708,7 +1732,7 @@ def route_app_audio_mode():
         return
 
     app_id = get_active_app_id()
-    if not app_id or app_id in ["com.google.android.apps.tv.launcherx", "com.google.android.tvlauncher"]:
+    if _is_launcher(app_id):
         return
 
     if app_id in SPORTS_APPS or safe_state_get(THEATER_MODE) == "sports":
@@ -1727,9 +1751,12 @@ def route_app_audio_mode():
 # never raise: if interlocks.py isn't loaded, nothing cuts mains (the safe side).
 def is_batocera_on():
     """Determines if the Batocera x86 laptop client is powered on or active."""
+    # batocera_state keeps its last value after power-off (seen 2026-10-31), so it only
+    # counts when the relay isn't confirmed off (e.g. the plug dropped off Zigbee).
+    relay = safe_state_get(BATOCERA_SWITCH)
     return (
-        safe_state_get(BATOCERA_SWITCH) == "on"
-        or safe_state_get(BATOCERA_STATE) in ["playing", "idle"]
+        relay == "on"
+        or (relay != "off" and safe_state_get(BATOCERA_STATE) in ["playing", "idle"])
         or safe_float(safe_state_get(BATOCERA_CURRENT), 0.0) >= 0.05
     )
 
@@ -1756,13 +1783,47 @@ def reset_boxart_on_batocera_halt():
     reset_boxart_idle(source="idle", boxart_state="off")
 
 
+def _gaming_on_hdmi2(mode=None):
+    """Batocera is the source right now. Uses the receiver input and Batocera's relay,
+    not sensor.batocera_state, which can stay 'idle' after Batocera powers off."""
+    mode = mode if mode is not None else safe_state_get(THEATER_MODE)
+    return (
+        mode == "game"
+        or safe_state_getattr(RECEIVER, "source") in ["HDMI2", "HDMI3"]
+        or safe_state_get(BATOCERA_SWITCH) == "on"
+    )
+
+
+PROJECTOR_STANDBY_WAIT_S = 24
+PROJECTOR_LIT_AMPS = 0.5
+
+
+def _wait_projector_dark(timeout_s):
+    """Poll the projector current until the lamp is out. True once dark.
+    Returns True right away if the sensor is unavailable, so session end never hangs on it
+    (the stray-wake guard still covers a lamp left lit)."""
+    waited = 0
+    while True:
+        amps = safe_float(safe_state_get(PROJECTOR_CURRENT), -1.0)
+        if amps < PROJECTOR_LIT_AMPS:
+            return True
+        if waited >= timeout_s:
+            return False
+        task.sleep(2)
+        waited += 2
+
+
+# Sleep the Onn with the SLEEP key only. media_player.turn_off sends POWER, a toggle,
+# whenever HA still thinks the Onn is on, so right after SLEEP it woke the Onn back up
+# (dark, receiver off) and the remote's power button then turned it off (2026-11-01).
+
+
 def _cec_standby_burst(rounds=2, drop_receiver=True):
     """Sleep the Onn (broadcasts CEC standby) and drops receiver until projector current collapses.
     Never wakes Onn if it is already off/standby, preventing false wakeups and HDMI passthrough leaks."""
     for _ in range(rounds):
         if safe_state_get(ONN_PRO) == "on":
             safe_service(remote.send_command, entity_id=ONN_REMOTE, command="SLEEP")
-            safe_service(media_player.turn_off, entity_id=ONN_PRO)
             task.sleep(1.0)
         if drop_receiver and safe_state_get(RECEIVER) == "on":
             safe_service(media_player.select_source, entity_id=RECEIVER, source="AUDIO1")
@@ -1835,16 +1896,134 @@ def _mark_session_active(mode):
 
 
 def _wake_hdmi1_chain():
-    """Projector mains, receiver on HDMI1, then wake the Onn."""
-    switch.turn_on(entity_id=PROJECTOR_SWITCH)
+    """Receiver on HDMI1, wake the Onn, then the projector (which owns its mains)."""
     media_player.turn_on(entity_id=RECEIVER)
     media_player.select_source(entity_id=RECEIVER, source="HDMI1")
     media_player.turn_on(entity_id=ONN_PRO)
     task.sleep(1.0)
+    _wake_projector()
+
+
+# The projector's CEC wake doesn't work from its Eco standby (2026-11-01: One Touch
+# Play times out, the lamp stays dark). Direct Power On is enabled, though: it starts
+# within ~2s of mains coming on (seen 2026-10-28 and 10-31). So a cold projector is
+# woken by cycling its relay. A warm lamp's mains are never cut; the wake waits for
+# it to finish cooling first. play_music never calls this.
+PROJECTOR_COLD_AMPS = 0.06
+PROJECTOR_MAINS_OFF_S = 3
+PROJECTOR_WAKE_CHECK_S = 30
+PROJECTOR_WAKE_CHECKS = 6  # up to 3 min for a projector that is still cooling
+
+
+def _projector_lit():
+    return safe_float(safe_state_get(PROJECTOR_CURRENT), 0.0) >= PROJECTOR_LIT_AMPS
+
+
+def _projector_confirmed_cold():
+    """Two cold reads 1s apart, like the cooldown. An unavailable sensor is never cold."""
+    for i in range(2):
+        amps = safe_float(safe_state_get(PROJECTOR_CURRENT), default=None)
+        if amps is None or amps > PROJECTOR_COLD_AMPS:
+            return False
+        if i == 0:
+            task.sleep(1.0)
+    return True
+
+
+def _wake_session_ok(session):
+    return (session == _session_seq and safe_state_get(THEATER_IN_USE) == "on"
+            and safe_state_get(THEATER_MODE) not in ["music", "off"])
+
+
+def _cycle_projector_mains(session):
+    """Mains off, 3s, on. Leaves mains off if the session ended or went to music meanwhile."""
+    log.info("[Theater] Projector cold in standby. Cycling its mains to start it.")
+    switch.turn_off(entity_id=PROJECTOR_SWITCH)
+    task.sleep(PROJECTOR_MAINS_OFF_S)
+    if not _wake_session_ok(session):
+        return False
+    switch.turn_on(entity_id=PROJECTOR_SWITCH)
+    return True
+
+
+def _wake_projector():
+    """Start the projector for every mode except music. Runs in the background."""
+    task.create(_projector_wake_task, _session_seq)
+
+
+def _projector_wake_task(session):
+    if _projector_lit():
+        return
+    if safe_state_get(PROJECTOR_SWITCH) != "on":
+        switch.turn_on(entity_id=PROJECTOR_SWITCH)  # Direct Power On
+        cycled = True
+    elif _projector_confirmed_cold():
+        if not _wake_session_ok(session):
+            return
+        cycled = _cycle_projector_mains(session)
+        if not cycled:
+            return
+    else:
+        cycled = False  # still cooling from the last session; wait for it below
+
+    for _ in range(PROJECTOR_WAKE_CHECKS):
+        task.sleep(PROJECTOR_WAKE_CHECK_S)
+        if not _wake_session_ok(session) or _projector_lit():
+            return
+        if not is_projector_cold():
+            if cycled:
+                return  # warming up
+            continue  # still cooling
+        if cycled:
+            log.warning("[Theater] Projector didn't start after its mains came on.")
+            return
+        if _projector_confirmed_cold() and _wake_session_ok(session):
+            cycled = _cycle_projector_mains(session)
+            if not cycled:
+                return
+    if not cycled:
+        log.warning("[Theater] Projector never cooled enough to restart.")
+
+
+POWER_WAKE_SETTLE_S = 2
+STREMIO_DEFER_S = 1.5
+MMWAVE_PRESENCE = "binary_sensor.theater_mmwave_sensor"
+
+
+@state_trigger("media_player.onn_pro == 'on'")
+def onn_power_button_wake(old_value=None):
+    """The Onn remote's power button works like the movie button. CEC wakes the Onn
+    and sometimes the projector, but never the receiver, so HA runs play_movie.
+    App buttons also wake the Onn; their webhook starts its own mode within about
+    0.5s, well inside the settle time, so this backs off. Needs someone in the theater, because
+    scrcpy, casting and updates wake the Onn too."""
+    if is_booting() or old_value not in ["off", "standby"]:
+        return
+    task.unique("onn_power_button_wake")
+    task.sleep(POWER_WAKE_SETTLE_S)
+    if safe_state_get(ONN_PRO) != "on" or _session_ending:
+        return  # session end wakes the Onn itself to resend standby
+    if safe_state_get(THEATER_IN_USE) == "on" or safe_state_get(RECEIVER) == "on":
+        return  # a mode is already starting or running
+    if safe_state_get(MMWAVE_PRESENCE) != "on":
+        return
+    # YouTube's single press isn't caught by Button Mapper: it wakes the Onn and opens
+    # YouTube. Keep whatever app is up; open Stremio only from the home screen.
+    showing_app = not _is_launcher(get_active_app_id())
+    log.info("[Theater] Onn woke from its power button. Starting movie mode.")
+    play_movie(open_stremio=False)
+    if showing_app:
+        return
+    session = _session_seq
+    task.sleep(STREMIO_DEFER_S)  # an app opened by the wake press shows up by now
+    if session == _session_seq and _is_launcher(get_active_app_id()):
+        launch_onn_app("com.stremio.one")
+        task.sleep(0.5)
+        update_theater_media_art()
 
 
 @service
-def play_movie():
+def play_movie(open_stremio=True):
     _begin_session("movie")
     _mark_session_active("movie")
     release_sports_social_mode()
@@ -1860,7 +2039,8 @@ def play_movie():
 
     _wake_hdmi1_chain()
 
-    launch_onn_app("com.stremio.one")
+    if open_stremio:
+        launch_onn_app("com.stremio.one")
     task.sleep(0.5)
     update_theater_media_art()
 
@@ -1873,10 +2053,10 @@ def play_movie():
 def play_game():
     _begin_session("game")
 
-    switch.turn_on(entity_id=PROJECTOR_SWITCH)
     switch.turn_on(entity_id=BATOCERA_SWITCH)
     media_player.turn_on(entity_id=RECEIVER)
     task.sleep(2.0)
+    _wake_projector()
     media_player.select_source(entity_id=RECEIVER, source="HDMI2")
     set_receiver_sound_mode("Surround Decoder")
 
@@ -1909,10 +2089,10 @@ def play_pc_game(app="moonlight", target="batocera"):
     """Orchestrates PC Gaming mode: boots PC via WOL, selects AVR surround sound, launches Moonlight on Batocera."""
     _begin_session("game")
 
-    switch.turn_on(entity_id=PROJECTOR_SWITCH)
     switch.turn_on(entity_id=PC_SWITCH)
     media_player.turn_on(entity_id=RECEIVER)
     task.sleep(2.0)
+    _wake_projector()
 
     target_clean = str(target).lower().strip()
     # Route to Batocera (HDMI2) if explicitly targeted or if Batocera is already on
@@ -2092,8 +2272,22 @@ def play_sports(app=None):
         input_select.select_option(entity_id=LIGHTING_MODE_SELECT, option=MODE_SOCIAL)
 
 
+_session_ending = False
+
+
 @service
 def session_end_house_lights():
+    """Curtain call. _session_ending is true only while this runs; CURTAIN_CALL
+    stays on afterwards for the house-lights window."""
+    global _session_ending
+    _session_ending = True
+    try:
+        _session_end_sequence()
+    finally:
+        _session_ending = False
+
+
+def _session_end_sequence():
     global _session_seq
     _session_seq += 1  # stop the HDMI2 guard so it can't undo the AUDIO1 switch
     state.set(CURTAIN_CALL, value="on")
@@ -2120,14 +2314,25 @@ def session_end_house_lights():
         # Never switch to HDMI1 and never send HOME when exiting gaming.
         if safe_state_get(ONN_PRO) == "on":
             safe_service(remote.send_command, entity_id=ONN_REMOTE, command="SLEEP")
-            safe_service(media_player.turn_off, entity_id=ONN_PRO)
     else:
         # Non-gaming: release foreground apps/tuner only if Onn is currently on
         if safe_state_get(ONN_PRO) == "on":
             safe_service(remote.send_command, entity_id=ONN_REMOTE, command="HOME")
             task.sleep(0.5)
             safe_service(remote.send_command, entity_id=ONN_REMOTE, command="SLEEP")
-            safe_service(media_player.turn_off, entity_id=ONN_PRO)
+
+    # 5b. Keep the receiver up until the projector acts on the Onn's CEC standby.
+    # The projector takes ~15s; dropping the receiver sooner breaks the CEC path
+    # (2026-10-31: receiver off 2s after SLEEP left the lamp lit).
+    if not _wait_projector_dark(PROJECTOR_STANDBY_WAIT_S) and not _gaming_on_hdmi2(prior_mode):
+        # One retry: wake the Onn (the receiver is still on HDMI1) and sleep it again.
+        # Skipped when gaming so the Onn never grabs HDMI1 there.
+        if safe_state_get(RECEIVER) == "on":
+            log.warning("[Theater] Projector still lit after CEC standby. Waking the Onn to resend it.")
+            safe_service(media_player.turn_on, entity_id=ONN_PRO)
+            task.sleep(10)
+            safe_service(remote.send_command, entity_id=ONN_REMOTE, command="SLEEP")
+            _wait_projector_dark(PROJECTOR_STANDBY_WAIT_S)
 
     # 6. Switch AVR to AUDIO1 to completely cut HDMI pass-through signal before turning off AVR
     if safe_state_get(RECEIVER) == "on":
@@ -2147,8 +2352,8 @@ def session_end_house_lights():
 
     reset_boxart_idle(source="idle", boxart_state="off")
     reset_poster_idle(source="session_end")
-    # The projector stays in standby with mains on (2026-10-29), so the remote's power
-    # button can wake it over CEC. Only play_music() cuts mains, and only when cold.
+    # The projector stays in standby with mains on (2026-10-29). Mains are cut only
+    # when the lamp is cold: by play_music(), and briefly by _wake_projector() to start it.
     # interlocks.projector_stray_wake_guard covers a standby that didn't take.
 
 
@@ -2158,7 +2363,6 @@ def force_projector_off():
     media_player.turn_on(entity_id=ONN_PRO)
     task.sleep(2.0)
     remote.send_command(entity_id=ONN_REMOTE, command="SLEEP")
-    media_player.turn_off(entity_id=ONN_PRO)
     task.sleep(2.5)
     media_player.turn_off(entity_id=RECEIVER)
     safe_service(media_player.turn_off, entity_id=RECEIVER_ZONE_2)

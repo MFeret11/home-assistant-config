@@ -13,6 +13,9 @@
 #   Disney+ (BUTTON_9)       -> game
 #   Free TV (FEATURED_APP_1) -> sports
 #   Guide: press -> social, double press -> lights, hold -> eagles
+#   YouTube: press opens YouTube as normal, hold -> curtain
+# The power button can't be remapped; theater.py runs curtain call when it
+# sleeps the Onn mid-session (onn_power_button_curtain_call).
 #
 # The webhook ID lives in secrets.yaml (it is the only thing guarding the
 # endpoint on the LAN). This is a YAML automation rather than pyscript so
@@ -63,6 +66,10 @@ automation:
           - conditions: "{{ button == 'eagles' }}"
             sequence:
               - action: pyscript.effect_eagles_chant
+          # Curtain call: end the theater session, house lights to 20%
+          - conditions: "{{ button == 'curtain' }}"
+            sequence:
+              - action: pyscript.session_end_house_lights
         default:
           - action: system_log.write
             data:

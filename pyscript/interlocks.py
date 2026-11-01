@@ -80,8 +80,8 @@ def _cec_standby_once():
     """Sleep the Onn (CEC standby) and drop the receiver. theater.py has its own
     multi-round version for session end; this is the cooldown's single retry."""
     if _get(ONN_PRO) == "on":
+        # SLEEP only: media_player.turn_off sends POWER, a toggle that re-woke the Onn
         _call(remote.send_command, entity_id=ONN_REMOTE, command="SLEEP")
-        _call(media_player.turn_off, entity_id=ONN_PRO)
         task.sleep(1.0)
     if _get(RECEIVER) == "on":
         _call(media_player.select_source, entity_id=RECEIVER, source="AUDIO1")
@@ -194,8 +194,8 @@ def projector_stray_wake_guard():
             # there, and HA has no other way to send standby. Just say so.
             break
         log.warning(f"[Interlocks] Projector lamp lit with the theater not in use. CEC standby (try {attempt + 1}/2).")
+        # SLEEP only: media_player.turn_off sends POWER, a toggle that re-woke the Onn
         _call(remote.send_command, entity_id=ONN_REMOTE, command="SLEEP")
-        _call(media_player.turn_off, entity_id=ONN_PRO)
         task.sleep(STRAY_WAKE_RETRY_S)
         if not _lamp_lit_while_idle():
             break
@@ -211,9 +211,12 @@ def projector_stray_wake_guard():
 # INTERLOCK 2: BATOCERA FILE SYSTEM SAFETY
 # ------------------------------------------------------------------------------
 def is_batocera_on():
+    # batocera_state keeps its last value after power-off, so it only counts
+    # when the relay isn't confirmed off.
+    relay = _get(BATOCERA_SWITCH)
     return (
-        _get(BATOCERA_SWITCH) == "on"
-        or _get(BATOCERA_STATE) in ["playing", "idle"]
+        relay == "on"
+        or (relay != "off" and _get(BATOCERA_STATE) in ["playing", "idle"])
         or _float(_get(BATOCERA_CURRENT), 0.0) >= BATOCERA_IDLE_AMPS
     )
 

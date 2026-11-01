@@ -131,6 +131,8 @@ class MockDomain:
                     src = kwargs.get("source")
                     if src:
                         mock_state._attrs.setdefault(target, {})["source"] = str(src)
+                elif service == "send_command" and target == "remote.onn_pro" and kwargs.get("command") == "SLEEP":
+                    mock_state.set("media_player.onn_pro", "off")
         return _call
 
 
@@ -1187,7 +1189,7 @@ def test_force_projector_off_emergency_sequence():
     cec_call = spy.last_call_for("remote", "send_command")
     assert cec_call and cec_call["kwargs"].get("command") == "SLEEP", "FAIL: CEC Sleep command not blasted!"
 
-    assert spy.was_called("media_player", "turn_off", "media_player.onn_pro"), "FAIL: Onn not turned off!"
+    assert not spy.was_called("media_player", "turn_off", "media_player.onn_pro"), "FAIL: POWER toggle sent after SLEEP!"
     assert spy.was_called("media_player", "turn_off", "media_player.theater_receiver"), "FAIL: AVR Main not turned off!"
     assert spy.was_called("media_player", "turn_off", "media_player.theater_receiver_zone_2"), "FAIL: Zone 2 not cut!"
     print("  ✓ [Chaos] test_force_projector_off_emergency_sequence PASSED")
@@ -1701,6 +1703,273 @@ def test_unmanaged_exit_receiver_power_off_triggers_safe_teardown():
     assert spy.was_called("button", "press", "button.batocera_shutdown_2") or spy.was_called("button", "press", "button.batocera_shutdown"), "FAIL: Batocera graceful shutdown not triggered!"
     assert spy.was_called("media_player", "turn_off", "media_player.theater_receiver_zone_2"), "FAIL: Zone 2 not shut down!"
     print("  ✓ [Teardown] test_unmanaged_exit_receiver_power_off_triggers_safe_teardown PASSED")
+
+
+def _power_button_setup(mode="movie"):
+    setup_clean_environment()
+    state.set("media_player.theater_receiver", "on")
+    state.set("binary_sensor.theater_in_use", "on")
+    state.set("sensor.theater_mode", mode)
+    state.set("pyscript.curtain_call_active", "off")
+    state.set("media_player.onn_pro", "off")
+    state.set("sensor.projector_current", "0.04")
+    state.set("switch.batocera", "off")
+    state.set("sensor.batocera_state", "idle")  # stale after power-off, as seen live
+    state._attrs.setdefault("media_player.theater_receiver", {})["source"] = "HDMI1"
+
+
+def test_onn_power_button_runs_curtain_call():
+    """Sleeping the Onn mid-session (remote power button) runs curtain call."""
+    _power_button_setup("movie")
+    theater.onn_power_button_curtain_call(old_value="on")
+    assert state.get("pyscript.curtain_call_active") == "on", "FAIL: Power button didn't run curtain call!"
+    assert spy.was_called("media_player", "turn_off", "media_player.theater_receiver"), "FAIL: Receiver not turned off!"
+    print("  ✓ [PowerButton] test_onn_power_button_runs_curtain_call PASSED")
+
+
+def test_onn_power_button_ignored_when_gaming_or_idle():
+    """The Onn sleeping in game mode, or with the theater idle, is not a power-button press."""
+    _power_button_setup("game")
+    theater.onn_power_button_curtain_call(old_value="on")
+    assert state.get("pyscript.curtain_call_active") == "off", "FAIL: Curtain call ran in game mode!"
+    _power_button_setup("movie")
+    state.set("binary_sensor.theater_in_use", "off")
+    theater.onn_power_button_curtain_call(old_value="on")
+    assert state.get("pyscript.curtain_call_active") == "off", "FAIL: Curtain call ran with the theater idle!"
+    _power_button_setup("movie")
+    theater.onn_power_button_curtain_call(old_value="unavailable")
+    assert state.get("pyscript.curtain_call_active") == "off", "FAIL: An unavailable flicker ran curtain call!"
+    print("  ✓ [PowerButton] test_onn_power_button_ignored_when_gaming_or_idle PASSED")
+
+
+def _adb_spy():
+    """Capture ADB shell commands sent through theater._onn_adb_command."""
+    from types import SimpleNamespace
+    sent = []
+    theater.service = SimpleNamespace(call=lambda d, s, **k: sent.append(k.get("command")))
+    return sent
+
+
+def _idle_theater_onn_just_woke():
+    setup_clean_environment()
+    state.set("media_player.onn_pro", "on")
+    state.set("media_player.theater_receiver", "off")
+    state.set("media_player.theater_onn_pro_adb", "idle")
+    state.set("binary_sensor.theater_mmwave_sensor", "on")
+    state.set("switch.projector", "on")  # standby, mains on
+    state.set("sensor.projector_current", "0.02")
+
+
+def test_onn_power_button_wakes_whole_theater():
+    """Power button with someone in the theater: receiver on HDMI1, projector woken over CEC."""
+    sent = _adb_spy()
+    _idle_theater_onn_just_woke()
+    theater.onn_power_button_wake(old_value="off")
+    assert state.get("media_player.theater_receiver") == "on", "FAIL: Receiver not woken!"
+    assert state.getattr("media_player.theater_receiver", "source") == "HDMI1", "FAIL: Receiver not on HDMI1!"
+    assert state.get("binary_sensor.theater_in_use") == "on", "FAIL: Theater not marked in use!"
+    mock_task.run_deferred_tasks()
+    assert _mains_cycled(), "FAIL: Projector mains not cycled to start it!"
+    assert state.get("switch.projector") == "on", "FAIL: Projector mains left off!"
+    assert state.get("sensor.theater_mode") == "movie", "FAIL: Power button didn't start movie mode!"
+    rx = state.getattr("media_player.theater_receiver") or {}
+    assert rx.get("sound_mode") == "Standard", "FAIL: Movie audio not set!"
+    launch = spy.last_call_for("remote", "turn_on")
+    assert launch and "stremio" in str(launch["kwargs"]), "FAIL: Stremio not opened!"
+    theater.__dict__.pop("service", None)
+    print("  ✓ [PowerButton] test_onn_power_button_wakes_whole_theater PASSED")
+
+
+def test_onn_power_button_wake_backs_off():
+    """No wake for an app-button mode already starting, nobody present, curtain call, or a flicker."""
+    cases = [
+        ("app button", lambda: state.set("binary_sensor.theater_in_use", "on"), "off"),
+        ("receiver already on", lambda: state.set("media_player.theater_receiver", "on"), "off"),
+        ("nobody present", lambda: state.set("binary_sensor.theater_mmwave_sensor", "off"), "off"),
+        ("session end running", lambda: setattr(theater, "_session_ending", True), "off"),
+        ("Onn went back to sleep", lambda: state.set("media_player.onn_pro", "off"), "off"),
+        ("unavailable flicker", lambda: None, "unavailable"),
+    ]
+    for name, tweak, old in cases:
+        sent = _adb_spy()
+        _idle_theater_onn_just_woke()
+        tweak()
+        rx_before = state.get("media_player.theater_receiver")
+        theater.onn_power_button_wake(old_value=old)
+        assert not spy.was_called("media_player", "turn_on", "media_player.theater_receiver"), f"FAIL: woke receiver ({name})!"
+        assert state.get("media_player.theater_receiver") == rx_before, f"FAIL: receiver changed ({name})!"
+        mock_task.run_deferred_tasks()
+        assert not spy.was_called("switch", "turn_off", "switch.projector"), f"FAIL: mains cycled ({name})!"
+        theater._session_ending = False
+    theater.__dict__.pop("service", None)
+    print("  ✓ [PowerButton] test_onn_power_button_wake_backs_off PASSED")
+
+
+def _mains_cycled():
+    """switch.projector went off, then on again."""
+    seq = [c["service"] for c in spy.calls if c["domain"] == "switch" and c["kwargs"].get("entity_id") == "switch.projector"]
+    return "turn_off" in seq and "turn_on" in seq[seq.index("turn_off"):]
+
+
+def test_modes_wake_cold_projector_except_music():
+    """Movie/game/sports start a cold projector by cycling mains; music never does."""
+    for svc in ["play_movie", "play_game", "play_sports"]:
+        _idle_theater_onn_just_woke()
+        state.set("sensor.tuner0", "none")
+        state.set("sensor.tuner1", "none")
+        getattr(theater, svc)()
+        mock_task.run_deferred_tasks()
+        assert _mains_cycled(), f"FAIL: {svc} didn't start the projector!"
+        assert state.get("switch.projector") == "on", f"FAIL: {svc} left projector mains off!"
+
+    _idle_theater_onn_just_woke()
+    theater.play_music()
+    mock_task.run_deferred_tasks()
+    assert state.get("switch.projector") == "off", "FAIL: Music didn't keep a cold projector off!"
+    assert not spy.was_called("switch", "turn_on", "switch.projector"), "FAIL: Music powered the projector!"
+
+    # Mains already off (after music): just switch on, no extra cycle
+    _idle_theater_onn_just_woke()
+    state.set("switch.projector", "off")
+    theater.play_movie()
+    mock_task.run_deferred_tasks()
+    assert state.get("switch.projector") == "on", "FAIL: Mains not switched on!"
+    assert not spy.was_called("switch", "turn_off", "switch.projector"), "FAIL: Cut mains that were already off!"
+    print("  ✓ [PowerButton] test_modes_wake_cold_projector_except_music PASSED")
+
+
+def test_projector_wake_never_cuts_a_warm_lamp():
+    """Lit: nothing. Cooling: wait, cycle only once cold. Unavailable sensor: never cut."""
+    _idle_theater_onn_just_woke()
+    state.set("sensor.projector_current", "1.20")
+    theater.play_movie()
+    mock_task.run_deferred_tasks()
+    assert not spy.was_called("switch", "turn_off", "switch.projector"), "FAIL: Cut mains on a lit lamp!"
+
+    _idle_theater_onn_just_woke()
+    state.set("sensor.projector_current", "0.30")  # fans still cooling
+    reads = {"n": 0}
+    def cool_down(seconds):
+        reads["n"] += 1
+        if reads["n"] >= 2:
+            state.set("sensor.projector_current", "0.02")
+    mock_task.sleep_hook = cool_down
+    theater.play_movie()
+    assert not spy.was_called("switch", "turn_off", "switch.projector"), "FAIL: Cut mains while cooling!"
+    mock_task.run_deferred_tasks()
+    mock_task.sleep_hook = None
+    assert _mains_cycled(), "FAIL: Didn't start the projector once it cooled!"
+
+    _idle_theater_onn_just_woke()
+    state.set("sensor.projector_current", "unavailable")
+    theater.play_movie()
+    mock_task.run_deferred_tasks()
+    assert not spy.was_called("switch", "turn_off", "switch.projector"), "FAIL: Cut mains with no current reading!"
+    print("  ✓ [PowerButton] test_projector_wake_never_cuts_a_warm_lamp PASSED")
+
+
+def test_projector_wake_stops_when_session_changes():
+    """Switching to music or ending the session mid-cycle leaves mains off."""
+    _idle_theater_onn_just_woke()
+    theater.play_movie()
+    def go_music(seconds):
+        if seconds == theater.PROJECTOR_MAINS_OFF_S:
+            state.set("sensor.theater_mode", "music")
+    mock_task.sleep_hook = go_music
+    mock_task.run_deferred_tasks()
+    mock_task.sleep_hook = None
+    assert state.get("switch.projector") == "off", "FAIL: Mains back on after switching to music!"
+    print("  ✓ [PowerButton] test_projector_wake_stops_when_session_changes PASSED")
+
+
+def test_power_button_works_during_house_lights_window():
+    """Curtain call's 10-min house-lights flag must not block the next power-button press."""
+    _idle_theater_onn_just_woke()
+    state.set("pyscript.curtain_call_active", "on")
+    theater.onn_power_button_wake(old_value="off")
+    assert state.get("binary_sensor.theater_in_use") == "on", "FAIL: Power button blocked after curtain call!"
+    assert state.get("pyscript.curtain_call_active") == "off", "FAIL: House-lights window not ended!"
+    print("  ✓ [PowerButton] test_power_button_works_during_house_lights_window PASSED")
+
+
+def test_youtube_press_from_off_keeps_youtube():
+    """A YouTube press wakes the Onn into YouTube: theater starts, Stremio is not opened over it."""
+    _idle_theater_onn_just_woke()
+    state._attrs.setdefault("media_player.onn_pro", {})["app_id"] = "com.google.android.youtube.tv"
+    theater.onn_power_button_wake(old_value="off")
+    assert state.get("media_player.theater_receiver") == "on", "FAIL: Theater not started!"
+    launches = [c for c in spy.calls if c["domain"] == "remote" and c["service"] == "turn_on" and "stremio" in str(c["kwargs"])]
+    assert not launches, "FAIL: Stremio opened over YouTube!"
+    print("  ✓ [PowerButton] test_youtube_press_from_off_keeps_youtube PASSED")
+
+
+def test_onn_sleeps_with_sleep_key_only():
+    """media_player.turn_off sends POWER (a toggle) and re-woke the Onn right after SLEEP.
+    Session end, movie or game, must only send SLEEP."""
+    for mode in ["movie", "game"]:
+        _power_button_setup(mode)
+        state.set("media_player.onn_pro", "on")
+        theater.session_end_house_lights()
+        assert spy.was_called("remote", "send_command", "remote.onn_pro"), f"FAIL: no SLEEP ({mode})!"
+        assert not spy.was_called("media_player", "turn_off", "media_player.onn_pro"), f"FAIL: POWER toggle sent ({mode})!"
+    print("  ✓ [PowerButton] test_onn_sleeps_with_sleep_key_only PASSED")
+
+
+def test_session_end_waits_for_projector_before_dropping_receiver():
+    """The receiver stays up until the projector acts on CEC standby; no retry needed."""
+    _power_button_setup("movie")
+    state.set("media_player.onn_pro", "on")
+    state.set("sensor.projector_current", "2.3")
+    sleeps = []
+    def hook(secs):
+        sleeps.append(secs)
+        if len(sleeps) == 4:
+            # The lamp only goes out after several seconds, and only if the receiver is still on HDMI.
+            assert not spy.was_called("media_player", "select_source", "media_player.theater_receiver"), \
+                "FAIL: Receiver dropped to AUDIO1 before the projector went dark!"
+            state.set("sensor.projector_current", "0.04")
+    mock_task.sleep_hook = hook
+    theater.session_end_house_lights()
+    mock_task.sleep_hook = None
+    assert not spy.was_called("media_player", "turn_on", "media_player.onn_pro"), "FAIL: Woke the Onn though standby took!"
+    assert spy.was_called("media_player", "turn_off", "media_player.theater_receiver"), "FAIL: Receiver not turned off!"
+    print("  ✓ [PowerButton] test_session_end_waits_for_projector_before_dropping_receiver PASSED")
+
+
+def test_session_end_resends_standby_once_when_lamp_stays_lit():
+    """Lamp still lit after the wait: wake the Onn once and resend standby. Never cut mains."""
+    _power_button_setup("movie")
+    state.set("media_player.onn_pro", "on")
+    state.set("sensor.projector_current", "2.3")
+    theater.session_end_house_lights()
+    wakes = [c for c in spy.calls if c["domain"] == "media_player" and c["service"] == "turn_on"
+             and c["kwargs"].get("entity_id") == "media_player.onn_pro"]
+    assert len(wakes) == 1, f"FAIL: Expected one Onn wake, got {len(wakes)}!"
+    assert not spy.was_called("switch", "turn_off", "switch.projector"), "FAIL: Session end cut projector mains!"
+    print("  ✓ [PowerButton] test_session_end_resends_standby_once_when_lamp_stays_lit PASSED")
+
+
+def test_session_end_never_wakes_onn_when_gaming():
+    """Exiting game mode never wakes the Onn, even with the lamp still lit."""
+    _power_button_setup("game")
+    state._attrs["media_player.theater_receiver"]["source"] = "HDMI2"
+    state.set("sensor.projector_current", "2.3")
+    theater.session_end_house_lights()
+    assert not spy.was_called("media_player", "turn_on", "media_player.onn_pro"), "FAIL: Woke the Onn after gaming!"
+    print("  ✓ [PowerButton] test_session_end_never_wakes_onn_when_gaming PASSED")
+
+
+def test_stale_batocera_state_ignored_when_relay_off():
+    """batocera_state stuck on 'idle' after power-off doesn't count as Batocera on."""
+    setup_clean_environment()
+    state.set("switch.batocera", "off")
+    state.set("sensor.batocera_state", "idle")
+    state.set("sensor.batocera_current", "0.0")
+    assert not theater.is_batocera_on(), "FAIL: Stale state counted with the relay off!"
+    assert not interlocks.is_batocera_on(), "FAIL: Interlocks counted stale state with the relay off!"
+    state.set("switch.batocera", "unavailable")
+    assert theater.is_batocera_on(), "FAIL: State ignored while the relay is unavailable!"
+    print("  ✓ [Batocera] test_stale_batocera_state_ignored_when_relay_off PASSED")
 
 
 def test_cross_mode_session_teardown_game_to_movie():
@@ -3271,6 +3540,20 @@ if __name__ == "__main__":
         test_theater_announcer_3way_toggle,
         # Suite 13: Unmanaged Exit, Cross-Mode Teardown & Bi-directional Sync (5)
         test_unmanaged_exit_receiver_power_off_triggers_safe_teardown,
+        test_onn_power_button_runs_curtain_call,
+        test_onn_power_button_ignored_when_gaming_or_idle,
+        test_onn_power_button_wakes_whole_theater,
+        test_onn_power_button_wake_backs_off,
+        test_modes_wake_cold_projector_except_music,
+        test_projector_wake_never_cuts_a_warm_lamp,
+        test_projector_wake_stops_when_session_changes,
+        test_onn_sleeps_with_sleep_key_only,
+        test_power_button_works_during_house_lights_window,
+        test_youtube_press_from_off_keeps_youtube,
+        test_session_end_waits_for_projector_before_dropping_receiver,
+        test_session_end_resends_standby_once_when_lamp_stays_lit,
+        test_session_end_never_wakes_onn_when_gaming,
+        test_stale_batocera_state_ignored_when_relay_off,
         test_cross_mode_session_teardown_game_to_movie,
         test_cross_mode_session_teardown_music_and_sports,
         test_game_holds_receiver_on_hdmi2,
