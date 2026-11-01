@@ -2321,7 +2321,7 @@ def test_vacancy_guard_skipped_when_mmwave_occupied():
 
 
 def test_mmwave_vacancy_turns_off_quiet_room():
-    """mmWave and stairs both quiet for 30 min in Daily Driver: lights off."""
+    """mmWave and stairs both quiet for 15+ min in Daily Driver: lights off."""
     import time
     setup_clean_environment()
     state.set("binary_sensor.theater_mmwave_sensor", "off")
@@ -2346,6 +2346,22 @@ def test_mmwave_vacancy_waits_for_recent_stairs_motion():
     assert not spy.was_called("light", "turn_off", "light.zigbee_basement_lights"), \
         "FAIL: mmWave vacancy ignored recent stairs motion!"
     print("  ✓ [Temporal] test_mmwave_vacancy_waits_for_recent_stairs_motion PASSED")
+
+
+def test_mmwave_vacancy_respects_bar_sensor():
+    """Someone sitting at the bar keeps the lights on; a dead bar sensor doesn't block vacancy."""
+    setup_clean_environment()
+    state.set("binary_sensor.basement_lights_active", "on")
+    state.set("binary_sensor.theater_mmwave_sensor", "off")
+    state.set("binary_sensor.bottom_stairs", "off")
+    basement.LAST_MOTION_SEEN_TS = time.time() - 3600
+    state.set("binary_sensor.mmwave_sensor_bar", "on")
+    basement.basement_mmwave_vacancy()
+    assert not spy.was_called("light", "turn_off"), "FAIL: Lights off with someone at the bar!"
+    state.set("binary_sensor.mmwave_sensor_bar", "unavailable")
+    basement.basement_mmwave_vacancy()
+    assert spy.was_called("light", "turn_off"), "FAIL: Dead bar sensor blocked vacancy!"
+    print("  ✓ [Temporal] test_mmwave_vacancy_respects_bar_sensor PASSED")
 
 
 def test_mmwave_vacancy_never_touches_theater_or_social():
@@ -3501,6 +3517,7 @@ if __name__ == "__main__":
         test_mmwave_vacancy_turns_off_quiet_room,
         test_mmwave_vacancy_waits_for_recent_stairs_motion,
         test_mmwave_vacancy_never_touches_theater_or_social,
+        test_mmwave_vacancy_respects_bar_sensor,
         test_nightly_reset_ignores_stuck_mmwave,
         test_manual_social_survives_movie_but_sports_social_does_not,
         test_master_basement_all_off_service,
