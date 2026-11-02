@@ -25,7 +25,7 @@
   - *Music*: Full blackout (no glow) + bias lights ON.
   - *Sports*: Auto-engages Social Mode and uses 100% team color.
 - **Stairway Topology**: Use `_trigger_stealth_red_stairs` (2% warm candlelight) during active theater sessions (if Social Mode is off) to preserve night vision and avoid screen washout.
-- **Eagles Chant / Sports**: Team color defaults to true Kelly Green (`[0, 170, 35]`). Flash animations must pulse brightness between 100% and 15% (holding solid RGB) to prevent Zigbee mesh congestion.
+- **Sports (Team Lights, `pyscript/apps/team_lights.py`)**: Team colors come from `packages/sports.yaml` (Eagles Kelly Green `[0, 170, 35]`). Flash animations must pulse brightness between 100% and 15% (holding solid RGB) to prevent Zigbee mesh congestion. Teams act only while the TV is on sports.
 
 ## 5. UI & Dashboards
 - **Keep it DRY**: Maintain `decluttering_templates` for repeated cards in `basement.yaml`.

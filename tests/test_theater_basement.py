@@ -10,8 +10,9 @@ import builtins
 import re
 
 pyscript_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "pyscript"))
-if pyscript_dir not in sys.path:
-    sys.path.insert(0, pyscript_dir)
+for _d in (pyscript_dir, os.path.join(pyscript_dir, "apps")):
+    if _d not in sys.path:
+        sys.path.insert(0, _d)
 
 # ==============================================================================
 # 1. STATEFUL MOCK RUNTIME & HARDWARE SPY
@@ -173,15 +174,36 @@ builtins.state_trigger = lambda *args, **kwargs: (lambda f: f)
 builtins.time_trigger = lambda *args, **kwargs: (lambda f: f)
 builtins.pyscript_executor = lambda func: func
 
+
+def _service_call(domain, name, blocking=None, **data):
+    """pyscript's service.call(): routes to the mocked domain, like a direct call."""
+    getattr(getattr(builtins, domain), name)(**data)
+
+
+builtins.service.call = _service_call
+
+# Team Lights reads its YAML config (packages/sports.yaml) as pyscript.app_config.
+import yaml
+with open(os.path.join(os.path.dirname(__file__), "..", "packages", "sports.yaml")) as _f:
+    builtins.pyscript.app_config = yaml.safe_load(_f)["pyscript"]["apps"]["team_lights"]
+
 # Import target engines after builtins are registered
 import theater
 import basement
-import sports
+import team_lights
 import watchdog
 import interlocks
 
-builtins.pyscript.get_team_rgb = sports.get_team_rgb
-builtins.pyscript.get_stair_team_hs = sports.get_stair_team_hs
+TEAM_SPORTS = {
+    "sensor.philadelphia_eagles": "football",
+    "sensor.nhl_philadelphia_flyers": "hockey",
+    "sensor.nba_philadelphia_76ers": "basketball",
+    "sensor.mlb_philadelphia_phillies": "baseball",
+}
+EAGLES = team_lights._team_by_name("Eagles")
+FLYERS = team_lights._team_by_name("Flyers")
+SIXERS = team_lights._team_by_name("76ers")
+PHILLIES = team_lights._team_by_name("Phillies")
 
 
 def _wire_pyscript_service(name, func, deferred=False):
@@ -245,8 +267,15 @@ def setup_clean_environment():
     state.set("media_player.theater_onn_pro_adb", "idle")
     state.set("sensor.batocera_state", "idle")
     state.set("input_number.theater_announcer_volume", "-10.0")
-    state.set("sensor.philadelphia_eagles", "PRE")
     state.set("binary_sensor.basement_automation_allowed", "on")
+    for sensor, sport in TEAM_SPORTS.items():
+        state.set(sensor, "PRE", new_attributes={
+            "sport": sport, "season": "regular-season", "team_colors": ["#D3D3D3", "#D3D3D3"],
+            "team_score": None, "last_play": None,
+        })
+    state.set("input_select.featured_team", "Auto")
+    team_lights._espn_colors.clear()
+    team_lights.publish_featured()
 
 
 # ==============================================================================
@@ -1382,7 +1411,7 @@ def test_overturned_touchdown_negative_delta_is_ignored():
     state.set("sensor.philadelphia_eagles", "IN")
     
     # Score drops from 21 to 14 after review
-    sports.eagles_score_flash(value="14", old_value="21")
+    team_lights.on_score(EAGLES, "14", "21")
     mock_task.run_deferred_tasks()
 
     assert not spy.was_called("scene", "create"), "FAIL: Overturned touchdown triggered scene snapshot!"
@@ -1393,21 +1422,22 @@ def test_overturned_touchdown_negative_delta_is_ignored():
 def test_touchdown_delta_fires_eagles_chant():
     """Verify touchdown (+6 or +7 points) pulses brightness 6x and holds solid team green."""
     setup_clean_environment()
+    state.set("sensor.theater_mode", "sports")
     state.set("sensor.philadelphia_eagles", "IN")
     state.set("light.zigbee_basement_lights", "on")
 
     # Touchdown (+7 points)
-    sports.eagles_score_flash(value="7", old_value="0")
+    team_lights.on_score(EAGLES, "7", "0")
     mock_task.run_deferred_tasks()
 
     # Verify pulsed calls occurred and ended holding solid team green at 100%
     pulse_calls = [c for c in spy.calls if c["domain"] == "light" and c["service"] == "turn_on"]
     assert len(pulse_calls) >= 12, f"FAIL: Touchdown did not fire pulse sequence, got {len(pulse_calls)} calls!"
-    green_calls = [c for c in pulse_calls if c["kwargs"].get("rgb_color") == sports.get_team_rgb()]
+    green_calls = [c for c in pulse_calls if c["kwargs"].get("rgb_color") == EAGLES["color"]]
     assert len(green_calls) >= 12, f"FAIL: Expected Zigbee-safe solid green pulse calls, got {len(green_calls)}!"
     last_call = pulse_calls[-1]
     assert last_call["kwargs"].get("brightness_pct") == 100, "FAIL: Touchdown did not end holding 100% green!"
-    assert last_call["kwargs"].get("rgb_color") == sports.get_team_rgb(), "FAIL: Last call did not use team RGB!"
+    assert last_call["kwargs"].get("rgb_color") == EAGLES["color"], "FAIL: Last call did not use team RGB!"
     print("  ✓ [Sports] test_touchdown_delta_fires_eagles_chant PASSED")
 
 
@@ -1420,22 +1450,23 @@ def test_manual_effect_eagles_chant_cadence():
     pulse_calls = [c for c in spy.calls if c["domain"] == "light" and c["service"] == "turn_on"]
     # 6 letter pulses (high+low = 12) + 2 syllable climax (3) + 1 final hold = 16 calls
     assert len(pulse_calls) >= 15, f"FAIL: Manual chant did not fire full cadence, got {len(pulse_calls)} calls!"
-    green_calls = [c for c in pulse_calls if c["kwargs"].get("rgb_color") == sports.get_team_rgb()]
+    green_calls = [c for c in pulse_calls if c["kwargs"].get("rgb_color") == basement.EAGLES_RGB]
     assert len(green_calls) >= 15, f"FAIL: Expected Zigbee-safe green pulse calls in manual chant, got {len(green_calls)}!"
     last_call = pulse_calls[-1]
     assert last_call["kwargs"].get("brightness_pct") == 100, "FAIL: Manual chant did not end holding 100% green!"
-    assert last_call["kwargs"].get("rgb_color") == sports.get_team_rgb(), "FAIL: Last call did not use team RGB!"
+    assert last_call["kwargs"].get("rgb_color") == basement.EAGLES_RGB, "FAIL: Last call did not use team RGB!"
     print("  ✓ [Sports] test_manual_effect_eagles_chant_cadence PASSED")
 
 
 def test_field_goal_delta_creates_snapshot_and_pulses():
     """Verify field goal (+3 points) pulses 3x and settles on solid team green without snapshot scene."""
     setup_clean_environment()
+    state.set("sensor.theater_mode", "sports")
     state.set("sensor.philadelphia_eagles", "IN")
     state.set("light.zigbee_basement_lights", "on")
 
     # Field goal (+3 points)
-    sports.eagles_score_flash(value="10", old_value="7")
+    team_lights.on_score(EAGLES, "10", "7")
     mock_task.run_deferred_tasks()
 
     assert not spy.was_called("scene", "create"), "FAIL: Field goal created scene snapshot when none is expected!"
@@ -1443,17 +1474,18 @@ def test_field_goal_delta_creates_snapshot_and_pulses():
     assert len(pulse_calls) >= 6, f"FAIL: Field goal did not fire pulse sequence, got {len(pulse_calls)} calls!"
     last_call = pulse_calls[-1]
     assert last_call["kwargs"].get("brightness_pct") == 100, "FAIL: Field goal did not end holding 100% green!"
-    assert last_call["kwargs"].get("rgb_color") == sports.get_team_rgb(), "FAIL: Last call did not use team RGB!"
+    assert last_call["kwargs"].get("rgb_color") == EAGLES["color"], "FAIL: Last call did not use team RGB!"
     print("  ✓ [Sports] test_field_goal_delta_creates_snapshot_and_pulses PASSED")
 
 
 def test_score_flash_skipped_when_lights_off():
-    """Lights turned off by hand stay off through a touchdown."""
+    """Lights turned off by hand stay off through a touchdown, even with the TV on sports."""
     setup_clean_environment()
+    state.set("sensor.theater_mode", "sports")
     state.set("sensor.philadelphia_eagles", "IN")
     state.set("light.zigbee_basement_lights", "off")
 
-    sports.eagles_score_flash(value="7", old_value="0")
+    team_lights.on_score(EAGLES, "7", "0")
     mock_task.run_deferred_tasks()
 
     assert not spy.was_called("light", "turn_on"), "FAIL: Touchdown turned hand-switched-off lights back on!"
@@ -1491,7 +1523,7 @@ def test_sports_stairs_motion_lights_then_off():
     basement.motion_at_foot_of_stairs("off")
     mock_task.run_deferred_tasks()
     on = [c for c in spy.calls if c["service"] == "turn_on" and c["kwargs"].get("entity_id") == "light.stairlights"]
-    assert on and on[0]["kwargs"].get("hs_color") == sports.STAIR_TEAM_HS, "FAIL: Motion didn't light the stairs green!"
+    assert on and on[0]["kwargs"].get("hs_color") == EAGLES["light_colors"]["light.stairlights"]["hs_color"], "FAIL: Motion didn't light the stairs green!"
     assert spy.was_called("light", "turn_off", "light.stairlights"), "FAIL: Stairs stayed on after motion!"
     print("  ✓ [Sports] test_sports_stairs_motion_lights_then_off PASSED")
 
@@ -1524,7 +1556,7 @@ def test_score_flash_leaves_dark_stairs_off():
     _sports_game_day()
     state.set("sensor.philadelphia_eagles", "IN")
     state.set("light.zigbee_basement_lights", "on")
-    sports.eagles_score_flash(value="7", old_value="0")
+    team_lights.on_score(EAGLES, "7", "0")
     mock_task.run_deferred_tasks()
     assert spy.was_called("light", "turn_on", "light.zigbee_basement_lights"), "FAIL: Room didn't flash!"
     assert not spy.was_called("light", "turn_on", "light.stairlights"), "FAIL: Flash relit dark stairs!"
@@ -1536,7 +1568,7 @@ def test_score_flash_suppressed_when_game_not_in_progress():
     setup_clean_environment()
     state.set("sensor.philadelphia_eagles", "POST")
 
-    sports.eagles_score_flash(value="24", old_value="17")
+    team_lights.on_score(EAGLES, "24", "17")
     mock_task.run_deferred_tasks()
 
     assert not spy.was_called("pyscript", "effect_eagles_chant"), "FAIL: Fired chant while game was POST!"
@@ -1545,22 +1577,308 @@ def test_score_flash_suppressed_when_game_not_in_progress():
 
 
 def test_eagles_game_start_and_game_over_lifecycle():
-    """Verify kickoff engages party mode & green, and game-over restores Adaptive Lighting."""
+    """Eagles act like every other team: nothing unless the TV is on sports, and no mode changes."""
     setup_clean_environment()
-    
-    # 1. Kickoff
-    sports.eagles_game_started()
-    mock_task.run_deferred_tasks()
-    assert state.get("input_select.basement_lighting_mode") == "Social Mode", "FAIL: Social Mode not engaged on kickoff!"
-    assert state.get("pyscript.basement_social_source") == "sports", "FAIL: Kickoff Social not marked as sports!"
-    assert spy.was_called("switch", "turn_off", "switch.basement_adaptive_lighting_adaptive_lighting_basement_adaptive_lighting"), \
-        "FAIL: Adaptive Lighting not disabled on kickoff!"
 
-    # 2. Game Over (handles sensor recovery from unavailable)
-    sports.eagles_game_over(old_value="unavailable")
+    # 1. Kickoff with the theater idle: lights and modes untouched
+    state.set("sensor.philadelphia_eagles", "IN")
+    team_lights.on_game_state(EAGLES, "IN", "PRE")
+    team_lights.on_score(EAGLES, "7", "0")
     mock_task.run_deferred_tasks()
-    assert spy.was_called("pyscript", "mood_reset_normal"), "FAIL: Game over did not call mood_reset_normal!"
+    assert not spy.was_called("light", "turn_on"), "FAIL: Eagles kickoff touched lights with the theater idle!"
+    assert state.get("input_select.basement_lighting_mode") == "Daily Driver", "FAIL: Eagles kickoff changed the mode!"
+
+    # 2. TV on sports with lights on: kickoff paints Kelly green
+    state.set("sensor.theater_mode", "sports")
+    state.set("light.zigbee_basement_lights", "on")
+    team_lights.on_game_state(EAGLES, "IN", "PRE")
+    assert _room_calls()[-1]["kwargs"].get("rgb_color") == EAGLES["color"], "FAIL: Kickoff not Eagles green!"
+
+    # 3. Game over: no lighting reset (the theater session end handles that)
+    spy.clear()
+    state.set("sensor.philadelphia_eagles", "POST")
+    team_lights.on_game_state(EAGLES, "POST", "IN")
+    mock_task.run_deferred_tasks()
+    assert not spy.was_called("pyscript", "mood_reset_normal"), "FAIL: Game over reset the lights!"
     print("  ✓ [Sports] test_eagles_game_start_and_game_over_lifecycle PASSED")
+
+# ==============================================================================
+# SUITE 11b: TEAM LIGHTS - OTHER TEAMS, FEATURED TEAM, PER-SPORT RULES
+# ==============================================================================
+def _go_live(team, sport_attrs=None):
+    state.set(team["sensor"], "IN", new_attributes=sport_attrs or {})
+
+
+def _room_calls():
+    return [c for c in spy.calls if c["service"] == "turn_on"
+            and c["kwargs"].get("entity_id") == "light.zigbee_basement_lights"]
+
+
+def test_sixers_flash_only_on_threes():
+    """Basketball: a 2 or a free throw does nothing; a 3 pulses the room in Sixers blue."""
+    setup_clean_environment()
+    state.set("sensor.theater_mode", "sports")
+    state.set("light.zigbee_basement_lights", "on")
+    _go_live(SIXERS)
+    team_lights.publish_featured()
+    for new, old in (("2", "0"), ("3", "2")):
+        team_lights.on_score(SIXERS, new, old)
+    assert not _room_calls(), "FAIL: Sixers 2-pointer or free throw flashed the room!"
+    team_lights.on_score(SIXERS, "6", "3")
+    calls = _room_calls()
+    assert len(calls) == 7, f"FAIL: Three-pointer should pulse 3x and settle, got {len(calls)} calls"
+    assert all(c["kwargs"].get("rgb_color") == SIXERS["color"] for c in calls), "FAIL: Not Sixers color!"
+    assert calls[-1]["kwargs"].get("brightness_pct") == 100
+    print("  ✓ [TeamLights] test_sixers_flash_only_on_threes PASSED")
+
+
+def test_sixers_and_one_three_counts_from_last_play():
+    """A 4-point jump counts as a three only when ESPN's last play says so."""
+    setup_clean_environment()
+    state.set("sensor.theater_mode", "sports")
+    state.set("light.zigbee_basement_lights", "on")
+    _go_live(SIXERS, {"last_play": "Tyrese Maxey makes free throw 1 of 1"})
+    team_lights.publish_featured()
+    team_lights.on_score(SIXERS, "14", "10")
+    assert not _room_calls(), "FAIL: 2 + 2 flashed as a three!"
+    _go_live(SIXERS, {"last_play": "Tyrese Maxey makes 26-foot three point jumper"})
+    team_lights.on_score(SIXERS, "18", "14")
+    assert _room_calls(), "FAIL: Three plus a quick bucket didn't flash!"
+    print("  ✓ [TeamLights] test_sixers_and_one_three_counts_from_last_play PASSED")
+
+
+def test_flyers_goal_needs_tv_on_sports():
+    """Teams stay quiet unless the theater is on sports."""
+    setup_clean_environment()
+    state.set("light.zigbee_basement_lights", "on")
+    state.set("sensor.theater_mode", "movie")
+    _go_live(FLYERS)
+    team_lights.on_game_state(FLYERS, "IN", "PRE")
+    team_lights.on_score(FLYERS, "1", "0")
+    assert not spy.was_called("light", "turn_on"), "FAIL: Flyers recolored the room during a movie!"
+    assert state.get("input_select.basement_lighting_mode") == "Daily Driver", "FAIL: Flyers took over the room!"
+
+    state.set("sensor.theater_mode", "sports")
+    team_lights.on_score(FLYERS, "2", "1")
+    calls = _room_calls()
+    assert len(calls) >= 15, f"FAIL: Hockey goal should get the big celebration, got {len(calls)} calls"
+    assert calls[-1]["kwargs"].get("rgb_color") == FLYERS["color"]
+    print("  ✓ [TeamLights] test_flyers_goal_needs_tv_on_sports PASSED")
+
+
+def test_flyers_kickoff_never_turns_lights_on():
+    """Kickoff recolors lit lights only; off stays off."""
+    setup_clean_environment()
+    state.set("sensor.theater_mode", "sports")
+    _go_live(FLYERS)
+    team_lights.on_game_state(FLYERS, "IN", "PRE")
+    assert not spy.was_called("light", "turn_on"), "FAIL: Flyers kickoff turned lights on!"
+    state.set("light.zigbee_basement_lights", "on")
+    spy.clear()
+    team_lights.on_game_state(FLYERS, "IN", "PRE")
+    assert _room_calls()[-1]["kwargs"].get("rgb_color") == FLYERS["color"], "FAIL: Flyers kickoff not orange!"
+    print("  ✓ [TeamLights] test_flyers_kickoff_never_turns_lights_on PASSED")
+
+
+def test_featured_team_priority_playoffs_and_override():
+    """Config order by default, playoffs first, and the dashboard pick wins while it's live."""
+    setup_clean_environment()
+    _go_live(SIXERS)
+    _go_live(FLYERS)
+    assert team_lights.pick_featured() is FLYERS, "FAIL: Flyers should outrank the Sixers by config order"
+    _go_live(SIXERS, {"season": "post-season"})
+    assert team_lights.pick_featured() is SIXERS, "FAIL: Playoff game should come first"
+    _go_live(SIXERS, {"season": "regular-season"})
+    state.set("input_select.featured_team", "76ers")
+    assert team_lights.pick_featured() is SIXERS, "FAIL: Manual pick ignored"
+    state.set("input_select.featured_team", "Phillies")
+    assert team_lights.pick_featured() is FLYERS, "FAIL: Manual pick with no game should fall back to Auto"
+    print("  ✓ [TeamLights] test_featured_team_priority_playoffs_and_override PASSED")
+
+
+def test_only_featured_team_celebrates():
+    """With two games on, the other team's scores don't flash."""
+    setup_clean_environment()
+    state.set("sensor.theater_mode", "sports")
+    state.set("light.zigbee_basement_lights", "on")
+    _go_live(FLYERS)
+    _go_live(SIXERS)
+    team_lights.publish_featured()
+    team_lights.on_score(SIXERS, "3", "0")
+    assert not _room_calls(), "FAIL: Non-featured Sixers three flashed the room!"
+    print("  ✓ [TeamLights] test_only_featured_team_celebrates PASSED")
+
+
+def test_featured_switch_recolors_lit_room():
+    """Picking another live team on the dashboard repaints the room in its color."""
+    setup_clean_environment()
+    state.set("sensor.theater_mode", "sports")
+    state.set("light.zigbee_basement_lights", "on")
+    _go_live(FLYERS)
+    _go_live(SIXERS)
+    team_lights.publish_featured()
+    state.set("input_select.featured_team", "76ers")
+    team_lights._refresh_featured()
+    assert state.get("pyscript.team_lights_featured") == "76ers"
+    assert _room_calls()[-1]["kwargs"].get("rgb_color") == SIXERS["color"], "FAIL: Room not repainted Sixers blue!"
+    print("  ✓ [TeamLights] test_featured_switch_recolors_lit_room PASSED")
+
+
+def test_eagles_final_hands_room_to_live_flyers():
+    """Eagles end while the Flyers play on TV: room goes Flyers orange, no lighting reset."""
+    setup_clean_environment()
+    state.set("sensor.theater_mode", "sports")
+    state.set("light.zigbee_basement_lights", "on")
+    _go_live(EAGLES)
+    _go_live(FLYERS)
+    team_lights.publish_featured()
+    state.set("sensor.philadelphia_eagles", "POST")
+    team_lights.on_game_state(EAGLES, "POST", "IN")
+    assert not spy.was_called("pyscript", "mood_reset_normal"), "FAIL: Eagles final reset the lights!"
+    assert state.get("pyscript.team_lights_featured") == "Flyers"
+    assert _room_calls()[-1]["kwargs"].get("rgb_color") == FLYERS["color"], "FAIL: Room not handed to Flyers!"
+    print("  ✓ [TeamLights] test_eagles_final_hands_room_to_live_flyers PASSED")
+
+
+def test_baseball_home_run_gets_big_celebration():
+    """Baseball: a run pulses; a homer gets the big celebration."""
+    assert team_lights._celebration("baseball", 1, "Bryson Stott singles to left") == "small"
+    assert team_lights._celebration("baseball", 2, "Kyle Schwarber homers (31) on a fly ball") == "big"
+    assert team_lights._celebration("football", 7) == "big"
+    assert team_lights._celebration("football", 3) == "small"
+    assert team_lights._celebration("basketball", 2) is None
+    print("  ✓ [TeamLights] test_baseball_home_run_gets_big_celebration PASSED")
+
+
+def test_espn_colors_pick_vivid_and_skip_placeholders():
+    """No `color` set: use ESPN's most vivid color; gray pre-game placeholders are skipped."""
+    assert team_lights.vivid_color(["#D3D3D3", "#D3D3D3"]) is None
+    assert team_lights.vivid_color(["#000000", "#fe5823"]) == [255, 88, 35]
+    team = {"sensor": "sensor.test_team", "name": "Test"}
+    team_lights._espn_colors.clear()
+    state.set("sensor.test_team", "IN", new_attributes={"team_colors": ["#fe5823", "#000000"]})
+    assert team_lights.team_rgb(team) == [255, 88, 35]
+    state.set("sensor.test_team", "PRE", new_attributes={"team_colors": ["#D3D3D3", "#D3D3D3"]})
+    assert team_lights.team_rgb(team) == [255, 88, 35], "FAIL: Lost the real color before the next game"
+    print("  ✓ [TeamLights] test_espn_colors_pick_vivid_and_skip_placeholders PASSED")
+
+
+def test_config_contract_four_teams_share_tv_gate():
+    """The real config: four teams in priority order, all gated on the TV being on sports,
+    no team-specific behavior besides color."""
+    assert [t["name"] for t in team_lights.TEAMS] == ["Eagles", "Flyers", "76ers", "Phillies"]
+    assert team_lights.ONLY_WHEN == {"sensor.theater_mode": "sports"}
+    for t in team_lights.TEAMS:
+        assert "only_when" not in t, f"FAIL: {t['name']} has its own gate"
+        assert set(t) <= {"name", "sensor", "color", "light_colors", "index"}, f"FAIL: {t['name']} has extra options {set(t)}"
+    assert EAGLES["color"] == [0, 170, 35], "FAIL: Eagles lost Kelly green"
+    print("  ✓ [TeamLights] test_config_contract_four_teams_share_tv_gate PASSED")
+
+
+def test_kelly_green_override_beats_espn_color():
+    """A configured color wins over ESPN's (midnight green), as RGB or hex; without one, ESPN's is used."""
+    setup_clean_environment()
+    espn = {"team_colors": ["#06424d", "#000000"]}
+    state.set("sensor.philadelphia_eagles", "IN", new_attributes=espn)
+    assert team_lights.team_rgb(EAGLES) == [0, 170, 35]
+    assert team_lights.team_rgb({"sensor": "sensor.philadelphia_eagles", "color": "#00AA23"}) == [0, 170, 35]
+    assert team_lights.team_rgb({"sensor": "sensor.philadelphia_eagles"}) == [20, 219, 255], "FAIL: ESPN fallback"
+    print("  ✓ [TeamLights] test_kelly_green_override_beats_espn_color PASSED")
+
+
+def test_master_gate_off_blocks_everything():
+    """binary_sensor.basement_automation_allowed off: no kickoff paint, no celebration."""
+    setup_clean_environment()
+    state.set("sensor.theater_mode", "sports")
+    state.set("light.zigbee_basement_lights", "on")
+    state.set("binary_sensor.basement_automation_allowed", "off")
+    _go_live(EAGLES)
+    team_lights.on_game_state(EAGLES, "IN", "PRE")
+    team_lights.on_score(EAGLES, "7", "0")
+    assert not spy.was_called("light", "turn_on"), "FAIL: Lights changed with automation disallowed!"
+    print("  ✓ [TeamLights] test_master_gate_off_blocks_everything PASSED")
+
+
+def test_non_featured_kickoff_leaves_room_alone():
+    """Sixers tip off during a Flyers game: room stays Flyers orange."""
+    setup_clean_environment()
+    state.set("sensor.theater_mode", "sports")
+    state.set("light.zigbee_basement_lights", "on")
+    _go_live(FLYERS)
+    team_lights.publish_featured()
+    _go_live(SIXERS)
+    team_lights.on_game_state(SIXERS, "IN", "PRE")
+    assert not _room_calls(), "FAIL: Lower-priority kickoff repainted the room!"
+    assert state.get("pyscript.team_lights_featured") == "Flyers"
+    print("  ✓ [TeamLights] test_non_featured_kickoff_leaves_room_alone PASSED")
+
+
+def test_lit_stairs_keep_tuned_hue_through_celebration():
+    """Eagles touchdown with stairs lit: stairs pulse in their tuned hue, never the RGB."""
+    setup_clean_environment()
+    state.set("sensor.theater_mode", "sports")
+    state.set("light.zigbee_basement_lights", "on")
+    state.set("light.stairlights", "on")
+    _go_live(EAGLES)
+    team_lights.on_score(EAGLES, "7", "0")
+    stairs = [c["kwargs"] for c in spy.calls if c["service"] == "turn_on" and c["kwargs"].get("entity_id") == "light.stairlights"]
+    assert len(stairs) >= 15, f"FAIL: Stairs didn't pulse, got {len(stairs)}"
+    assert all(k.get("hs_color") == [125, 100] and "rgb_color" not in k for k in stairs), "FAIL: Stair color changed!"
+    assert all(k.get("brightness_pct") in (100, 15) for k in stairs), "FAIL: Stairs left the 15-100% range!"
+    print("  ✓ [TeamLights] test_lit_stairs_keep_tuned_hue_through_celebration PASSED")
+
+
+def test_score_during_movie_mode_ignored_for_eagles():
+    """Eagles touchdown while a movie plays with lights on: nothing flashes."""
+    setup_clean_environment()
+    state.set("sensor.theater_mode", "movie")
+    state.set("light.zigbee_basement_lights", "on")
+    _go_live(EAGLES)
+    team_lights.on_score(EAGLES, "7", "0")
+    assert not spy.was_called("light", "turn_on"), "FAIL: Eagles flashed during a movie!"
+    print("  ✓ [TeamLights] test_score_during_movie_mode_ignored_for_eagles PASSED")
+
+
+def test_per_team_options_celebrate_false_and_gate_override():
+    """celebrate: false silences a team; a team's own only_when ({} = always) replaces the shared one."""
+    setup_clean_environment()
+    state.set("light.zigbee_basement_lights", "on")
+    quiet = dict(FLYERS, celebrate=False)
+    always = dict(FLYERS, only_when={})
+    _go_live(FLYERS)
+    team_lights.publish_featured()
+    state.set("sensor.theater_mode", "sports")
+    team_lights.on_score(quiet, "1", "0")
+    assert not _room_calls(), "FAIL: celebrate: false still flashed!"
+    state.set("sensor.theater_mode", "off")
+    assert team_lights._conditions_met(always) and not team_lights._conditions_met(FLYERS)
+    print("  ✓ [TeamLights] test_per_team_options_celebrate_false_and_gate_override PASSED")
+
+
+def test_manual_celebrate_service_uses_featured_color():
+    """pyscript.team_lights_celebrate plays in the featured team's color."""
+    setup_clean_environment()
+    _go_live(PHILLIES)
+    team_lights.publish_featured()
+    team_lights.team_lights_celebrate(kind="small")
+    calls = _room_calls()
+    assert len(calls) == 7 and all(c["kwargs"].get("rgb_color") == PHILLIES["color"] for c in calls)
+    print("  ✓ [TeamLights] test_manual_celebrate_service_uses_featured_color PASSED")
+
+
+def test_theater_sports_paints_featured_team():
+    """TV on sports during a Phillies game: room red, stairs get the RGB (no Eagles hue)."""
+    setup_clean_environment()
+    _go_live(PHILLIES)
+    team_lights.publish_featured()
+    state.set("sensor.theater_mode", "sports")
+    basement.theater_lighting_sync()
+    mock_task.run_deferred_tasks()
+    assert _room_calls()[-1]["kwargs"].get("rgb_color") == PHILLIES["color"], "FAIL: Room not Phillies red!"
+    stairs = [c for c in spy.calls if c["service"] == "turn_on" and c["kwargs"].get("entity_id") == "light.stairlights"]
+    assert stairs and stairs[0]["kwargs"].get("rgb_color") == PHILLIES["color"], "FAIL: Stairs not Phillies red!"
+    print("  ✓ [TeamLights] test_theater_sports_paints_featured_team PASSED")
+
 
 # ==============================================================================
 # SUITE 12: SPORTS ORCHESTRATION, SLIDER SYNC & DRIFT ENGINE (9 TESTS)
@@ -2553,7 +2871,8 @@ def test_manual_social_survives_movie_but_sports_social_does_not():
     assert state.get("input_select.basement_lighting_mode") == "Social Mode", "FAIL: Manual Social dropped by play_movie!"
 
     setup_clean_environment()
-    sports.eagles_game_started()
+    state.set("sensor.theater_mode", "sports")
+    basement.theater_lighting_sync()
     assert state.get("pyscript.basement_social_source") == "sports"
     # Automation never downgrades: sports sync while Social is already sports keeps it sports
     basement.set_lighting_mode("Social Mode", source="sports")
@@ -2562,7 +2881,8 @@ def test_manual_social_survives_movie_but_sports_social_does_not():
 
     # A palette pick during the game takes ownership, so it survives switching to a movie
     setup_clean_environment()
-    sports.eagles_game_started()
+    state.set("sensor.theater_mode", "sports")
+    basement.theater_lighting_sync()
     basement.select_palette("speakeasy")
     assert state.get("pyscript.basement_social_source") == "manual"
     theater.play_movie()
@@ -3665,6 +3985,26 @@ if __name__ == "__main__":
         test_score_flash_leaves_dark_stairs_off,
         test_score_flash_suppressed_when_game_not_in_progress,
         test_eagles_game_start_and_game_over_lifecycle,
+        # Suite 11b: Team Lights - other teams, featured team, per-sport rules (19)
+        test_sixers_flash_only_on_threes,
+        test_sixers_and_one_three_counts_from_last_play,
+        test_flyers_goal_needs_tv_on_sports,
+        test_flyers_kickoff_never_turns_lights_on,
+        test_featured_team_priority_playoffs_and_override,
+        test_only_featured_team_celebrates,
+        test_featured_switch_recolors_lit_room,
+        test_eagles_final_hands_room_to_live_flyers,
+        test_baseball_home_run_gets_big_celebration,
+        test_espn_colors_pick_vivid_and_skip_placeholders,
+        test_theater_sports_paints_featured_team,
+        test_config_contract_four_teams_share_tv_gate,
+        test_kelly_green_override_beats_espn_color,
+        test_master_gate_off_blocks_everything,
+        test_non_featured_kickoff_leaves_room_alone,
+        test_lit_stairs_keep_tuned_hue_through_celebration,
+        test_score_during_movie_mode_ignored_for_eagles,
+        test_per_team_options_celebrate_false_and_gate_override,
+        test_manual_celebrate_service_uses_featured_color,
         # Suite 12: Sports, Hardware Sync & Drift Engine (9)
         test_play_sports_orchestration,
         test_telemetry_hdmi1_sports_app_resolves_to_sports_mode,

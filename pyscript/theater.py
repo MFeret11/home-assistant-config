@@ -942,16 +942,36 @@ def _fetch_game_art_from_secrets(game_title, system_id=None):
 
 
 EAGLES_SENSOR = "sensor.philadelphia_eagles"
+# Featured team from the Team Lights app; its `sensor` attribute is the Team Tracker sensor.
+FEATURED_TEAM = "pyscript.team_lights_featured"
+SPORT_BADGES = {
+    "football": "mdi:football",
+    "basketball": "mdi:basketball",
+    "hockey": "mdi:hockey-puck",
+    "baseball": "mdi:baseball",
+    "soccer": "mdi:soccer",
+}
+
+
+def _period_label(sport, period, clock):
+    """'Q3 4:12', 'P2 10:05', or the clock alone for baseball ('Top 5th')."""
+    if sport == "baseball":
+        return clock
+    if period and clock:
+        return f"{'P' if sport == 'hockey' else 'Q'}{period} {clock}"
+    return None
 
 
 def _set_sports_poster(source_label=None):
-    """Writes the Eagles scoreboard to the theater poster. source_label (e.g. "HDHomeRun")
-    is shown in the pre-game subtitle when given."""
+    """Writes the featured team's scoreboard to the theater poster. source_label
+    (e.g. "HDHomeRun") is shown in the pre-game subtitle when given."""
+    team_sensor = safe_state_getattr(FEATURED_TEAM, "sensor") or EAGLES_SENSOR
     try:
-        eagles = state.getattr(EAGLES_SENSOR) or {}
+        team = state.getattr(team_sensor) or {}
     except Exception:
-        eagles = {}
-    attr = eagles.get
+        team = {}
+    attr = team.get
+    sport = attr("sport") or "football"
 
     opp_name = attr("opponent_name")
     opp_abbr = attr("opponent_abbr") or opp_name or "OPP"
@@ -962,14 +982,16 @@ def _set_sports_poster(source_label=None):
     clock = attr("clock")
     down_dist = attr("down_distance_text")
     team_logo = attr("team_logo") or EAGLES_LOGO_FALLBACK
-    game_state = safe_state_get(EAGLES_SENSOR)
+    team_name = attr("team_name") or "Eagles"
+    game_state = safe_state_get(team_sensor)
     trim = safe_state_get(ANNOUNCER_VOLUME) or "0.0"
 
     if game_state == "IN" and team_score is not None and opp_score is not None:
         sports_title = f"{team_abbr} {team_score} - {opp_score} {opp_abbr}"
         sub_parts = []
-        if quarter and clock:
-            sub_parts.append(f"Q{quarter} {clock}")
+        period = _period_label(sport, quarter, clock)
+        if period:
+            sub_parts.append(period)
         if down_dist:
             sub_parts.append(down_dist)
         sub_parts.append(f"Booth Trim: {trim} dB")
@@ -978,14 +1000,14 @@ def _set_sports_poster(source_label=None):
         sports_title = f"FINAL: {team_abbr} {team_score} - {opp_score} {opp_abbr}"
         sports_subtitle = f"Final Score • Stadium Surround • Booth Trim: {trim} dB"
     else:
-        sports_title = f"Eagles vs {opp_name}" if opp_name else "Live Sports Broadcast"
+        sports_title = f"{team_name} vs {opp_name}" if opp_name else "Live Sports Broadcast"
         sub_parts = ["Stadium Surround"] + ([source_label] if source_label else []) + [f"Booth Trim: {trim} dB"]
         sports_subtitle = " • ".join(sub_parts)
 
     set_theater_poster(
         team_logo, sports_title, sports_subtitle,
         backdrop_url=SPORTS_BACKDROP, media_type="sports",
-        source="sports", badge_icon="mdi:football", badge_color="green",
+        source="sports", badge_icon=SPORT_BADGES.get(sport, "mdi:scoreboard"), badge_color="green",
         team_logo=team_logo,
         opponent_logo=attr("opponent_logo"),
         team_score=team_score,
@@ -1163,9 +1185,16 @@ def update_theater_media_art():
     "remote.onn_pro, "
     "remote.onn_pro.current_activity, "
     "input_number.theater_announcer_volume, "
+    "pyscript.team_lights_featured, "
     "sensor.philadelphia_eagles, "
     "sensor.philadelphia_eagles.team_score, "
     "sensor.philadelphia_eagles.opponent_score, "
+    "sensor.nhl_philadelphia_flyers.team_score, "
+    "sensor.nhl_philadelphia_flyers.opponent_score, "
+    "sensor.nba_philadelphia_76ers.team_score, "
+    "sensor.nba_philadelphia_76ers.opponent_score, "
+    "sensor.mlb_philadelphia_phillies.team_score, "
+    "sensor.mlb_philadelphia_phillies.opponent_score, "
     "sensor.theater_mode, "
     "binary_sensor.theater_in_use"
 )

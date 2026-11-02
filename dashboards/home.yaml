@@ -669,6 +669,20 @@ views:
                     border-radius: 20px !important;
                     margin-bottom: 6px !important;
                   }
+          # Featured Team: which game owns the basement lights when two overlap
+          # (Team Lights app; Auto = playoffs first, then Eagles, Flyers, 76ers, Phillies).
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: binary_sensor.team_games_overlap
+                state: "on"
+            card:
+              type: tile
+              entity: input_select.featured_team
+              name: Basement lights follow
+              features_position: inline
+              features:
+                - type: select-options
 
           # 2. SEPTA Commute Window
           - type: conditional

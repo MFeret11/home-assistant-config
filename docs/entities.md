@@ -66,11 +66,15 @@ _Moved verbatim from AGENTS.md. "§N" references point to the old AGENTS.md sect
 - `pyscript.select_palette`: Applies a palette (`speakeasy`, `lofi`, `synthwave`, `cyberpunk`, `nordic`, `blood_moon`).
 - `pyscript.effect_bar_toast`: "Toast" celebration effect (amber bar & stairs).
 - `pyscript.effect_eagles_chant`: Manual Eagles Kelly Green chant effect (see §4).
+- `pyscript.team_lights_celebrate`: Plays a celebration (`kind: big|small`) in the featured team's color.
 - `pyscript.basement_all_off`: Master basement lights blackout (header chip, visible when `binary_sensor.basement_lights_active` is on).
 
 ### Sports, State Flags & Virtual Entities
 - `sensor.philadelphia_eagles`: ESPN Team Tracker (`PRE`, `IN`, `POST`; Attributes: `team_score`, `team_colors`, `opponent_name`).
-- `sensor.nba_philadelphia_76ers`, `sensor.mlb_philadelphia_phillies`, `sensor.nhl_philadelphia_flyers`: the other Team Tracker teams, shown on the home dashboard's game card only (no lighting effects). Excluded from the recorder.
+- `sensor.nba_philadelphia_76ers`, `sensor.mlb_philadelphia_phillies`, `sensor.nhl_philadelphia_flyers`: the other Team Tracker teams. Team Lights uses them for color and celebrations only while the TV is on sports (docs/team-lights.md). Excluded from the recorder.
+- `pyscript.team_lights_featured`: Team Lights' featured team (state = name; attributes `sensor`, `rgb`, `light_colors`, `sport`, `live`). Read by `basement.py` (sports paint, stairs), the theater poster and the now-playing banner.
+- `input_select.featured_team`: `Auto`, `Eagles`, `Flyers`, `76ers`, `Phillies`. Picks the featured team while its game is live; Auto = playoffs first, then that order.
+- `binary_sensor.team_games_overlap`: On when two or more `*_game_soon` sensors are on; shows the Featured Team picker on the home dashboard.
 - `binary_sensor.eagles_game_soon`, `binary_sensor.sixers_game_soon`, `binary_sensor.phillies_game_soon`, `binary_sensor.flyers_game_soon`: Template (`packages/sports.yaml`, macro in `custom_templates/sports.jinja`). On while that team's game is live, starts within 24 hours, or started less than 12 hours ago. Each one gates its team's card on the home dashboard.
 - `binary_sensor.basement_automation_allowed`: Master safety gate; if `off`, suppresses automated sports flashes and macros.
 - `binary_sensor.theater_in_use`: High when `media_player.theater_receiver == 'on'`.
@@ -85,7 +89,6 @@ _Moved verbatim from AGENTS.md. "§N" references point to the old AGENTS.md sect
 - `sensor.basement_palette`: Active palette (`speakeasy`, `lofi`, `synthwave`, `cyberpunk`, `nordic`, `blood_moon`).
 - `sensor.basement_effect`: Active animation modifier (`static`, `drift`).
 - `pyscript.toggle_ambient_drift`: Service toggling between static mood lock and 22s hardware spatial drift.
-- `pyscript.get_team_rgb()`: Exposed as a `@service` (sports module) so both `sports.py` and `basement.py`'s `effect_eagles_chant` pull the same live team color — no more hardcoded/divergent greens between the two.
 - `sensor.tuner0` / `sensor.tuner1`: Per-tuner HDHomeRun state, feeding `sensor.hdhomerun_tuner_allocation`.
 - `sensor.hdhomerun_tuner_allocation`: Real-time ATSC tuner state (`0/2 active (idle)`, `1/2 active`, `2/2 saturated`).
 - `binary_sensor.hdhomerun_contention_risk`: High when both physical ATSC tuners are saturated while theater is not currently in sports mode.

@@ -10,19 +10,23 @@ card:
   type: markdown
   content: >-
     {%- set mode = states('sensor.theater_mode') -%}
-    {%- set eagles_state = states('sensor.philadelphia_eagles') -%}
+    {#- Featured team from the Team Lights app (pyscript/apps/team_lights.py). -#}
+    {%- set t = state_attr('pyscript.team_lights_featured', 'sensor') or 'sensor.philadelphia_eagles' -%}
+    {%- set team_state = states(t) -%}
     {%- set bad = ['none', 'None', 'unknown', 'unavailable', ''] -%}
-    {%- if mode == 'sports' and eagles_state in ['PRE', 'IN', 'POST'] -%}
-      {%- set team_logo = state_attr('sensor.philadelphia_eagles', 'team_logo') | default(state_attr('sensor.theater_current_poster', 'team_logo') | default('https://a.espncdn.com/i/teamlogos/nfl/500/phi.png', true), true) -%}
-      {%- set opp_logo = state_attr('sensor.philadelphia_eagles', 'opponent_logo') | default(state_attr('sensor.theater_current_poster', 'opponent_logo'), true) -%}
-      {%- set team_score = state_attr('sensor.philadelphia_eagles', 'team_score') | default(state_attr('sensor.theater_current_poster', 'team_score') | default('0', true), true) -%}
-      {%- set opp_score = state_attr('sensor.philadelphia_eagles', 'opponent_score') | default(state_attr('sensor.theater_current_poster', 'opponent_score') | default('0', true), true) -%}
-      {%- set opp_abbr = state_attr('sensor.philadelphia_eagles', 'opponent_abbr') | default(state_attr('sensor.theater_current_poster', 'opponent_abbr') | default(state_attr('sensor.philadelphia_eagles', 'opponent_name') | default('OPP', true), true), true) -%}
-      {%- set quarter = state_attr('sensor.philadelphia_eagles', 'quarter') | default(state_attr('sensor.theater_current_poster', 'quarter'), true) -%}
-      {%- set clock = state_attr('sensor.philadelphia_eagles', 'clock') | default(state_attr('sensor.theater_current_poster', 'clock'), true) -%}
-      {%- set down_dist = state_attr('sensor.philadelphia_eagles', 'down_distance_text') | default(state_attr('sensor.theater_current_poster', 'down_distance_text'), true) -%}
-      {%- set last_play = state_attr('sensor.philadelphia_eagles', 'last_play') | default(state_attr('sensor.theater_current_poster', 'last_play'), true) -%}
-      {%- set game_state = states('sensor.philadelphia_eagles') -%}
+    {%- if mode == 'sports' and team_state in ['PRE', 'IN', 'POST'] -%}
+      {%- set team_logo = state_attr(t, 'team_logo') | default(state_attr('sensor.theater_current_poster', 'team_logo') | default('https://a.espncdn.com/i/teamlogos/nfl/500/phi.png', true), true) -%}
+      {%- set opp_logo = state_attr(t, 'opponent_logo') | default(state_attr('sensor.theater_current_poster', 'opponent_logo'), true) -%}
+      {%- set team_score = state_attr(t, 'team_score') | default(state_attr('sensor.theater_current_poster', 'team_score') | default('0', true), true) -%}
+      {%- set opp_score = state_attr(t, 'opponent_score') | default(state_attr('sensor.theater_current_poster', 'opponent_score') | default('0', true), true) -%}
+      {%- set opp_abbr = state_attr(t, 'opponent_abbr') | default(state_attr('sensor.theater_current_poster', 'opponent_abbr') | default(state_attr(t, 'opponent_name') | default('OPP', true), true), true) -%}
+      {%- set quarter = state_attr(t, 'quarter') | default(state_attr('sensor.theater_current_poster', 'quarter'), true) -%}
+      {%- set clock = state_attr(t, 'clock') | default(state_attr('sensor.theater_current_poster', 'clock'), true) -%}
+      {%- set down_dist = state_attr(t, 'down_distance_text') | default(state_attr('sensor.theater_current_poster', 'down_distance_text'), true) -%}
+      {%- set last_play = state_attr(t, 'last_play') | default(state_attr('sensor.theater_current_poster', 'last_play'), true) -%}
+      {%- set game_state = states(t) -%}
+      {%- set team_abbr = state_attr(t, 'team_abbr') | default('PHI', true) -%}
+      {%- set sport = state_attr(t, 'sport') -%}
       {%- set trim = states('input_number.theater_announcer_volume') | default('0.0', true) -%}
       {%- set backdrop = state_attr('sensor.theater_current_poster', 'backdrop_url') -%}
       {%- set has_art = backdrop and backdrop not in bad -%}
@@ -36,8 +40,8 @@ card:
         </div>
         <div class="scoreboard-container">
           <div class="scoreboard-team left-team">
-            <img class="team-logo-img" src="{{ team_logo }}" alt="PHI" />
-            <span class="team-code">PHI</span>
+            <img class="team-logo-img" src="{{ team_logo }}" alt="{{ team_abbr }}" />
+            <span class="team-code">{{ team_abbr }}</span>
           </div>
           <div class="scoreboard-middle">
             <div class="score-numbers">
@@ -54,16 +58,18 @@ card:
                 FINAL
               {%- elif game_state == 'PRE' -%}
                 {{ clock if clock else 'KICKOFF' }}
+              {%- elif sport == 'baseball' and clock -%}
+                {{ clock }}
               {%- elif quarter and clock -%}
-                Q{{ quarter }} &bull; {{ clock }}
+                {{ 'P' if sport == 'hockey' else 'Q' }}{{ quarter }} &bull; {{ clock }}
               {%- else -%}
                 KICKOFF
               {%- endif -%}
             </div>
             <div class="game-extra-stats">
               {%- if game_state == 'PRE' -%}
-                {%- set tv = state_attr('sensor.philadelphia_eagles', 'tv_network') -%}
-                {%- set odds = state_attr('sensor.philadelphia_eagles', 'odds') -%}
+                {%- set tv = state_attr(t, 'tv_network') -%}
+                {%- set odds = state_attr(t, 'odds') -%}
                 {{ [tv, odds] | reject('none') | reject('in', bad) | join(' • ') or 'Stadium Surround' }}
               {%- else -%}
                 {{ down_dist if down_dist else ('Stadium Surround • Trim: ' ~ trim ~ ' dB') }}

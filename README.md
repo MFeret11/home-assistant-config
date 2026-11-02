@@ -10,7 +10,7 @@ This repo is the production config. It is mounted straight into the Home Assista
 
 - **Theater mode resolver.** Works out what is on screen from the streaming box's foreground app (HDMI 1) and the retro-gaming PC's state (HDMI 2), then sets the Yamaha receiver's input and DSP program to match.
 - **Lighting state machine.** Two modes: *Daily Driver* (adaptive color temperature, blackout during a movie, a 3% glow when paused, direction-of-travel stair lighting) and *Social* (lights stay on, mood palettes). Theater activity never touches the lights in Social mode.
-- **Game-day reactions.** Eagles kickoff, score and game-over flashes on 9 Zigbee bulbs. They pulse brightness only, never color, to avoid flooding the Zigbee mesh.
+- **Game-day reactions.** [Team Lights](docs/team-lights.md), a reusable pyscript app: team colors and score celebrations for any Team Tracker team, configured in YAML. Rules differ by sport (basketball flashes on threes only), a featured team handles overlapping games, and flashes pulse brightness only, never color, to avoid flooding the Zigbee mesh.
 - **Artwork lookup.** Posters and box art from TMDB, Cinemeta, TVmaze, SteamGridDB, RAWG and the libretro thumbnail repos, with caching and per-service circuit breakers.
 - **Dashboards.** Five YAML-mode Lovelace dashboards (basement, kitchen, bedroom, home, diagnostics). They are built from shared templates and checked by a test that resolves every entity and service they reference.
 
@@ -33,14 +33,14 @@ flowchart LR
     AV --> MODE["sensor.theater_mode<br/>(resolver)"]
     AV -- "pyscript services" --> IL["interlocks.py<br/>projector guard, Batocera power-off"]
     MODE --> LIGHT["basement.py<br/>lighting state machine"]
-    EAGLES["sensor.philadelphia_eagles"] --> SPORTS["sports.py<br/>score flashes"]
+    EAGLES["sensor.philadelphia_eagles"] --> SPORTS["apps/team_lights.py<br/>team colors + score flashes"]
     SPORTS --> LIGHT
     WD["watchdog.py / health_check.py"] --> NTFY["ntfy alerts"]
 ```
 
 | Path | What lives there |
 |---|---|
-| [`pyscript/`](pyscript/) | All automation logic in Python (pyscript): `theater.py`, `interlocks.py` (projector stray-wake guard and cooldown, Batocera power-off, isolated from theater.py reloads), `basement.py`, `sports.py`, `watchdog.py`, `health_check.py` |
+| [`pyscript/`](pyscript/) | All automation logic in Python (pyscript): `theater.py`, `interlocks.py` (projector stray-wake guard and cooldown, Batocera power-off, isolated from theater.py reloads), `basement.py`, `apps/team_lights.py` (reusable Team Tracker lighting app), `watchdog.py`, `health_check.py` |
 | [`packages/`](packages/) | Helpers, template sensors and REST commands per subsystem |
 | [`dashboards/`](dashboards/) | Lovelace dashboards; `basement.yaml` is assembled from `components/` |
 | [`tests/`](tests/) | Standalone test suites, plus telemetry tools that query the recorder DB |

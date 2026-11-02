@@ -95,16 +95,6 @@ class MockPyscript:
     def shutdown_batocera(self):
         self._interlocks.shutdown_batocera()
 
-    def get_stair_team_hs(self):
-        if self._sports and hasattr(self._sports, "get_stair_team_hs"):
-            return self._sports.get_stair_team_hs()
-        return [125, 100]
-
-    def get_team_rgb(self):
-        if self._sports and hasattr(self._sports, "get_team_rgb"):
-            return self._sports.get_team_rgb()
-        return [0, 170, 35]
-
     def mood_reset_normal(self):
         if self._basement and hasattr(self._basement, "mood_reset_normal"):
             self._basement.mood_reset_normal()
@@ -162,14 +152,25 @@ builtins.scene = MockDomain("scene")
 TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 PYSCRIPT_DIR = os.path.abspath(os.path.join(TESTS_DIR, "..", "pyscript"))
 sys.path.insert(0, PYSCRIPT_DIR)
+sys.path.insert(0, os.path.join(PYSCRIPT_DIR, "apps"))
 
-import sports
+# Team Lights reads its YAML config (packages/sports.yaml) as pyscript.app_config.
+import yaml
+with open(os.path.join(TESTS_DIR, "..", "packages", "sports.yaml")) as _f:
+    MockPyscript.app_config = yaml.safe_load(_f)["pyscript"]["apps"]["team_lights"]
+mock_pyscript = MockPyscript()
+builtins.pyscript = mock_pyscript
+builtins.service.call = lambda domain, name, blocking=None, **data: getattr(getattr(builtins, domain), name)(**data)
+
+import team_lights
 import basement
 import theater
 import interlocks
 
-mock_pyscript = MockPyscript(sports, basement, interlocks)
-builtins.pyscript = mock_pyscript
+mock_pyscript._sports = team_lights
+mock_pyscript._basement = basement
+mock_pyscript._interlocks = interlocks
+EAGLES = team_lights._team_by_name("Eagles")
 
 # ------------------------------------------------------------------------------
 # 2. AUTOMATED VERIFICATION SUITE
@@ -274,11 +275,13 @@ def test_punchy_flashing_green_touchdown_cadence():
     and ends holding solid 100% Kelly Green.
     """
     setup_baseline()
-    mock_state.set("sensor.philadelphia_eagles", "IN")
+    mock_state.set("sensor.philadelphia_eagles", "IN", new_attributes={"sport": "football"})
+    mock_state.set("sensor.theater_mode", "sports")
     mock_state.set("light.zigbee_basement_lights", "on")
+    team_lights.publish_featured()
 
     # Touchdown (+7 points delta: 21 -> 28)
-    sports.eagles_score_flash(value="28", old_value="21")
+    team_lights.on_score(EAGLES, "28", "21")
     mock_task.run_deferred_tasks()
 
     pulse_calls = [c for c in mock_spy.calls if c["domain"] == "light" and c["service"] == "turn_on"]
@@ -290,7 +293,7 @@ def test_punchy_flashing_green_touchdown_cadence():
     for idx, call in enumerate(pulse_calls):
         kw = call["kwargs"]
         if kw.get("entity_id") == "light.stairlights":
-            assert kw.get("hs_color") == sports.get_stair_team_hs(), f"FAIL: Call {idx} altered stair color to {kw.get('hs_color')}!"
+            assert kw.get("hs_color") == EAGLES["light_colors"]["light.stairlights"]["hs_color"], f"FAIL: Call {idx} altered stair color to {kw.get('hs_color')}!"
         else:
             assert kw.get("rgb_color") == [0, 170, 35], f"FAIL: Call {idx} altered RGB to {kw.get('rgb_color')}, breaking Zigbee mesh!"
 

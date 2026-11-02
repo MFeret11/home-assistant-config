@@ -22,7 +22,7 @@ Since 2026-10-29 the projector stays in **standby with mains on** after a sessio
 - **Art lookups need `await`**: `_fetch_movie_or_tv_art()` and `_fetch_game_art_from_secrets()` must be called as `await ...`. Without it pyscript hands back an unawaited coroutine, so lookups never resolve and only fallback art shows.
 - **DSP modes**: `set_receiver_sound_mode()` only selects names from the RX-V673 `sound_mode_list` (there are no `PLII ...` programs); use `SOUND_MODE_FALLBACKS` when needed.
 - **Center trim**: hardware range is `-10.0 dB` to `+10.0 dB`. Never set Center to `None`; it downmixes commentary into Front L/R.
-- **Sports flashes**: pulse brightness only, between 100% and `DIM_FLOOR_PCT = 15`, in solid team Kelly Green (`[0, 170, 35]` via `get_team_rgb()`). Never alternate RGB mid-flash (Zigbee congestion on 3rd Reality bulbs). Flashes end holding solid team green.
+- **Sports flashes** (Team Lights app, `pyscript/apps/team_lights.py`, config in `packages/sports.yaml`): pulse brightness only, between 100% and `dim_floor_pct: 15`, in the featured team's solid color (Eagles Kelly green `[0, 170, 35]`). Never alternate RGB mid-flash (Zigbee congestion on 3rd Reality bulbs). Flashes end holding solid team color. Teams act only while the TV is on sports; nothing turns lights on or changes modes at kickoff.
 - **Recorder exclusions**: keep `sensor.projector_current` and `sensor.batocera_current` excluded (DRAM-less SSD over USB). Keep `media_player.theater_receiver`, `media_player.theater_onn_pro_adb` (Onn playback source for theater lighting), `sensor.projector_current_rounded` and `sensor.projector_power_state` recorded.
 - **Spotify**: playback state lives on `media_player.whole_house_spotify`, not `media_player.onn_pro`; check `supported_features` before `media_pause`.
 - **Foreground app**: `media_player.onn_pro` `app_id` is the source of truth.
@@ -39,7 +39,8 @@ Theater governs the whole basement (`light.theater_dimmer` + `light.zigbee_basem
 - **docs/entities.md**: read before adding, renaming or referencing any entity ID or pyscript service, so you use verified IDs instead of guessing.
 - **docs/safety-interlocks.md**: read before changing anything that powers off the projector, Batocera, receiver or tuners, or the startup sweep.
 - **docs/theater-audio.md**: read before touching receiver input, DSP or sound mode, center trim, app-to-mode mapping, art lookups, or other `theater.py` logic.
-- **docs/lighting.md**: read before changing `basement.py` or `sports.py`: Social/Daily Driver behavior, stairs and direction-of-travel timings, vacancy, palettes, or Eagles flash cadence.
+- **docs/lighting.md**: read before changing `basement.py` or game-day lighting: Social/Daily Driver behavior, stairs and direction-of-travel timings, vacancy, palettes, or sports flash cadence.
+- **docs/team-lights.md**: read before changing `pyscript/apps/team_lights.py` or its config in `packages/sports.yaml` (teams, colors, featured team, per-sport celebration rules).
 - **docs/dashboard.md**: read before editing `dashboards/basement.yaml`, its components or the decluttering templates.
 - **docs/network.md**: read before work involving device IPs, ports, Tailscale/xTeVe, the Zigbee coordinator, or recorder/database tuning.
 - **docs/onn-remote.md**: read before changing the Onn remote button mapping (`packages/onn_remote.yaml`, Button Mapper webhook) or the power-button behavior.

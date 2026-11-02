@@ -45,6 +45,7 @@ REGISTERED_ENTITIES = {
     "sensor.mlb_philadelphia_phillies", "sensor.nhl_philadelphia_flyers",
     "binary_sensor.eagles_game_soon", "binary_sensor.sixers_game_soon",
     "binary_sensor.phillies_game_soon", "binary_sensor.flyers_game_soon",
+    "binary_sensor.team_games_overlap", "input_select.featured_team", "pyscript.team_lights_featured",
     "input_number.acura_tl_odometer", "binary_sensor.basement_automation_allowed",
     "binary_sensor.theater_in_use", "binary_sensor.theater_announcer_bar", "binary_sensor.basement_lights_active",
     "input_select.basement_lighting_mode", "input_select.basement_theater_mode",

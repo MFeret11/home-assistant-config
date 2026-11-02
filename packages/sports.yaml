@@ -32,3 +32,62 @@ template:
           {% from 'sports.jinja' import game_soon %}
           {{ game_soon('sensor.nhl_philadelphia_flyers') }}
         icon: mdi:scoreboard
+
+      # Two or more teams have games soon: shows the Featured Team picker on the
+      # home dashboard.
+      - name: Team Games Overlap
+        unique_id: team_games_overlap
+        state: >-
+          {{ ['binary_sensor.eagles_game_soon', 'binary_sensor.sixers_game_soon',
+              'binary_sensor.phillies_game_soon', 'binary_sensor.flyers_game_soon']
+             | select('is_state', 'on') | list | count >= 2 }}
+        icon: mdi:scoreboard-outline
+
+# Featured team: which live game owns the basement lights when several are on.
+# Auto = playoff games first, then the order of `teams` below. Picking a team
+# overrides that while its game is live. Options must match the team names below.
+input_select:
+  featured_team:
+    name: Featured Team
+    icon: mdi:trophy
+    options:
+      - Auto
+      - Eagles
+      - Flyers
+      - 76ers
+      - Phillies
+
+# Team Lights (pyscript/apps/team_lights.py, options in docs/team-lights.md).
+# After editing, run pyscript.reload with the theater idle.
+pyscript:
+  apps:
+    team_lights:
+      lights:
+        - light.zigbee_basement_lights
+      # Recolored only while already lit: on game day the stairs are a motion path light.
+      lights_if_on:
+        - light.stairlights
+      enabled_entity: binary_sensor.basement_automation_allowed
+      featured_select: input_select.featured_team
+      # Every team acts only while the basement TV is on sports: kickoff recolors
+      # lit lights, scores celebrate. Nothing turns lights on or changes modes.
+      only_when:
+        sensor.theater_mode: sports
+      # Listed in priority order. Colors are tuned for the basement bulbs; drop
+      # `color` to use the team's ESPN color instead.
+      teams:
+        - name: Eagles
+          sensor: sensor.philadelphia_eagles
+          color: [0, 170, 35]         # Kelly green
+          light_colors:
+            # Hue/saturation-only stair bulbs with a bluer green LED; 125° is closest by eye.
+            light.stairlights: {hs_color: [125, 100]}
+        - name: Flyers
+          sensor: sensor.nhl_philadelphia_flyers
+          color: [255, 70, 0]
+        - name: 76ers
+          sensor: sensor.nba_philadelphia_76ers
+          color: [0, 80, 255]
+        - name: Phillies
+          sensor: sensor.mlb_philadelphia_phillies
+          color: [255, 20, 40]

@@ -149,6 +149,12 @@ BLACKOUT_IN_PROGRESS = False
 # off by hand or a palette pick are left alone. An entity, not a global, so a pyscript
 # reload mid-game doesn't forget and repaint.
 SPORTS_PAINTED = "pyscript.basement_sports_painted"
+# Featured team from the Team Lights app (state = team name; attributes rgb, light_colors).
+FEATURED_TEAM = "pyscript.team_lights_featured"
+# Eagles Kelly green: the manual chant, and the fallback before Team Lights publishes.
+# The stair bulbs' green LED is bluer, so 125° is the closest match by eye (2026-11-01).
+EAGLES_RGB = [0, 170, 35]
+EAGLES_STAIR_HS = [125, 100]
 
 # ------------------------------------------------------------------------------
 # HELPERS & INITIALIZATION
@@ -162,13 +168,25 @@ def safe_state_get(entity_id: str, default=None):
         return default
 
 
-def _team_green_on(brightness_pct, transition, rgb=None, stair_hs=None):
-    """Team color on the main group, and on the stairs (their own tuned hue, see sports.py)
-    only if they're already lit: on game day the stairs are a motion path light. Group last."""
-    rgb = rgb or pyscript.get_team_rgb() or [0, 170, 35]
-    stair_hs = stair_hs or pyscript.get_stair_team_hs() or [125, 100]
+def _team_colors():
+    """(room RGB, stair color settings) for the featured team, published by the Team Lights
+    app (pyscript/apps/team_lights.py). The stair bulbs are hue/saturation only, so a team
+    can give them their own tuned color (`light_colors`); otherwise they get the RGB.
+    Eagles green until the app has published."""
+    if safe_state_get(FEATURED_TEAM) is None:
+        return list(EAGLES_RGB), {"hs_color": list(EAGLES_STAIR_HS)}
+    rgb = list(safe_state_getattr(FEATURED_TEAM, "rgb") or EAGLES_RGB)
+    stair = (safe_state_getattr(FEATURED_TEAM, "light_colors") or {}).get(STAIRLIGHTS)
+    return rgb, (dict(stair) if stair else {"rgb_color": rgb})
+
+
+def _team_green_on(brightness_pct, transition, rgb=None, stair=None):
+    """Team color on the main group, and on the stairs only if they're already lit:
+    on game day the stairs are a motion path light. Group last."""
+    if rgb is None:
+        rgb, stair = _team_colors()
     if safe_state_get(STAIRLIGHTS) == "on":
-        light.turn_on(entity_id=STAIRLIGHTS, hs_color=stair_hs, brightness_pct=brightness_pct, transition=transition)
+        light.turn_on(entity_id=STAIRLIGHTS, brightness_pct=brightness_pct, transition=transition, **stair)
     light.turn_on(entity_id=MASTER_ZIGBEE_GROUP, rgb_color=rgb, brightness_pct=brightness_pct, transition=transition)
 
 
@@ -419,18 +437,12 @@ def _sports_stairs() -> bool:
     )
 
 
-@service
-def basement_sports_stairs_on():
-    """Game start (sports.py): stairs green now, off after STAIR_SPORTS_HOLD_S if nobody's on them."""
-    _sports_stair_path_light(STAIR_SPORTS_HOLD_S)
-
-
 def _sports_stair_path_light(hold_s=STAIR_SPORTS_HOLD_S):
     """Stairs on in team green, then off once the stairs have been quiet for hold_s.
     New motion or a door open restarts the timer."""
     task.unique("stair_sports_timer")
-    stair_hs = pyscript.get_stair_team_hs() or [125, 100]
-    light.turn_on(entity_id=STAIRLIGHTS, hs_color=stair_hs, brightness_pct=100, transition=1)
+    _, stair = _team_colors()
+    light.turn_on(entity_id=STAIRLIGHTS, brightness_pct=100, transition=1, **stair)
     task.sleep(hold_s)
     # Someone still standing at the foot of the stairs: wait for the sensor to clear.
     while safe_state_get(BOTTOM_STAIRS_MOTION) == "on":
@@ -1144,8 +1156,8 @@ def effect_bar_toast():
 def effect_eagles_chant():
     """Manual trigger: plays the Zigbee-safe solid Kelly Green Philadelphia Eagles touchdown chant."""
     task.unique("basement_ambient_loop")
-    eagles_green = pyscript.get_team_rgb() or [0, 170, 35]
-    stair_green = pyscript.get_stair_team_hs() or [125, 100]
+    eagles_green = EAGLES_RGB
+    stair_green = {"hs_color": EAGLES_STAIR_HS}
 
     # 1. Spell-out: E - A - G - L - E - S (Deliberate, rhythmic stadium green surges)
     for _ in range(6):
