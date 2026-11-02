@@ -154,6 +154,32 @@ views:
                       padding: 10px 4px !important;
                     }
                     ha-card:active { transform: scale(0.94); }
+              - type: custom:mushroom-template-card
+                primary: Red
+                secondary: 10% Red
+                icon: mdi:lightbulb-night
+                icon_color: red
+                layout: vertical
+                tap_action:
+                  action: perform-action
+                  perform_action: light.turn_on
+                  target:
+                    entity_id: light.zigbee_bedroom_lights
+                  data:
+                    brightness_pct: 10
+                    # Spectral-red corner of the CIE chart; each bulb clips to its own deepest red.
+                    xy_color: [0.7, 0.3]
+                    transition: 2
+                  haptic: light
+                card_mod:
+                  style: |
+                    ha-card {
+                      background: rgba(244, 67, 54, 0.08) !important;
+                      border: 1px solid rgba(244, 67, 54, 0.25) !important;
+                      border-radius: 18px !important;
+                      padding: 10px 4px !important;
+                    }
+                    ha-card:active { transform: scale(0.94); }
           - type: horizontal-stack
             cards:
               - type: custom:mushroom-light-card
