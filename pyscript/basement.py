@@ -142,10 +142,13 @@ GLOW_PCT = 3
 NIGHTLY_IDLE_OFF_S = 7200
 # Daily Driver: lights off once the mmWave and the stairs have both been quiet this long.
 MMWAVE_VACANCY_S = 900
+# Game day stairs: off this long after the game paint, motion or a door open, once the stairs are quiet.
+STAIR_SPORTS_HOLD_S = 300
 BLACKOUT_IN_PROGRESS = False
-# Team green already painted for this sports session. After that, a palette the
-# user picks (Social source becomes "manual") is left alone.
-SPORTS_GREEN_APPLIED = False
+# "on" once team green is painted for this sports session; after that, lights turned
+# off by hand or a palette pick are left alone. An entity, not a global, so a pyscript
+# reload mid-game doesn't forget and repaint.
+SPORTS_PAINTED = "pyscript.basement_sports_painted"
 
 # ------------------------------------------------------------------------------
 # HELPERS & INITIALIZATION
@@ -157,6 +160,16 @@ def safe_state_get(entity_id: str, default=None):
         return val if val is not None else default
     except Exception:
         return default
+
+
+def _team_green_on(brightness_pct, transition, rgb=None, stair_hs=None):
+    """Team color on the main group, and on the stairs (their own tuned hue, see sports.py)
+    only if they're already lit: on game day the stairs are a motion path light. Group last."""
+    rgb = rgb or pyscript.get_team_rgb() or [0, 170, 35]
+    stair_hs = stair_hs or pyscript.get_stair_team_hs() or [125, 100]
+    if safe_state_get(STAIRLIGHTS) == "on":
+        light.turn_on(entity_id=STAIRLIGHTS, hs_color=stair_hs, brightness_pct=brightness_pct, transition=transition)
+    light.turn_on(entity_id=MASTER_ZIGBEE_GROUP, rgb_color=rgb, brightness_pct=brightness_pct, transition=transition)
 
 
 def safe_state_getattr(entity_id: str, attr: str, default=None):
@@ -198,6 +211,8 @@ def _theater_active() -> bool:
 ensure_entity(CURTAIN_CALL, "off")
 ensure_entity(LIGHTS_ACTIVE_SENSOR, "off")
 ensure_entity(MODE_EXPANDED, "off")
+# Created on first load only; a reload keeps it. Mid-game first load = already painted.
+ensure_entity(SPORTS_PAINTED, "on" if safe_state_get(THEATER_MODE) == "sports" else "off")
 try:
     if not safe_state_get(DRAWER_SELECT):
         state.set(DRAWER_SELECT, value="theater")
@@ -395,6 +410,35 @@ def _trigger_stealth_red_stairs():
         light.turn_off(entity_id=STAIRLIGHTS, transition=3)
 
 
+def _sports_stairs() -> bool:
+    """Game day (Social Mode from sports, or the TV on sports): the stairs are a team-green
+    path light that motion or the door turns on and quiet turns off. The one exception to
+    Social Mode's no-timeouts rule; the room lights keep it."""
+    return get_lighting_mode() == MODE_SOCIAL and (
+        safe_state_get(THEATER_MODE) == "sports" or safe_state_get(SOCIAL_SOURCE) == "sports"
+    )
+
+
+@service
+def basement_sports_stairs_on():
+    """Game start (sports.py): stairs green now, off after STAIR_SPORTS_HOLD_S if nobody's on them."""
+    _sports_stair_path_light(STAIR_SPORTS_HOLD_S)
+
+
+def _sports_stair_path_light(hold_s=STAIR_SPORTS_HOLD_S):
+    """Stairs on in team green, then off once the stairs have been quiet for hold_s.
+    New motion or a door open restarts the timer."""
+    task.unique("stair_sports_timer")
+    stair_hs = pyscript.get_stair_team_hs() or [125, 100]
+    light.turn_on(entity_id=STAIRLIGHTS, hs_color=stair_hs, brightness_pct=100, transition=1)
+    task.sleep(hold_s)
+    # Someone still standing at the foot of the stairs: wait for the sensor to clear.
+    while safe_state_get(BOTTOM_STAIRS_MOTION) == "on":
+        task.sleep(5)
+    if _sports_stairs():
+        light.turn_off(entity_id=STAIRLIGHTS, transition=3)
+
+
 def _turn_on_circadian_direct(entity_id, transition=1):
     """Turns on lights directly at target circadian brightness and Kelvin, preventing bright flashes."""
     circ_pct = safe_state_getattr(ADAPTIVE_SWITCH, "brightness_pct")
@@ -449,13 +493,13 @@ def stair_door_opened(old_value=None):
         task.sleep(180)
         if safe_state_get(BOTTOM_STAIRS_MOTION) == "off" and not is_presence_locked():
             light.turn_off(entity_id=STAIRLIGHTS, transition=3)
+    elif _sports_stairs():
+        # Game day: team-green path light, off 5 min after the stairs go quiet.
+        _sports_stair_path_light(STAIR_SPORTS_HOLD_S)
     elif mode == MODE_SOCIAL:
         # In Social Mode: door opening turns on stair lights (if not already on) and leaves them on permanently
         current_pal = safe_state_get(SENSOR_PALETTE, CURRENT_PALETTE)
-        if safe_state_get(THEATER_MODE) == "sports":
-            eagles_green = pyscript.get_team_rgb() or [0, 170, 35]
-            light.turn_on(entity_id=STAIRLIGHTS, rgb_color=eagles_green, brightness_pct=100, transition=1)
-        elif current_pal in PALETTES and current_pal != "normal":
+        if current_pal in PALETTES and current_pal != "normal":
             stair_conf = PALETTES[current_pal][4]
             if "stair_hs" in stair_conf:
                 light.turn_on(entity_id=STAIRLIGHTS, hs_color=stair_conf["stair_hs"], brightness_pct=40, transition=1)
@@ -471,7 +515,14 @@ def stair_door_opened(old_value=None):
 def motion_at_foot_of_stairs(old_value=None):
     global LAST_MOTION_BOTTOM_TS, LAST_MOTION_SEEN_TS
     LAST_MOTION_SEEN_TS = time.time()
-    if is_booting() or old_value != "off" or is_presence_locked():
+    if is_booting() or old_value != "off":
+        return
+    # Game day: Social Mode's lock doesn't apply to the stairs; motion lights them.
+    if _sports_stairs():
+        LAST_MOTION_BOTTOM_TS = time.time()
+        _sports_stair_path_light(STAIR_SPORTS_HOLD_S)
+        return
+    if is_presence_locked():
         return
 
     task.unique("stair_peek_timer")
@@ -666,9 +717,25 @@ def on_movie_screen() -> bool:
         return True
 
 
+# Last ADB state that wasn't a blip (see _adb_blip).
+LAST_ADB_STATE = None
+
+
+def _adb_blip(adb_state) -> bool:
+    """The ADB player often reads 'off' for one poll (~8-20s) while the Onn is plainly on
+    and playing (2026-11-01: dozens an hour). The Google TV remote player (ONN_PRO) does
+    go off when the Onn really sleeps, so ADB 'off' while it reads 'on' is noise."""
+    return adb_state == "off" and safe_state_get(ONN_PRO) == "on"
+
+
 def get_media_state():
-    """Onn playback state from the ADB player."""
-    return safe_state_get(ONN_ADB)
+    """Onn playback state from the ADB player, holding the last real state through blips."""
+    global LAST_ADB_STATE
+    adb_state = safe_state_get(ONN_ADB)
+    if _adb_blip(adb_state):
+        return LAST_ADB_STATE or "idle"
+    LAST_ADB_STATE = adb_state
+    return adb_state
 
 
 ADAPTIVE_PAUSED_BY_THEATER = False
@@ -696,38 +763,34 @@ def _resume_adaptive_after_theater():
     "remote.onn_pro.current_activity, media_player.onn_pro, pyscript.curtain_call_active, "
     "sensor.gaming_pc_active_game"
 )
-def theater_lighting_sync():
+def theater_lighting_sync(var_name=None, value=None, old_value=None):
     """Single master synchronizer for theater sessions."""
-    global SPORTS_GREEN_APPLIED
+    # ADB blip, or back from one to the same state: nothing changed, so don't touch the
+    # lights (each blip used to flash the 3% glow mid-movie).
+    if var_name == ONN_ADB and (_adb_blip(value) or (_adb_blip(old_value) and value == LAST_ADB_STATE)):
+        return
     if is_booting() or safe_state_get(CURTAIN_CALL) == "on" or BLACKOUT_IN_PROGRESS:
         return
 
     mode = safe_state_get(THEATER_MODE)
-    if mode != "sports":
-        SPORTS_GREEN_APPLIED = False
+    if mode != "sports" and safe_state_get(SPORTS_PAINTED) == "on":
+        state.set(SPORTS_PAINTED, "off")
     media = get_media_state()
     batocera = safe_state_get(BATOCERA_STATE)
     lighting_mode = get_lighting_mode()
     in_use = safe_state_get(THEATER_IN_USE) == "on" or mode in ["movie", "game", "music", "sports"]
 
-    # Sports: explicit game-day treatment (same as picking a palette)
+    # Sports: explicit game-day treatment (same as picking a palette).
+    # Paint once per session; after that, whatever the user does (turn lights
+    # off, pick a palette) stands. TV state changes must not repaint.
     if mode == "sports":
-        user_palette = (
-            SPORTS_GREEN_APPLIED
-            and lighting_mode == MODE_SOCIAL
-            and safe_state_get(SOCIAL_SOURCE) == "manual"
-        )
-        if user_palette:
+        if safe_state_get(SPORTS_PAINTED) == "on" and lighting_mode == MODE_SOCIAL:
             return
-        SPORTS_GREEN_APPLIED = True
+        state.set(SPORTS_PAINTED, "on")
         set_lighting_mode(MODE_SOCIAL, source="sports")
-        eagles_green = pyscript.get_team_rgb() or [0, 170, 35]
-        light.turn_on(
-            entity_id=[MASTER_ZIGBEE_GROUP, STAIRLIGHTS],
-            rgb_color=eagles_green,
-            brightness_pct=100,
-            transition=2,
-        )
+        _team_green_on(100, 2)
+        # Stairs start green too, then time out like a path light.
+        task.create(_sports_stair_path_light, STAIR_SPORTS_HOLD_S)
         return
 
     # Social Mode: theater never touches lights here — full stop
@@ -1082,13 +1145,13 @@ def effect_eagles_chant():
     """Manual trigger: plays the Zigbee-safe solid Kelly Green Philadelphia Eagles touchdown chant."""
     task.unique("basement_ambient_loop")
     eagles_green = pyscript.get_team_rgb() or [0, 170, 35]
-    all_targets = [MASTER_ZIGBEE_GROUP, STAIRLIGHTS]
+    stair_green = pyscript.get_stair_team_hs() or [125, 100]
 
     # 1. Spell-out: E - A - G - L - E - S (Deliberate, rhythmic stadium green surges)
     for _ in range(6):
-        light.turn_on(entity_id=all_targets, rgb_color=eagles_green, brightness_pct=100, transition=0)
+        _team_green_on(100, 0, eagles_green, stair_green)
         task.sleep(0.65)
-        light.turn_on(entity_id=all_targets, rgb_color=eagles_green, brightness_pct=15, transition=0)
+        _team_green_on(15, 0, eagles_green, stair_green)
         task.sleep(0.45)
 
     # 2. Stadium anticipation breath
@@ -1096,18 +1159,18 @@ def effect_eagles_chant():
 
     # 3. 'EA - GLES!' Climax
     # Syllable 1: 'EA-'
-    light.turn_on(entity_id=all_targets, rgb_color=eagles_green, brightness_pct=100, transition=0)
+    _team_green_on(100, 0, eagles_green, stair_green)
     task.sleep(0.55)
-    light.turn_on(entity_id=all_targets, rgb_color=eagles_green, brightness_pct=15, transition=0)
+    _team_green_on(15, 0, eagles_green, stair_green)
     task.sleep(0.35)
 
     # Syllable 2: '-GLES!'
-    light.turn_on(entity_id=all_targets, rgb_color=eagles_green, brightness_pct=100, transition=0)
+    _team_green_on(100, 0, eagles_green, stair_green)
     task.sleep(0.85)
 
     # End holding solid team green
     task.sleep(0.35)
-    light.turn_on(entity_id=all_targets, rgb_color=eagles_green, brightness_pct=100, transition=2)
+    _team_green_on(100, 2, eagles_green, stair_green)
 
 
 @service

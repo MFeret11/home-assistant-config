@@ -181,6 +181,7 @@ import watchdog
 import interlocks
 
 builtins.pyscript.get_team_rgb = sports.get_team_rgb
+builtins.pyscript.get_stair_team_hs = sports.get_stair_team_hs
 
 
 def _wire_pyscript_service(name, func, deferred=False):
@@ -220,7 +221,8 @@ def setup_clean_environment():
     basement.LAST_MOTION_BOTTOM_TS = 0.0
     basement.LAST_MOTION_CLEAR_TS = 0.0
     basement.LAST_MOTION_SEEN_TS = 0.0
-    basement.SPORTS_GREEN_APPLIED = False
+    state.set("pyscript.basement_sports_painted", "off")
+    basement.LAST_ADB_STATE = None
     basement.CURRENT_PALETTE = "synthwave"
     basement.CURRENT_EFFECT = "static"
     basement.IS_EFFECT_UPDATING = False
@@ -342,6 +344,35 @@ def test_movie_intermission_glow():
     assert intermission_called, "FAIL: 1% Intermission glow not applied!"
     assert spy.was_called("switch", "turn_on", "switch.bias_lights"), "FAIL: Bias not on during pause!"
     print("  ✓ [Core] test_movie_intermission_glow PASSED")
+
+
+def test_adb_off_blip_does_not_flash_glow_mid_movie():
+    """ADB reads 'off' for one poll while the Onn is on: the movie stays dark."""
+    setup_clean_environment()
+    state.set("input_select.basement_lighting_mode", "Movie Mode")
+    state.set("binary_sensor.theater_in_use", "on")
+    state.set("sensor.theater_mode", "movie")
+    state.set("media_player.onn_pro", "on")
+    state.set("media_player.theater_onn_pro_adb", "playing")
+    basement.theater_lighting_sync()
+    mock_task.run_deferred_tasks()
+
+    spy.calls.clear()
+    adb = "media_player.theater_onn_pro_adb"
+    state.set(adb, "off")
+    basement.theater_lighting_sync(var_name=adb, value="off", old_value="playing")
+    state.set(adb, "playing")
+    basement.theater_lighting_sync(var_name=adb, value="playing", old_value="off")
+    # Another trigger during a blip still sees "playing".
+    state.set(adb, "off")
+    basement.theater_lighting_sync(var_name="binary_sensor.theater_in_use", value="on", old_value="on")
+    mock_task.run_deferred_tasks()
+    assert not spy.was_called("light", "turn_on", "light.theater_dimmer"), "FAIL: ADB blip flashed the glow!"
+
+    # The Onn really sleeping (remote player off too) is not a blip.
+    state.set("media_player.onn_pro", "off")
+    assert not basement._adb_blip("off"), "FAIL: real Onn sleep treated as a blip!"
+    print("  ✓ [Core] test_adb_off_blip_does_not_flash_glow_mid_movie PASSED")
 
 
 def test_adb_player_drives_movie_lighting():
@@ -1363,6 +1394,7 @@ def test_touchdown_delta_fires_eagles_chant():
     """Verify touchdown (+6 or +7 points) pulses brightness 6x and holds solid team green."""
     setup_clean_environment()
     state.set("sensor.philadelphia_eagles", "IN")
+    state.set("light.zigbee_basement_lights", "on")
 
     # Touchdown (+7 points)
     sports.eagles_score_flash(value="7", old_value="0")
@@ -1400,6 +1432,7 @@ def test_field_goal_delta_creates_snapshot_and_pulses():
     """Verify field goal (+3 points) pulses 3x and settles on solid team green without snapshot scene."""
     setup_clean_environment()
     state.set("sensor.philadelphia_eagles", "IN")
+    state.set("light.zigbee_basement_lights", "on")
 
     # Field goal (+3 points)
     sports.eagles_score_flash(value="10", old_value="7")
@@ -1412,6 +1445,90 @@ def test_field_goal_delta_creates_snapshot_and_pulses():
     assert last_call["kwargs"].get("brightness_pct") == 100, "FAIL: Field goal did not end holding 100% green!"
     assert last_call["kwargs"].get("rgb_color") == sports.get_team_rgb(), "FAIL: Last call did not use team RGB!"
     print("  ✓ [Sports] test_field_goal_delta_creates_snapshot_and_pulses PASSED")
+
+
+def test_score_flash_skipped_when_lights_off():
+    """Lights turned off by hand stay off through a touchdown."""
+    setup_clean_environment()
+    state.set("sensor.philadelphia_eagles", "IN")
+    state.set("light.zigbee_basement_lights", "off")
+
+    sports.eagles_score_flash(value="7", old_value="0")
+    mock_task.run_deferred_tasks()
+
+    assert not spy.was_called("light", "turn_on"), "FAIL: Touchdown turned hand-switched-off lights back on!"
+    print("  ✓ [Sports] test_score_flash_skipped_when_lights_off PASSED")
+
+
+def test_sports_green_not_repainted_after_lights_off():
+    """Green paints once per sports session; TV updates after a manual off don't repaint."""
+    setup_clean_environment()
+    state.set("sensor.theater_mode", "sports")
+    basement.theater_lighting_sync()
+    mock_task.run_deferred_tasks()
+    assert spy.was_called("light", "turn_on"), "FAIL: Sports did not paint team green!"
+    assert state.get("pyscript.basement_social_source") == "sports"
+
+    spy.calls.clear()
+    state.set("light.zigbee_basement_lights", "off")
+    basement.theater_lighting_sync()
+    mock_task.run_deferred_tasks()
+    assert not spy.was_called("light", "turn_on"), "FAIL: TV update repainted green after manual off!"
+    print("  ✓ [Sports] test_sports_green_not_repainted_after_lights_off PASSED")
+
+
+def _sports_game_day():
+    setup_clean_environment()
+    state.set("input_select.basement_lighting_mode", "Social Mode")
+    state.set("sensor.theater_mode", "sports")
+    state.set("binary_sensor.theater_in_use", "on")
+    state.set("light.stairlights", "off")
+
+
+def test_sports_stairs_motion_lights_then_off():
+    """Game day: motion at the foot of the stairs lights them green, then they go off."""
+    _sports_game_day()
+    basement.motion_at_foot_of_stairs("off")
+    mock_task.run_deferred_tasks()
+    on = [c for c in spy.calls if c["service"] == "turn_on" and c["kwargs"].get("entity_id") == "light.stairlights"]
+    assert on and on[0]["kwargs"].get("hs_color") == sports.STAIR_TEAM_HS, "FAIL: Motion didn't light the stairs green!"
+    assert spy.was_called("light", "turn_off", "light.stairlights"), "FAIL: Stairs stayed on after motion!"
+    print("  ✓ [Sports] test_sports_stairs_motion_lights_then_off PASSED")
+
+
+def test_sports_stairs_door_lights_then_off():
+    """Game day: opening the door lights the stairs, and they don't stay on for good."""
+    _sports_game_day()
+    basement.stair_door_opened("off")
+    mock_task.run_deferred_tasks()
+    assert spy.was_called("light", "turn_on", "light.stairlights"), "FAIL: Door didn't light the stairs!"
+    assert spy.was_called("light", "turn_off", "light.stairlights"), "FAIL: Stairs stayed on after the door!"
+    print("  ✓ [Sports] test_sports_stairs_door_lights_then_off PASSED")
+
+
+def test_sports_paint_lights_stairs_then_times_out():
+    """Sports start paints room and stairs green; the stairs then time out (5 min)."""
+    _sports_game_day()
+    state.set("pyscript.basement_sports_painted", "off")
+    basement.theater_lighting_sync()
+    mock_task.run_deferred_tasks()
+    assert spy.was_called("light", "turn_on", "light.zigbee_basement_lights"), "FAIL: Room not painted!"
+    assert spy.was_called("light", "turn_on", "light.stairlights"), "FAIL: Stairs not painted at game start!"
+    assert spy.was_called("light", "turn_off", "light.stairlights"), "FAIL: Stairs never timed out!"
+    assert not spy.was_called("light", "turn_off", "light.zigbee_basement_lights"), "FAIL: Room timed out in sports!"
+    print("  ✓ [Sports] test_sports_paint_lights_stairs_then_times_out PASSED")
+
+
+def test_score_flash_leaves_dark_stairs_off():
+    """A score flash doesn't relight stairs that timed out."""
+    _sports_game_day()
+    state.set("sensor.philadelphia_eagles", "IN")
+    state.set("light.zigbee_basement_lights", "on")
+    sports.eagles_score_flash(value="7", old_value="0")
+    mock_task.run_deferred_tasks()
+    assert spy.was_called("light", "turn_on", "light.zigbee_basement_lights"), "FAIL: Room didn't flash!"
+    assert not spy.was_called("light", "turn_on", "light.stairlights"), "FAIL: Flash relit dark stairs!"
+    print("  ✓ [Sports] test_score_flash_leaves_dark_stairs_off PASSED")
 
 
 def test_score_flash_suppressed_when_game_not_in_progress():
@@ -3432,6 +3549,7 @@ if __name__ == "__main__":
         test_play_music_cuts_live_plug_before_onn_wake,
         test_cinema_shield_blackout,
         test_movie_intermission_glow,
+        test_adb_off_blip_does_not_flash_glow_mid_movie,
         test_adb_player_drives_movie_lighting,
         test_stair_stealth_red_in_movie_mode,
         test_stair_daily_driver_entry,
@@ -3539,6 +3657,12 @@ if __name__ == "__main__":
         test_touchdown_delta_fires_eagles_chant,
         test_manual_effect_eagles_chant_cadence,
         test_field_goal_delta_creates_snapshot_and_pulses,
+        test_score_flash_skipped_when_lights_off,
+        test_sports_green_not_repainted_after_lights_off,
+        test_sports_stairs_motion_lights_then_off,
+        test_sports_stairs_door_lights_then_off,
+        test_sports_paint_lights_stairs_then_times_out,
+        test_score_flash_leaves_dark_stairs_off,
         test_score_flash_suppressed_when_game_not_in_progress,
         test_eagles_game_start_and_game_over_lifecycle,
         # Suite 12: Sports, Hardware Sync & Drift Engine (9)

@@ -16,6 +16,10 @@ STAIRLIGHTS = "light.stairlights"
 FLASH_TARGETS = [MASTER_ZIGBEE_GROUP, STAIRLIGHTS]
 
 EAGLES_KELLY_GREEN = [0, 170, 35]  # Authentic Philadelphia Eagles Kelly Green (calibrated for RGB LEDs)
+# The stair bulbs are hue/saturation only and their green LED is bluer than the
+# lounge/bar bulbs, so they can't reach true Kelly green at any hue. 125° looked
+# closest by eye (2026-11-01). Raise hue = bluer, lower = yellower.
+STAIR_TEAM_HS = [125, 100]
 
 # Dim floor for strobe/chant steps. 15% ensures bulbs stay smoothly
 # calibrated without hitting low-end PWM flicker or mesh packet lag.
@@ -33,12 +37,26 @@ def get_team_rgb() -> list:
     return EAGLES_KELLY_GREEN
 
 
+@service
+def get_stair_team_hs() -> list:
+    """Team green for the stair bulbs, tuned to match the main basement bulbs."""
+    return STAIR_TEAM_HS
+
+
+def _team_on(rgb, brightness_pct, transition):
+    """Team color on the main group, and on the stairs (own tuned hue) only while they're
+    lit: on game day basement.py runs them as a motion path light. Group last."""
+    if state.get(STAIRLIGHTS) == "on":
+        light.turn_on(entity_id=STAIRLIGHTS, hs_color=STAIR_TEAM_HS, brightness_pct=brightness_pct, transition=transition)
+    light.turn_on(entity_id=MASTER_ZIGBEE_GROUP, rgb_color=rgb, brightness_pct=brightness_pct, transition=transition)
+
+
 def _pulse(rgb, reps, high_pct, low_pct, high_hold, low_hold):
     """Shared strobe primitive: steps brightness high<->low, never OFF."""
     for _ in range(reps):
-        light.turn_on(entity_id=FLASH_TARGETS, rgb_color=rgb, brightness_pct=high_pct, transition=0)
+        _team_on(rgb, high_pct, 0)
         task.sleep(high_hold)
-        light.turn_on(entity_id=FLASH_TARGETS, rgb_color=rgb, brightness_pct=low_pct, transition=0)
+        _team_on(rgb, low_pct, 0)
         task.sleep(low_hold)
 
 
@@ -55,21 +73,21 @@ def _eagles_chant_cadence(rgb):
     4. Settles cleanly holding solid Kelly Green at 100%.
     """
     for _ in range(6):
-        light.turn_on(entity_id=FLASH_TARGETS, rgb_color=rgb, brightness_pct=100, transition=0)
+        _team_on(rgb, 100, 0)
         task.sleep(0.65)
-        light.turn_on(entity_id=FLASH_TARGETS, rgb_color=rgb, brightness_pct=DIM_FLOOR_PCT, transition=0)
+        _team_on(rgb, DIM_FLOOR_PCT, 0)
         task.sleep(0.45)
 
     task.sleep(0.55)
 
     # Syllable 1: 'EA-'
-    light.turn_on(entity_id=FLASH_TARGETS, rgb_color=rgb, brightness_pct=100, transition=0)
+    _team_on(rgb, 100, 0)
     task.sleep(0.55)
-    light.turn_on(entity_id=FLASH_TARGETS, rgb_color=rgb, brightness_pct=DIM_FLOOR_PCT, transition=0)
+    _team_on(rgb, DIM_FLOOR_PCT, 0)
     task.sleep(0.35)
 
     # Syllable 2: '-GLES!'
-    light.turn_on(entity_id=FLASH_TARGETS, rgb_color=rgb, brightness_pct=100, transition=0)
+    _team_on(rgb, 100, 0)
     task.sleep(0.85)
 
 
@@ -87,12 +105,9 @@ def eagles_game_started():
         input_select.select_option(entity_id=LIGHTING_MODE_SELECT, option="Social Mode")
     switch.turn_off(entity_id=ADAPTIVE_SWITCH)
 
-    light.turn_on(
-        entity_id=FLASH_TARGETS,
-        rgb_color=get_team_rgb(),
-        brightness_pct=100,
-        transition=2,
-    )
+    _team_on(get_team_rgb(), 100, 2)
+    # Stairs green too; basement.py times them out (5 min) and relights them on motion.
+    pyscript.basement_sports_stairs_on()
 
 
 @state_trigger("sensor.philadelphia_eagles == 'POST'")
@@ -122,6 +137,10 @@ def eagles_score_flash(value=None, old_value=None):
     except (ValueError, TypeError):
         return
 
+    # Lights turned off by hand stay off, even for a score.
+    if state.get(MASTER_ZIGBEE_GROUP) != "on":
+        return
+
     task.unique("eagles_flash_engine")
     rgb = get_team_rgb()
 
@@ -136,4 +155,4 @@ def eagles_score_flash(value=None, old_value=None):
     # No snapshot/scene restore, no ambient-palette handoff — the game
     # is still live, so team green is the correct persistent state.
     task.sleep(0.35)
-    light.turn_on(entity_id=FLASH_TARGETS, rgb_color=rgb, brightness_pct=100, transition=2)
+    _team_on(rgb, 100, 2)

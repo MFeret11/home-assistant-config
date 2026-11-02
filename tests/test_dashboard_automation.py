@@ -95,6 +95,11 @@ class MockPyscript:
     def shutdown_batocera(self):
         self._interlocks.shutdown_batocera()
 
+    def get_stair_team_hs(self):
+        if self._sports and hasattr(self._sports, "get_stair_team_hs"):
+            return self._sports.get_stair_team_hs()
+        return [125, 100]
+
     def get_team_rgb(self):
         if self._sports and hasattr(self._sports, "get_team_rgb"):
             return self._sports.get_team_rgb()
@@ -270,6 +275,7 @@ def test_punchy_flashing_green_touchdown_cadence():
     """
     setup_baseline()
     mock_state.set("sensor.philadelphia_eagles", "IN")
+    mock_state.set("light.zigbee_basement_lights", "on")
 
     # Touchdown (+7 points delta: 21 -> 28)
     sports.eagles_score_flash(value="28", old_value="21")
@@ -280,9 +286,13 @@ def test_punchy_flashing_green_touchdown_cadence():
     assert len(pulse_calls) >= 15, f"FAIL: Expected >= 15 pulse calls, got {len(pulse_calls)}"
 
     # All calls must maintain pure Kelly Green without color thrashing
+    # (stairs get their own fixed tuned hue; the main group gets the RGB)
     for idx, call in enumerate(pulse_calls):
-        rgb = call["kwargs"].get("rgb_color")
-        assert rgb == [0, 170, 35], f"FAIL: Call {idx} altered RGB to {rgb}, breaking Zigbee mesh!"
+        kw = call["kwargs"]
+        if kw.get("entity_id") == "light.stairlights":
+            assert kw.get("hs_color") == sports.get_stair_team_hs(), f"FAIL: Call {idx} altered stair color to {kw.get('hs_color')}!"
+        else:
+            assert kw.get("rgb_color") == [0, 170, 35], f"FAIL: Call {idx} altered RGB to {kw.get('rgb_color')}, breaking Zigbee mesh!"
 
     last_call = pulse_calls[-1]
     assert last_call["kwargs"].get("brightness_pct") == 100, "FAIL: Did not settle holding 100% green!"

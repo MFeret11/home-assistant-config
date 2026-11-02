@@ -332,8 +332,8 @@ def launch_onn_app(package_name):
     scheme = None
     if "stremio" in package_name:
         scheme = "stremio://"
-    elif "silicondust" in package_name:
-        scheme = "hdhomerun://"
+    # No scheme for HDHomeRun: the app doesn't register hdhomerun://, and the
+    # Onn's rejection drops the remote connection, losing the package launch.
     elif "limelight" in package_name or "moonlight" in package_name:
         scheme = "moonlight://"
 
