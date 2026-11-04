@@ -21,6 +21,15 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 PACKAGE = os.path.join(ROOT, "packages", "commute.yaml")
 KITCHEN = os.path.join(ROOT, "dashboards", "kitchen.yaml")
 
+
+class _DashboardLoader(yaml.SafeLoader):
+    """SafeLoader that leaves HA's !include tags as their file path, so the
+    dashboard parses even when an included file is private (not in git)."""
+
+
+_DashboardLoader.add_constructor(
+    "!include", lambda loader, node: loader.construct_scalar(node))
+
 # Fields of the service's commute payload that the kitchen cards rely on.
 EXPECTED_COMMUTE_ATTRIBUTES = {
     "trip_type", "origin_train", "origin_line", "origin_departure_time",
@@ -73,7 +82,7 @@ def _severity_templates() -> dict:
 def _kitchen_cards() -> dict:
     """{'am': card, 'pm': card} for the conditional commute markdown cards."""
     with open(KITCHEN, encoding="utf-8") as f:
-        dashboard = yaml.safe_load(f)
+        dashboard = yaml.load(f, Loader=_DashboardLoader)
     cards = {}
 
     def walk(node):

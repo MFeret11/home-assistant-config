@@ -43,3 +43,6 @@ host_backup/
 # Local tooling
 .claude/
 context.md
+
+# Private dashboard values (real names), loaded with !include
+dashboards/private/

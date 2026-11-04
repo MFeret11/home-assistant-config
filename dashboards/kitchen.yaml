@@ -394,6 +394,7 @@ views:
                 name: Matt
                 color: "#4fc3f7"
               - entity: calendar.partner
+                name: !include private/partner_name.yaml
                 color: "#f48fb1"
             days: 7
             startingDay: today
