@@ -23,12 +23,40 @@ KITCHEN = os.path.join(ROOT, "dashboards", "kitchen.yaml")
 
 
 class _DashboardLoader(yaml.SafeLoader):
-    """SafeLoader that leaves HA's !include tags as their file path, so the
-    dashboard parses even when an included file is private (not in git)."""
+    """SafeLoader that follows HA's !include tags relative to the including
+    file. A missing include (a private file not in git) stays as its path."""
+
+    def __init__(self, stream, path, texts):
+        super().__init__(stream)
+        self._path, self._texts = path, texts
 
 
-_DashboardLoader.add_constructor(
-    "!include", lambda loader, node: loader.construct_scalar(node))
+def _include(loader, node):
+    path = os.path.join(os.path.dirname(loader._path), loader.construct_scalar(node))
+    if not os.path.exists(path):
+        return loader.construct_scalar(node)
+    return _load_yaml(path, loader._texts)
+
+
+_DashboardLoader.add_constructor("!include", _include)
+
+
+def _load_yaml(path, texts):
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    texts.append(text)
+    loader = _DashboardLoader(text, path, texts)
+    try:
+        return loader.get_single_data()
+    finally:
+        loader.dispose()
+
+
+def _load_kitchen():
+    """(parsed dashboard with includes resolved, raw text of every file)."""
+    texts = []
+    tree = _load_yaml(KITCHEN, texts)
+    return tree, "\n".join(texts)
 
 # Fields of the service's commute payload that the kitchen cards rely on.
 EXPECTED_COMMUTE_ATTRIBUTES = {
@@ -80,21 +108,25 @@ def _severity_templates() -> dict:
 
 
 def _kitchen_cards() -> dict:
-    """{'am': card, 'pm': card} for the conditional commute markdown cards."""
-    with open(KITCHEN, encoding="utf-8") as f:
-        dashboard = yaml.load(f, Loader=_DashboardLoader)
+    """{'am': card, 'pm': card} for the commute markdown cards.
+
+    Handles both a `conditional` wrapper card and a card with a
+    `visibility` list."""
+    dashboard, _ = _load_kitchen()
     cards = {}
 
     def walk(node):
         if isinstance(node, dict):
             if node.get("type") == "conditional":
-                entities = {c.get("entity") for c in node.get("conditions", [])
-                            if c.get("state") == "on"}
-                card = node.get("card", {})
-                if "binary_sensor.septa_am_window" in entities:
-                    cards["am"] = card
-                elif "binary_sensor.septa_pm_window" in entities:
-                    cards["pm"] = card
+                conditions, card = node.get("conditions", []), node.get("card", {})
+            else:
+                conditions, card = node.get("visibility", []), node
+            entities = {c.get("entity") for c in conditions
+                        if isinstance(c, dict) and c.get("state") == "on"}
+            if "binary_sensor.septa_am_window" in entities:
+                cards["am"] = card
+            elif "binary_sensor.kitchen_show_pm_commute" in entities:
+                cards["pm"] = card
             for value in node.values():
                 walk(value)
         elif isinstance(node, list):
@@ -234,16 +266,15 @@ def test_commute_package_contract():
 
 def test_kitchen_reads_only_imported_attributes():
     print("  [2/3] Auditing kitchen dashboard attribute lookups...")
-    with open(KITCHEN, encoding="utf-8") as f:
-        lookups = _attribute_lookups(f.read())
+    _, kitchen_text = _load_kitchen()
+    lookups = _attribute_lookups(kitchen_text)
     for template in _severity_templates().values():
         lookups |= _attribute_lookups(template)
     undeclared = lookups - _declared_attributes("SEPTA Commute")
     assert not undeclared, (
         f"kitchen.yaml reads attributes HA never imports (always empty): {sorted(undeclared)}"
     )
-    with open(KITCHEN, encoding="utf-8") as f:
-        weather_lookups = _attribute_lookups(f.read(), var="w")
+    weather_lookups = _attribute_lookups(kitchen_text, var="w")
     undeclared = weather_lookups - _declared_attributes("Commute Weather")
     assert not undeclared, f"kitchen.yaml reads weather attributes HA never imports: {sorted(undeclared)}"
     print(f"    ✓ {len(lookups)} commute attribute lookups are all imported by the REST sensor")
