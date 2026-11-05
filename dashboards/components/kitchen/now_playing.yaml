@@ -1,22 +1,20 @@
 # Spotify controls, only while something is playing.
-type: conditional
-conditions:
+type: custom:mini-media-player
+entity: media_player.whole_house_spotify
+artwork: cover
+hide:
+  power: true
+  source: true
+card_mod:
+  style: |
+    ha-card {
+      border-radius: 22px !important;
+      overflow: hidden;
+    }
+visibility:
   - condition: state
     entity: media_player.whole_house_spotify
     state: playing
-card:
-  type: custom:mini-media-player
-  entity: media_player.whole_house_spotify
-  artwork: cover
-  hide:
-    power: true
-    source: true
-  card_mod:
-    style: |
-      ha-card {
-        border-radius: 22px !important;
-        overflow: hidden;
-      }
 grid_options:
   columns: full
   rows: auto
