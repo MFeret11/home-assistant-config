@@ -1,0 +1,39 @@
+type: conditional
+conditions:
+  - condition: state
+    entity: binary_sensor.drive_display_window
+    state: "on"
+  # No drive card on work-from-home days.
+  - condition: state
+    entity: binary_sensor.working_from_home
+    state_not: "on"
+card:
+  type: markdown
+  content: >-
+    # 🚗 Matt's Drive: **{{
+    state_attr('sensor.commute_drive_time',
+    'duration_in_traffic') | default('Calculating...', true) }}**
+
+
+    {{ state_attr('sensor.commute_drive_time',
+    'distance') | default('—', true) }} · normally {{
+    state_attr('sensor.commute_drive_time', 'duration')
+    | default('—', true) }}
+  grid_options:
+    columns: full
+    rows: 3
+  card_mod:
+    style: >
+      ha-card {
+        font-size: 22px;
+        line-height: 1.35;
+        text-align: center;
+        border-radius: 22px;
+        padding: 16px;
+        background: rgba(255, 255, 255, 0.04) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        backdrop-filter: blur(16px);
+      }
+
+      ha-card h1 { font-size: 30px !important; margin: 0 0 6px 0
+      !important; }

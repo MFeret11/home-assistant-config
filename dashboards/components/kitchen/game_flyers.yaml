@@ -1,0 +1,24 @@
+# Shows while the game is live, starts within 24 h, or ended in the last 12 h
+# (binary_sensor.flyers_game_soon, packages/sports.yaml).
+type: conditional
+conditions:
+  - condition: state
+    entity: binary_sensor.flyers_game_soon
+    state: "on"
+card:
+  type: custom:compact-team-tracker
+  entities:
+    - sensor.nhl_philadelphia_flyers
+  layout: standard
+  show_day_of_week: true
+  show_tv_network: true
+  show_league: false
+  show_event_name: false
+  card_mod:
+    style: |
+      ha-card {
+        border-radius: 20px !important;
+      }
+grid_options:
+  columns: full
+  rows: auto

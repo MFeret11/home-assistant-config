@@ -1,0 +1,6 @@
+# Rest of the day: clock, train home, full weather, chores, music.
+- !include clock.yaml
+- !include commute_pm.yaml
+- !include weather_full.yaml
+- !include chores.yaml
+- !include now_playing.yaml

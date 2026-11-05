@@ -84,7 +84,7 @@ template:
       - name: "Septa Display Window"
         state: "{{ now().weekday() < 5 and now().hour in [6, 7, 16, 17] }}"
       - name: "Drive Display Window"
-        state: "{{ now().hour == 8 }}"
+        state: "{{ now().weekday() < 5 and now().hour == 8 }}"
       - name: "Septa AM Window"
         state: "{{ now().weekday() < 5 and now().hour in [6, 7] }}"
       - name: "Septa PM Window"

@@ -1,0 +1,104 @@
+{#- Kitchen dashboard markup (dashboards/kitchen.yaml). Data comes from
+    packages/kitchen_display.yaml. After editing, run
+    homeassistant.reload_custom_templates. -#}
+
+{%- set WX = 'weather.whole_house_national_weather_service_kphl' -%}
+
+{#- NWS calls an hour "rainy" even at a 10% chance, so only show rain icons
+    once the chance is worth acting on. -#}
+{%- macro wx_icon(cond, pop=100, night=false) -%}
+  {%- set wet = ['rainy', 'pouring', 'lightning-rainy', 'snowy', 'snowy-rainy', 'hail', 'lightning'] -%}
+  {%- set c = 'cloudy' if cond in wet and pop < 30 else cond -%}
+  {%- set m = {
+    'clear-night': 'weather-night', 'cloudy': 'weather-cloudy', 'exceptional': 'alert-circle-outline',
+    'fog': 'weather-fog', 'hail': 'weather-hail', 'lightning': 'weather-lightning',
+    'lightning-rainy': 'weather-lightning-rainy', 'partlycloudy': 'weather-night-partly-cloudy' if night else 'weather-partly-cloudy',
+    'pouring': 'weather-pouring', 'rainy': 'weather-rainy', 'snowy': 'weather-snowy',
+    'snowy-rainy': 'weather-snowy-rainy', 'sunny': 'weather-night' if night else 'weather-sunny',
+    'windy': 'weather-windy', 'windy-variant': 'weather-windy-variant' } -%}
+  mdi:{{ m.get(c, 'weather-cloudy') }}
+{%- endmacro -%}
+
+{%- macro _cond_text(cond) -%}
+  {{- {'clear-night': 'Clear', 'partlycloudy': 'Partly cloudy', 'lightning-rainy': 'Thunderstorms',
+       'snowy-rainy': 'Wintry mix', 'windy-variant': 'Windy', 'exceptional': 'Severe weather'}.get(cond, cond | replace('-', ' ') | capitalize) -}}
+{%- endmacro -%}
+
+{#- One line on rain for the rest of today (or the next 12 hours at night). -#}
+{%- macro rain_line(hourly) -%}
+  {%- set late = now().hour >= 20 -%}
+  {%- set window = hourly[:12] if late else (hourly | selectattr('hour', '>=', now().hour) | selectattr('hour', '<=', 21) | list) -%}
+  {%- set wet = window | selectattr('rain', '>=', 30) | list -%}
+  {%- if wet -%}
+    {%- set peak = wet | map(attribute='rain') | max -%}
+    {%- set first, last = wet[0], wet[-1] -%}
+    {{ '☔ Rain likely' if peak >= 50 else '🌦️ Chance of rain' }} {{ first.t if first == last else first.t ~ '–' ~ last.t }} · up to {{ peak }}%
+  {%- else -%}
+    ☀️ No rain expected {{ 'tonight' if late else 'today' }}
+  {%- endif -%}
+{%- endmacro -%}
+
+{#- Weather card. full=false: now + rain line + 2-hourly strip (morning).
+    full=true: adds the next five days. -#}
+{%- macro weather_panel(full=false) -%}
+  {%- set hourly = state_attr('sensor.kitchen_weather', 'hourly') or [] -%}
+  {%- set daily = state_attr('sensor.kitchen_weather', 'daily') or [] -%}
+  {%- set hi = state_attr('sensor.kitchen_weather', 'today_hi') -%}
+  {%- set lo = state_attr('sensor.kitchen_weather', 'tonight_lo') -%}
+  {%- set temp = state_attr(WX, 'temperature') -%}
+  {%- set cond = states(WX) -%}
+  {%- set night = is_state('sun.sun', 'below_horizon') -%}
+  {%- set now_pop = hourly[0].rain if hourly else 0 -%}
+# <ha-icon icon="{{ wx_icon(cond, now_pop, night) }}"></ha-icon> {{ temp | round(0) | int if temp is number else '—' }}° · {{ _cond_text('cloudy' if cond in ['rainy'] and now_pop < 30 else cond) }}
+
+### {% if hi is not none %}High {{ hi }}° · {% endif %}{% if lo is not none %}Low {{ lo }}°{% endif %}
+
+**{{ rain_line(hourly) }}**
+
+{#- Now plus up to three upcoming key times: noon, heading home, evening
+    (8 AM next morning once it's late). -#}
+{%- set ns = namespace(cells=[]) -%}
+{%- if hourly -%}
+  {%- set ns.cells = [{'label': 'Now', 'h': hourly[0]}] -%}
+  {%- for h in hourly[1:] if h.hour in [8, 12, 17, 20] and ns.cells | length < 4 -%}
+    {%- set ns.cells = ns.cells + [{'label': 'Noon' if h.hour == 12 else h.t, 'h': h}] -%}
+  {%- endfor -%}
+{%- endif %}
+{% if ns.cells %}
+<table>
+<tr>{% for c in ns.cells %}<td>{{ c.label }}</td>{% endfor %}</tr>
+<tr>{% for c in ns.cells %}<td><ha-icon icon="{{ wx_icon(c.h.cond, c.h.rain, c.h.hour >= 18 or c.h.hour < 7) }}"></ha-icon></td>{% endfor %}</tr>
+<tr>{% for c in ns.cells %}<td><b>{{ c.h.temp }}°</b></td>{% endfor %}</tr>
+</table>
+{% endif %}
+{% if full and daily %}
+
+---
+
+<table>
+<tr>{% for d in daily %}<td>{{ 'Today' if loop.first and d.day == now().strftime('%a') else d.day }}</td>{% endfor %}</tr>
+<tr>{% for d in daily %}<td><ha-icon icon="{{ wx_icon(d.cond, d.rain) }}"></ha-icon></td>{% endfor %}</tr>
+<tr>{% for d in daily %}<td><b>{{ d.hi }}°</b> {{ d.lo if d.lo is not none else '' }}{{ '°' if d.lo is not none else '' }}</td>{% endfor %}</tr>
+</table>
+{% endif %}
+{%- endmacro -%}
+
+{#- Today's events as short lines; empty string when there are none. -#}
+{%- macro today_events(limit=4) -%}
+  {%- set dots = {'matt': '🔵', 'partner': '🩷', 'family': '🟢', 'birthday': '🎂'} -%}
+  {%- set evs = state_attr('sensor.kitchen_today_events', 'events') or [] -%}
+  {%- for e in evs[:limit] -%}
+{{ dots.get(e.who, '📅') }} {% if e.time %}**{{ e.time }}** {% endif %}{{ e.title }}
+{% endfor -%}
+  {%- if evs | length > limit %}…and {{ evs | length - limit }} more{% endif -%}
+{%- endmacro -%}
+
+{#- One line for chores, or empty when nothing is due. -#}
+{%- macro chores_line() -%}
+  {%- set a = states.sensor.home_keeper_tasks.attributes if states.sensor.home_keeper_tasks is not none else {} -%}
+  {%- set overdue = a.get('overdue', 0) or 0 -%}
+  {%- set today = a.get('due_today', 0) or 0 -%}
+  {%- if overdue or today -%}
+🧹 **{{ [overdue ~ ' overdue' if overdue else '', today ~ ' due today' if today else ''] | select | join(' · ') }}** · next: {{ a.get('next_task_name', '—') }}
+  {%- endif -%}
+{%- endmacro -%}

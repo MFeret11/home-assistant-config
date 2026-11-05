@@ -1,0 +1,24 @@
+type: custom:mushroom-title-card
+title: "{{ now().strftime('%-I:%M %p') }}"
+subtitle: "{{ now().strftime('%A, %B %-d') }}"
+grid_options:
+  rows: auto
+  columns: full
+alignment: center
+card_mod:
+  style: |
+    ha-card {
+      padding: 16px 0 6px 0;
+    }
+    ha-card h1.title {
+      font-size: 84px !important;
+      line-height: 1.05 !important;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+    ha-card h2.subtitle {
+      font-size: 26px !important;
+      line-height: 1.2 !important;
+      opacity: 0.85;
+      font-weight: 500;
+    }

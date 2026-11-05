@@ -85,6 +85,10 @@ recorder:
       - sensor.next_calendar_event
       - binary_sensor.theater_media_playing
       - sensor.cameras_online
+      # Kitchen dashboard data (packages/kitchen_display.yaml); refreshed on timers.
+      - sensor.kitchen_display_mode
+      - sensor.kitchen_weather
+      - sensor.kitchen_today_events
   # No include list on purpose: with exclude-only filters HA records everything
   # not listed above, so the receiver and projector power state stay recorded.
 

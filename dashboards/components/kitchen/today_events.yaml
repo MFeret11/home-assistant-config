@@ -1,0 +1,26 @@
+# Today's events, morning only. Hidden when the calendars have nothing today.
+type: markdown
+visibility:
+  - condition: numeric_state
+    entity: sensor.kitchen_today_events
+    above: 0
+content: >-
+  {% from 'kitchen.jinja' import today_events %}### Today
+
+  {{ today_events() }}
+grid_options:
+  columns: full
+  rows: auto
+card_mod:
+  style: |
+      ha-card {
+        border-radius: 22px !important;
+        background: rgba(255, 255, 255, 0.04) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        backdrop-filter: blur(16px);
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+        padding: 14px 20px;
+        font-size: 22px;
+        line-height: 1.5;
+      }
+      ha-card h3 { font-size: 18px !important; margin: 0 0 4px 0 !important; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.08em; }

@@ -105,6 +105,11 @@ REGISTERED_ENTITIES = {
     # Home Keeper (chores)
     "sensor.home_keeper_tasks",
 
+    # Kitchen display (packages/kitchen_display.yaml)
+    "sensor.kitchen_display_mode", "sensor.kitchen_weather", "sensor.kitchen_today_events",
+    "binary_sensor.working_from_home", "binary_sensor.kitchen_show_pm_commute",
+    "sensor.weather_alert", "sensor.weather_alert_count", "calendar.holidays_in_united_states",
+
     # Vaculina part resets (Maintenance view)
     "button.vaculina_reset_main_brush", "button.vaculina_reset_side_brush", "button.vaculina_reset_filter",
     "button.vaculina_reset_sensor", "button.vaculina_reset_wheel", "button.vaculina_reset_scale_inhibitor",

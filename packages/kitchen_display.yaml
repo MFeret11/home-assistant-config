@@ -1,0 +1,186 @@
+# ==============================================================================
+# PACKAGE: KITCHEN DISPLAY
+# Data for the kitchen tablet dashboard (dashboards/kitchen.yaml). The page shows
+# less in the morning rush and more the rest of the day; sensor.kitchen_display_mode
+# picks which. Card markup lives in custom_templates/kitchen.jinja.
+# ==============================================================================
+
+template:
+  # morning: weekdays 6-9 AM, only commute, weather and today's events.
+  # day: everything else.
+  - sensor:
+      - name: Kitchen Display Mode
+        unique_id: kitchen_display_mode
+        icon: mdi:tablet-dashboard
+        state: "{{ 'morning' if now().weekday() < 5 and 6 <= now().hour < 9 else 'day' }}"
+
+  - binary_sensor:
+      # Train-home card: the usual 4-6 PM window, or from 2 PM on work-from-home
+      # days (the transit service has return-trip data from 2 PM).
+      - name: Kitchen Show PM Commute
+        unique_id: kitchen_show_pm_commute
+        icon: mdi:train
+        state: >-
+          {{ is_state('binary_sensor.septa_pm_window', 'on')
+             or (is_state('binary_sensor.working_from_home', 'on')
+                 and now().weekday() < 5 and now().hour in [14, 15]) }}
+
+  # Weather for the kitchen card. Forecasts aren't entity attributes any more,
+  # so fetch them on a timer and keep only the fields the card uses.
+  - trigger:
+      - trigger: time_pattern
+        minutes: "/30"
+      - trigger: homeassistant
+        event: start
+      - trigger: event
+        event_type: event_template_reloaded
+    action:
+      - action: weather.get_forecasts
+        target:
+          entity_id: weather.whole_house_national_weather_service_kphl
+        data:
+          type: hourly
+        response_variable: hourly
+      - action: weather.get_forecasts
+        target:
+          entity_id: weather.whole_house_national_weather_service_kphl
+        data:
+          type: twice_daily
+        response_variable: twice
+    sensor:
+      - name: Kitchen Weather
+        unique_id: kitchen_weather
+        icon: mdi:weather-partly-cloudy
+        state: "{{ now().isoformat() }}"
+        attributes:
+          # Next 16 hours: time label, temperature, condition, rain chance.
+          hourly: >-
+            {% set fc = hourly['weather.whole_house_national_weather_service_kphl'].forecast %}
+            {% set ns = namespace(out=[]) %}
+            {% for h in fc[:16] %}
+              {% set ns.out = ns.out + [{
+                't': (as_datetime(h.datetime) | as_local).strftime('%-I %p'),
+                'hour': (as_datetime(h.datetime) | as_local).hour,
+                'temp': h.temperature | round(0) | int,
+                'cond': h.condition,
+                'rain': h.precipitation_probability | default(0, true) | int }] %}
+            {% endfor %}
+            {{ ns.out }}
+          # Next 5 days: daytime high, the following night's low, condition, rain chance.
+          daily: >-
+            {% set fc = twice['weather.whole_house_national_weather_service_kphl'].forecast %}
+            {% set ns = namespace(out=[]) %}
+            {% for d in fc %}
+              {% if d.is_daytime and ns.out | length < 5 %}
+                {% set nxt = fc[loop.index] if loop.index < fc | length else none %}
+                {% set ns.out = ns.out + [{
+                  'day': (as_datetime(d.datetime) | as_local).strftime('%a'),
+                  'hi': d.temperature | round(0) | int,
+                  'lo': (nxt.temperature | round(0) | int) if nxt is not none and not nxt.is_daytime else none,
+                  'cond': d.condition,
+                  'rain': d.precipitation_probability | default(0, true) | int }] %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.out }}
+          # Today's high (none once NWS has moved on to "tonight") and tonight's low.
+          today_hi: >-
+            {% set fc = twice['weather.whole_house_national_weather_service_kphl'].forecast %}
+            {{ (fc[0].temperature | round(0) | int) if fc and fc[0].is_daytime else none }}
+          tonight_lo: >-
+            {% set fc = twice['weather.whole_house_national_weather_service_kphl'].forecast %}
+            {% set night = fc[:2] | rejectattr('is_daytime') | list %}
+            {{ (night[0].temperature | round(0) | int) if night else none }}
+
+  # Today's events from the household calendars, for the morning line.
+  - trigger:
+      - trigger: time_pattern
+        minutes: "/15"
+      - trigger: homeassistant
+        event: start
+      - trigger: event
+        event_type: event_template_reloaded
+    action:
+      - action: calendar.get_events
+        target:
+          entity_id:
+            - calendar.matt
+            - calendar.partner
+            - calendar.family
+            - calendar.birthdays
+        data:
+          start_date_time: "{{ today_at('00:00').isoformat() }}"
+          end_date_time: "{{ (today_at('00:00') + timedelta(days=1)).isoformat() }}"
+        response_variable: cal
+    sensor:
+      - name: Kitchen Today Events
+        unique_id: kitchen_today_events
+        icon: mdi:calendar-today
+        state: >-
+          {% set ns = namespace(n=0) %}
+          {% for k, v in cal.items() %}{% set ns.n = ns.n + v.events | length %}{% endfor %}
+          {{ ns.n }}
+        attributes:
+          # Sorted by start; all-day events first. 'who' is the calendar's key.
+          events: >-
+            {% set who = {'calendar.matt': 'matt', 'calendar.partner': 'partner',
+                          'calendar.family': 'family', 'calendar.birthdays': 'birthday'} %}
+            {% set ns = namespace(out=[]) %}
+            {% for k, v in cal.items() %}
+              {% for e in v.events %}
+                {% set all_day = 'T' not in e.start %}
+                {% set ns.out = ns.out + [{
+                  'title': e.summary | truncate(60, true, '…', 0),
+                  'time': '' if all_day else (as_datetime(e.start) | as_local).strftime('%-I:%M %p'),
+                  'sort': '00:00' if all_day else (as_datetime(e.start) | as_local).strftime('%H:%M'),
+                  'who': who.get(k, '') }] %}
+              {% endfor %}
+            {% endfor %}
+            {{ ns.out | sort(attribute='sort') | list }}
+
+  # On while the work remote desktop has been seen on the PC today (weekdays).
+  # Matches only the generic viewer window name. Clears at midnight.
+  - trigger:
+      - trigger: state
+        entity_id: sensor.desktop_rspn8nu_activewindow
+      - trigger: time
+        at: "00:00:00"
+    binary_sensor:
+      - name: Working From Home
+        unique_id: working_from_home
+        icon: mdi:home-account
+        state: >-
+          {% if trigger.platform == 'time' or now().weekday() >= 5 %}
+            false
+          {% elif 'Desktop Viewer' in states('sensor.desktop_rspn8nu_activewindow') %}
+            true
+          {% else %}
+            {{ this.state == 'on' }}
+          {% endif %}
+
+# Active National Weather Service alerts for home (watches, warnings, advisories).
+# Location comes from zone.home, so no coordinates live in this file.
+rest:
+  - resource_template: >-
+      https://api.weather.gov/alerts/active?point={{ state_attr('zone.home', 'latitude') | round(4) }},{{ state_attr('zone.home', 'longitude') | round(4) }}
+    headers:
+      User-Agent: "home-assistant-kitchen-dashboard"
+      Accept: "application/geo+json"
+    scan_interval: 300
+    timeout: 15
+    sensor:
+      - name: Weather Alert Count
+        unique_id: weather_alert_count
+        icon: mdi:alert
+        value_template: "{{ value_json.features | length }}"
+      # Most severe alert first. Headline is truncated to fit a state.
+      - name: Weather Alert
+        unique_id: weather_alert
+        icon: mdi:alert
+        value_template: >-
+          {% set rank = {'Extreme': 0, 'Severe': 1, 'Moderate': 2, 'Minor': 3} %}
+          {% set ns = namespace(best=none, r=9) %}
+          {% for f in value_json.features %}
+            {% set r = rank.get(f.properties.severity, 4) %}
+            {% if r < ns.r %}{% set ns.best = f.properties %}{% set ns.r = r %}{% endif %}
+          {% endfor %}
+          {{ (ns.best.event ~ ' until ' ~ (as_datetime(ns.best.ends or ns.best.expires) | as_local).strftime('%a %-I %p')) | truncate(250, true, '…', 0) if ns.best else 'none' }}

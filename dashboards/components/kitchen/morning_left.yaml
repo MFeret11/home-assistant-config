@@ -1,0 +1,4 @@
+# Weekday mornings (sensor.kitchen_display_mode = morning): clock and commute.
+- !include clock.yaml
+- !include commute_am.yaml
+- !include commute_drive.yaml

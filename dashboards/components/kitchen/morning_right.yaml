@@ -1,0 +1,3 @@
+# Weekday mornings: today's weather and events only.
+- !include weather_today.yaml
+- !include today_events.yaml

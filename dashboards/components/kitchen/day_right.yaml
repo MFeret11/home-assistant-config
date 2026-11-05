@@ -1,0 +1,6 @@
+# Rest of the day: game cards (game days only) and the week ahead.
+- !include game_eagles.yaml
+- !include game_sixers.yaml
+- !include game_phillies.yaml
+- !include game_flyers.yaml
+- !include week_planner.yaml
