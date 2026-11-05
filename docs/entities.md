@@ -57,7 +57,7 @@ _Moved verbatim from AGENTS.md. "§N" references point to the old AGENTS.md sect
 - `binary_sensor.basement_stairs_door_sensor`: Top door contact sensor (`device_class: opening`).
 - `binary_sensor.bottom_stairs`: Foot-of-stairs motion sensor (`device_class: motion`).
 - `binary_sensor.theater_mmwave_sensor`: Sonoff SNZB-06P mmWave presence sensor (ZHA, area Theater). Sees people sitting still. Device settings: `select.theater_mmwave_sensor_detection_sensitivity`, `number.theater_mmwave_sensor_presence_detection_timeout` (clear delay, seconds).
-- `binary_sensor.mmwave_sensor_bar`: Second Sonoff SNZB-06P mmWave presence sensor (ZHA), in the bar area. Not used by `basement.py` yet. Device settings: `select.mmwave_sensor_bar_detection_sensitivity`, `number.mmwave_sensor_bar_presence_detection_timeout`.
+- `binary_sensor.mmwave_sensor_bar`: Second Sonoff SNZB-06P mmWave presence sensor (ZHA), in the bar area. Counts as presence in `basement.py` (`_mmwave_occupied`, walk-out cancel and mmWave vacancy); unavailable counts as empty. Device settings: `select.mmwave_sensor_bar_detection_sensitivity`, `number.mmwave_sensor_bar_presence_detection_timeout`.
 - `switch.basement_adaptive_lighting_adaptive_lighting_basement_adaptive_lighting`: Adaptive Lighting master switch.
 - `input_select.basement_lighting_mode`: `Daily Driver` / `Social Mode`. The single source of truth for Social Mode (which is also the presence lock). The old `input_boolean.party_mode` / `input_boolean.presence_override` were removed.
 - `pyscript.basement_social_source`: who engaged Social Mode: `manual`, `sports`, or `none`. Only `sports` Social drops back to Daily when the theater switches to a movie or game.
