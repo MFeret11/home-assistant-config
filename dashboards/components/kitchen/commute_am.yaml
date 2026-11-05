@@ -89,12 +89,11 @@ card:
     {% endif %}
 
 
-    ---
+    {% if w.get('morning_warning') %}
+      ---
 
-
-    🧥 {{ states('sensor.commute_weather') | default('Check the
-    forecast', true) }}{% if w.get('morning_warning') %} · ☔ {{
-    w.get('morning_warning') }}{% endif %}
+      ☔ {{ w.get('morning_warning') }}
+    {% endif %}
   grid_options:
     columns: full
     rows: 5

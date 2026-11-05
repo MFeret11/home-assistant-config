@@ -52,6 +52,11 @@
 # <ha-icon icon="{{ wx_icon(cond, now_pop, night) }}"></ha-icon> {{ temp | round(0) | int if temp is number else '—' }}° · {{ _cond_text('cloudy' if cond in ['rainy'] and now_pop < 30 else cond) }}
 
 ### {% if hi is not none %}High {{ hi }}° · {% endif %}{% if lo is not none %}Low {{ lo }}°{% endif %}
+{%- set wear = states('sensor.commute_weather') %}
+{%- if wear not in ['unknown', 'unavailable', 'None', ''] %}
+
+### {{ wear }}
+{%- endif %}
 
 **{{ rain_line(hourly) }}**
 
