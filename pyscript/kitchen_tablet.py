@@ -120,7 +120,13 @@ def _in_wake_window():
 
 
 @state_trigger("binary_sensor.septa_am_window == 'on' or binary_sensor.drive_display_window == 'on'")
-def kitchen_tablet_wake():
+def kitchen_tablet_wake(var_name=None, value=None, old_value=None):
+    # Send once, when the first window opens. At 8 AM one window ends as the
+    # next begins; a second command then turned the screen off (2026-11-06).
+    if value != "on" or old_value == "on":
+        return
+    if any([state.get(e) == "on" for e in WAKE_WINDOWS if e != var_name]):
+        return
     _screen_command(True)
 
 
