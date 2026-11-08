@@ -598,7 +598,7 @@ views:
               type: custom:compact-team-tracker
               entities:
                 - sensor.philadelphia_eagles
-              layout: standard
+              layout: ultra  # one line: logos, abbreviations, time or score
               show_day_of_week: true
               show_tv_network: true
               show_league: false
@@ -618,7 +618,7 @@ views:
               type: custom:compact-team-tracker
               entities:
                 - sensor.nba_philadelphia_76ers
-              layout: standard
+              layout: ultra  # one line: logos, abbreviations, time or score
               show_day_of_week: true
               show_tv_network: true
               show_league: false
@@ -638,7 +638,7 @@ views:
               type: custom:compact-team-tracker
               entities:
                 - sensor.mlb_philadelphia_phillies
-              layout: standard
+              layout: ultra  # one line: logos, abbreviations, time or score
               show_day_of_week: true
               show_tv_network: true
               show_league: false
@@ -658,7 +658,7 @@ views:
               type: custom:compact-team-tracker
               entities:
                 - sensor.nhl_philadelphia_flyers
-              layout: standard
+              layout: ultra  # one line: logos, abbreviations, time or score
               show_day_of_week: true
               show_tv_network: true
               show_league: false
