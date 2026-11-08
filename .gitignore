@@ -31,6 +31,9 @@ www/community/
 themes/*/
 !themes/themes.yaml
 
+# WeatherTunes kitchen page and its daily cache (home forecast): ~/WeatherTunes/tools/kitchen_render.py
+www/weathertunes/
+
 # TTS/media cache
 tts/
 image/

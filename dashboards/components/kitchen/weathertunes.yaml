@@ -1,0 +1,23 @@
+# WeatherTunes widget: today's forecast played as a song, shown right on the
+# dashboard; tap the card to play. www/weathertunes/kitchen.html opens the newest
+# copy of the page (each version has its own folder, since /local/ files are cached
+# by browsers for a month). The Pi renders the song there every morning (cron,
+# ~/WeatherTunes/tools/kitchen_render.py), so it plays at once. The folder is
+# gitignored because it holds the home forecast. Bump v= if a browser keeps
+# showing an old version (HA lets browsers cache /local/ files for a month).
+type: iframe
+url: /local/weathertunes/kitchen.html?kitchen&widget&v=2
+allow: autoplay
+grid_options:
+  columns: full
+  rows: 3
+card_mod:
+  style: |
+      ha-card {
+        border-radius: 22px !important;
+        background: rgba(255, 255, 255, 0.04) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        backdrop-filter: blur(16px);
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+      }
