@@ -92,31 +92,27 @@ grid_options:
   columns: full
   rows: 5
 card_mod:
-  style: >
-    ha-card {
-      font-size: 22px;
-      line-height: 1.35;
-      text-align: center;
-      border-radius: 22px;
-      padding: 18px 14px;
-      backdrop-filter: blur(16px);
-      {% set level = states('sensor.commute_am_severity') %}
-      {% set is_alert = level == 'alert' %}
-      {% set is_warn = level == 'warn' %}
-      background: {{ 'linear-gradient(135deg, rgba(244, 67, 54, 0.4), rgba(183, 28, 28, 0.2))' if is_alert else ('linear-gradient(135deg, rgba(255, 179, 0, 0.35), rgba(255, 111, 0, 0.18))' if is_warn else 'rgba(255, 255, 255, 0.04)') }} !important;
-      border: {{ '2px solid rgba(244, 67, 54, 0.8)' if is_alert else ('1.5px solid rgba(255, 179, 0, 0.7)' if is_warn else '1px solid rgba(255, 255, 255, 0.1)') }} !important;
-      box-shadow: {{ '0 6px 24px rgba(244, 67, 54, 0.35)' if is_alert else '0 6px 20px rgba(0, 0, 0, 0.2)' }};
-      color: var(--primary-text-color);
-    }
-
-    ha-card h1 { font-size: 34px !important; margin: 0 0 6px 0
-    !important; font-weight: 700; }
-
-    ha-card h3 { font-size: 22px !important; margin: 0 0 8px 0
-    !important; opacity: 0.9; }
-
-    ha-card hr { border: none; border-top: 1px solid rgba(255,
-    255, 255, 0.12); margin: 10px 0; }
+  style:
+    .: >
+      ha-card {
+        font-size: 22px;
+        line-height: 1.35;
+        text-align: center;
+        padding: 18px 14px;
+        {% set level = states('sensor.commute_am_severity') %}
+        {% set is_alert = level == 'alert' %}
+        {% set is_warn = level == 'warn' %}
+        background: {{ 'linear-gradient(135deg, rgba(244, 67, 54, 0.4), rgba(183, 28, 28, 0.2))' if is_alert else ('linear-gradient(135deg, rgba(255, 179, 0, 0.35), rgba(255, 111, 0, 0.18))' if is_warn else 'rgba(255, 255, 255, 0.04)') }} !important;
+        border: {{ '2px solid rgba(244, 67, 54, 0.8)' if is_alert else ('1.5px solid rgba(255, 179, 0, 0.7)' if is_warn else '1px solid rgba(255, 255, 255, 0.1)') }} !important;
+        box-shadow: {{ '0 6px 24px rgba(244, 67, 54, 0.35)' if is_alert else '0 6px 20px rgba(0, 0, 0, 0.2)' }};
+        color: var(--primary-text-color);
+      }
+    # Headings sit inside ha-markdown's shadow root.
+    ha-markdown $: |
+      :host { text-align: center; }
+      h1 { font-size: 34px !important; margin: 0 0 6px 0 !important; font-weight: 700; }
+      h3 { font-size: 22px !important; margin: 0 0 8px 0 !important; opacity: 0.9; }
+      hr { border: none; border-top: 1px solid rgba(255, 255, 255, 0.12); margin: 10px 0; }
 visibility:
   - condition: state
     entity: binary_sensor.septa_am_window

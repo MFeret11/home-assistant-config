@@ -20,13 +20,22 @@ days: 7
 startingDay: today
 showWeekDayText: true
 timeFormat: "h:mm a"
-showLocation: true
+showLocation: false
 showLegend: true
+# An event on both personal calendars shows once, not twice.
+combineSimilarEvents: true
+maxDayEvents: 3
+texts:
+  noEvents: "–"
+# Column count goes by the card's own width. On the tablet the card is under
+# 640 px wide, which without extraSmall meant one day per row and a week that
+# ran off the screen.
 columns:
   extraLarge: 7
   large: 7
   medium: 4
   small: 2
+  extraSmall: 2
 eventBackground: "rgba(255, 255, 255, 0.06)"
 grid_options:
   columns: full
@@ -38,7 +47,13 @@ card_mod:
       border-radius: 22px !important;
       background: rgba(255, 255, 255, 0.04) !important;
       border: 1px solid rgba(255, 255, 255, 0.08) !important;
-      backdrop-filter: blur(16px);
       box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
       padding: 8px 12px;
     }
+    /* Today stands out; events already over fade back. */
+    .day.today {
+      background: rgba(232, 163, 61, 0.10);
+      border-radius: 12px;
+    }
+    .event.past { opacity: 0.4; }
+    .day .date .number { font-size: 2.2em !important; line-height: 1 !important; }

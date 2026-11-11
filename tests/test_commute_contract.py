@@ -291,7 +291,9 @@ def test_commute_card_rendering_matrix():
             text = _render(card["content"], state, commute)
             assert expect in text, f"{name} / {window}: expected {expect!r} in:\n{text}"
             assert "None" not in text, f"{name} / {window}: 'None' leaked into:\n{text}"
-            _render(card["card_mod"]["style"], state, commute)
+            # style is a dict: "." styles the card, "ha-markdown $" its headings.
+            for css in card["card_mod"]["style"].values():
+                _render(css, state, commute)
         print(f"    ✓ {name}")
 
     weather = {"morning_warning": "Heavy rain around 7AM", "evening_warning": "Rain likely (60%)"}
@@ -306,7 +308,7 @@ def test_commute_card_rendering_matrix():
     red = "rgba(244, 67, 54, 0.4)"
     alert = {**BASE, "service_alerts": ["Line A: Suspended"]}
     for window in ("am", "pm"):
-        style = cards[window]["card_mod"]["style"]
+        style = cards[window]["card_mod"]["style"]["."]
         assert red in _render(style, "alert", alert), f"{window} card not red for a line alert"
         assert red not in _render(style, "ok", BASE), f"{window} card red with nothing wrong"
     print("    ✓ Card turns red for a line alert")

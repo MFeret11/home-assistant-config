@@ -10,3 +10,44 @@
          (s == 'PRE' and d - now() < timedelta(hours=24))
          or (s == 'POST' and now() - d < timedelta(hours=12))))) | lower -}}
 {%- endmacro -%}
+
+{#- Kitchen games card (dashboards/components/kitchen/games.yaml): one row per
+    team whose game is live, starts within 24 hours or just ended. Shows the
+    start time in plain words ("Tonight 9:00 PM"), the live score, or the final. -#}
+{%- macro game_row(entity) -%}
+  {%- set s = states(entity) -%}
+  {%- set a = states[entity].attributes if states[entity] is not none else {} -%}
+  {%- set d = as_datetime(a.get('date')) -%}
+  {%- set d = d | as_local if d is not none else none -%}
+  {%- set away = a.get('team_homeaway') == 'away' -%}
+  {%- if s == 'PRE' -%}
+    {%- set mid = 'at' if away else 'vs' -%}
+    {%- if d is none -%}{%- set when = 'Upcoming' -%}
+    {%- else -%}
+      {%- set days = (d.date() - now().date()).days -%}
+      {%- set day = ('Tonight' if d.hour >= 17 else 'Today') if days == 0 else ('Tomorrow' if days == 1 else d.strftime('%A')) -%}
+      {%- set when = day ~ ' ' ~ d.strftime('%-I:%M %p') -%}
+    {%- endif -%}
+    {%- set note = a.get('tv_network') or '' -%}
+  {%- else -%}
+    {%- set mid = (a.get('team_score') or '0') ~ ' – ' ~ (a.get('opponent_score') or '0') -%}
+    {%- if s == 'POST' -%}{%- set when = 'Final' -%}{%- set note = '' -%}
+    {%- else -%}
+      {%- set q, clock = a.get('quarter'), a.get('clock') -%}
+      {%- set when = clock if (a.get('sport') == 'baseball' or not q) else (('P' if a.get('sport') == 'hockey' else 'Q') ~ q ~ ' · ' ~ clock) -%}
+      {%- set when = '🔴 ' ~ (when or 'Live') -%}
+      {%- set note = a.get('tv_network') or '' -%}
+    {%- endif -%}
+  {%- endif -%}
+<tr><td class="teams"><img src="{{ a.get('team_logo') }}" height="34"> {{ a.get('team_name') or '—' }} <span class="mid">{{ mid }}</span> {{ a.get('opponent_name') or '—' }} <img src="{{ a.get('opponent_logo') }}" height="34"></td><td class="when"><b>{{ when }}</b>{% if note %}<br><span class="note">{{ note }}</span>{% endif %}</td></tr>
+{%- endmacro -%}
+
+{%- macro games_panel() -%}
+<table>
+{%- for e in ['sensor.philadelphia_eagles', 'sensor.nba_philadelphia_76ers',
+              'sensor.mlb_philadelphia_phillies', 'sensor.nhl_philadelphia_flyers']
+    if game_soon(e) | string | trim == 'true' %}
+{{ game_row(e) }}
+{%- endfor %}
+</table>
+{%- endmacro -%}

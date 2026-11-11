@@ -235,7 +235,7 @@ cards:
             }
       - type: template
         icon: mdi:account-voice
-        content: PLII Movie
+        content: Decoder
         icon_color: cyan
         tap_action:
           action: perform-action
@@ -243,12 +243,12 @@ cards:
           target:
             entity_id: media_player.theater_receiver
           data:
-            sound_mode: PLII Movie
+            sound_mode: Surround Decoder
           haptic: light
         card_mod:
           style: |
             ha-card {
-              {% set on = state_attr('media_player.theater_receiver', 'sound_mode') == 'PLII Movie' %}
+              {% set on = state_attr('media_player.theater_receiver', 'sound_mode') == 'Surround Decoder' %}
               background: {{ 'rgba(255, 255, 255, 0.18)' if on else 'var(--chip-background, rgba(255, 255, 255, 0.05))' }} !important;
               border: {{ '1.5px solid rgba(255, 255, 255, 0.8)' if on else '1px solid transparent' }} !important;
             }

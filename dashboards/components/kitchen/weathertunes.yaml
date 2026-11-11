@@ -8,16 +8,20 @@
 type: iframe
 url: /local/weathertunes/kitchen.html?kitchen&widget&v=2
 allow: autoplay
+# Hidden while Spotify is playing or the train-home card is up: those take
+# this slot so the page never needs scrolling.
+visibility:
+  - condition: state
+    entity: media_player.whole_house_spotify
+    state_not: playing
+  - condition: state
+    entity: binary_sensor.kitchen_show_pm_commute
+    state_not: "on"
 grid_options:
   columns: full
   rows: 3
 card_mod:
   style: |
       ha-card {
-        border-radius: 22px !important;
-        background: rgba(255, 255, 255, 0.04) !important;
-        border: 1px solid rgba(255, 255, 255, 0.08) !important;
-        backdrop-filter: blur(16px);
-        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
         overflow: hidden;
       }

@@ -10,12 +10,15 @@ grid_options:
   columns: full
   rows: auto
 card_mod:
-  style: |
-    ha-card {
-      border-radius: 22px !important;
-      background: linear-gradient(135deg, rgba(244, 67, 54, 0.4), rgba(183, 28, 28, 0.2)) !important;
-      border: 2px solid rgba(244, 67, 54, 0.8) !important;
-      text-align: center;
-      padding: 10px 16px;
-    }
-    ha-card h2 { font-size: 26px !important; margin: 0 !important; }
+  style:
+    .: |
+      ha-card {
+        background: linear-gradient(135deg, rgba(244, 67, 54, 0.4), rgba(183, 28, 28, 0.2)) !important;
+        border: 2px solid rgba(244, 67, 54, 0.8) !important;
+        text-align: center;
+        padding: 10px 16px;
+      }
+    # Headings and tables sit inside ha-markdown's shadow root.
+    ha-markdown $: |
+      :host { text-align: center; }
+      h2 { font-size: 26px !important; margin: 0 !important; }

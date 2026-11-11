@@ -6,25 +6,24 @@ grid_options:
   columns: full
   rows: auto
 card_mod:
-  style: |
+  style:
+    .: |
       ha-card {
-        border-radius: 22px !important;
-        background: rgba(255, 255, 255, 0.04) !important;
-        border: 1px solid rgba(255, 255, 255, 0.08) !important;
-        backdrop-filter: blur(16px);
-        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
         padding: 16px 18px;
         text-align: center;
         font-size: 22px;
         color: var(--primary-text-color);
       }
-      ha-card h1 { font-size: 60px !important; line-height: 1.1 !important; margin: 0 0 4px 0 !important; font-weight: 700; }
-      ha-card h1 ha-icon { --mdc-icon-size: 60px; vertical-align: -6px; }
-      ha-card h3 { font-size: 22px !important; margin: 0 0 8px 0 !important; opacity: 0.85; font-weight: 500; }
-      ha-card p { margin: 6px 0 !important; }
-      ha-card table { width: 100%; table-layout: fixed; border-collapse: collapse; margin: 10px 0 2px 0; }
-      ha-card td { text-align: center; border: none !important; padding: 2px 0 !important; font-size: 20px; }
-      ha-card tr:first-child td { font-size: 16px; opacity: 0.7; }
-      ha-card td ha-icon { --mdc-icon-size: 40px; }
-      ha-card tr:last-child td { font-size: 24px; }
-      ha-card hr { border: none; border-top: 1px solid rgba(255, 255, 255, 0.12); margin: 12px 0 4px 0; }
+    # Headings and tables sit inside ha-markdown's shadow root.
+    ha-markdown $: |
+      :host { text-align: center; }
+      h1 { font-size: 44px !important; white-space: nowrap; line-height: 1.1 !important; margin: 0 0 4px 0 !important; font-weight: 700; }
+      h1 ha-icon { --mdc-icon-size: 44px; vertical-align: -5px; }
+      h3 { font-size: 22px !important; margin: 0 0 8px 0 !important; opacity: 0.85; font-weight: 500; }
+      p { margin: 6px 0 !important; }
+      table { width: 100%; table-layout: fixed; border-collapse: collapse; margin: 10px 0 2px 0; }
+      td { text-align: center; border: none !important; padding: 2px 0 !important; font-size: 20px; }
+      tr:first-child td { font-size: 16px; opacity: 0.7; }
+      td ha-icon { --mdc-icon-size: 40px; }
+      tr:last-child td { font-size: 24px; }
+      hr { border: none; border-top: 1px solid rgba(255, 255, 255, 0.12); margin: 12px 0 4px 0; }

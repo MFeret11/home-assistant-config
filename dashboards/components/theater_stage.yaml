@@ -198,9 +198,6 @@ cards:
             style: |
               ha-card {
                 margin: 2px 0 !important;
-                border-radius: 18px !important;
-                background: rgba(255, 255, 255, 0.03) !important;
-                border: 1px solid rgba(255, 255, 255, 0.08) !important;
               }
 
         # ASUS ROG Gaming PC Power Switch
@@ -303,17 +300,3 @@ cards:
                 - icon: mdi:party-popper
                 - icon_color: red
                 - uri: "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M"
-        # Interactive Spotify Library Browser Card
-        - type: custom:spotify-card
-          account: default
-          spotify_entity: media_player.whole_house_spotify
-          display_style: list
-          card_mod:
-            style: |
-              ha-card {
-                contain: content !important;
-                border-radius: 18px !important;
-                background: rgba(255, 255, 255, 0.03) !important;
-                border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                margin-top: 4px !important;
-              }

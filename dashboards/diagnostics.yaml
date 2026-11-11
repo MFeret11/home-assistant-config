@@ -101,9 +101,6 @@ views:
                 card_mod:
                   style: |
                     ha-card {
-                      background: rgba(255, 255, 255, 0.04) !important;
-                      border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                      border-radius: 20px !important;
                       padding: 6px 10px !important;
                     }
               - type: custom:mushroom-template-card
@@ -115,9 +112,6 @@ views:
                 card_mod:
                   style: |
                     ha-card {
-                      background: rgba(255, 255, 255, 0.04) !important;
-                      border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                      border-radius: 20px !important;
                       padding: 6px 10px !important;
                     }
               - type: custom:mushroom-template-card
@@ -129,9 +123,6 @@ views:
                 card_mod:
                   style: |
                     ha-card {
-                      background: rgba(255, 255, 255, 0.04) !important;
-                      border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                      border-radius: 20px !important;
                       padding: 6px 10px !important;
                     }
               - type: custom:mushroom-template-card
@@ -144,9 +135,6 @@ views:
                 card_mod:
                   style: |
                     ha-card {
-                      background: rgba(255, 255, 255, 0.04) !important;
-                      border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                      border-radius: 20px !important;
                       padding: 6px 10px !important;
                     }
 
@@ -195,9 +183,6 @@ views:
             card_mod:
               style: |
                 ha-card {
-                  border-radius: 20px !important;
-                  background: rgba(255, 255, 255, 0.03) !important;
-                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
                   font-size: 1.05rem;
                 }
           - type: entities
@@ -239,13 +224,6 @@ views:
                 name: Missing Entities
               - entity: sensor.watchman_missing_actions
                 name: Missing Actions
-            card_mod:
-              style: |
-                ha-card {
-                  border-radius: 20px !important;
-                  background: rgba(255, 255, 255, 0.03) !important;
-                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                }
       - type: grid
         cards:
           - type: heading
@@ -277,13 +255,6 @@ views:
               - entity: sensor.system_monitor_uptime
                 name: System Uptime
                 icon: mdi:clock-outline
-            card_mod:
-              style: |
-                ha-card {
-                  border-radius: 20px !important;
-                  background: rgba(255, 255, 255, 0.03) !important;
-                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                }
           - type: heading
             heading: Theater & AV Hardware
             icon: mdi:theater
@@ -321,13 +292,6 @@ views:
                 name: Optoma Projector Relay
               - entity: sensor.projector_current
                 name: Projector Current Draw (Raw)
-            card_mod:
-              style: |
-                ha-card {
-                  border-radius: 20px !important;
-                  background: rgba(255, 255, 255, 0.03) !important;
-                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                }
           - type: custom:mini-graph-card
             # Only recorded sensors can be graphed; theater_total_power is excluded.
             name: Projector Cooldown (24h)
@@ -346,13 +310,6 @@ views:
               legend: true
               average: true
               extrema: true
-            card_mod:
-              style: |
-                ha-card {
-                  border-radius: 20px !important;
-                  background: rgba(255, 255, 255, 0.03) !important;
-                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                }
       - type: grid
         cards:
           - type: heading
@@ -382,13 +339,6 @@ views:
               - entity: >-
                   switch.adaptive_lighting_basement_adaptive_lighting_adaptive_lighting_adapt_color_basement_adaptive_lighting
                 name: Adapt Color
-            card_mod:
-              style: |
-                ha-card {
-                  border-radius: 20px !important;
-                  background: rgba(255, 255, 255, 0.03) !important;
-                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                }
       - type: grid
         cards:
           - type: heading
@@ -422,13 +372,6 @@ views:
                 name: Master Lounge Zigbee Group
               - entity: light.zigbee_basement_lights
                 name: Master Basement Zigbee Group
-            card_mod:
-              style: |
-                ha-card {
-                  border-radius: 20px !important;
-                  background: rgba(255, 255, 255, 0.03) !important;
-                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                }
       - type: grid
         cards:
           - type: heading
@@ -504,13 +447,6 @@ views:
                 row:
                   entity: sensor.tuner1_network_rate
                   name: Stream Rate
-            card_mod:
-              style: |
-                ha-card {
-                  border-radius: 20px !important;
-                  background: rgba(255, 255, 255, 0.03) !important;
-                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                }
 
   # Consumables, batteries and updates: everything that wears out or needs a hand.
   - title: Maintenance
@@ -580,13 +516,6 @@ views:
             entities:
               - entity: input_number.acura_tl_odometer
                 name: Acura TL odometer
-            card_mod:
-              style: |
-                ha-card {
-                  border-radius: 20px !important;
-                  background: rgba(255, 255, 255, 0.03) !important;
-                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                }
           - type: heading
             heading: Needs Attention
             icon: mdi:alert-circle-outline
@@ -599,9 +528,6 @@ views:
             card_mod:
               style: |
                 ha-card {
-                  border-radius: 20px !important;
-                  background: rgba(255, 255, 255, 0.03) !important;
-                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
                   font-size: 1.05rem;
                 }
           - type: heading
@@ -619,13 +545,6 @@ views:
             else:
               type: markdown
               content: ✅ Everything is up to date
-            card_mod:
-              style: |
-                ha-card {
-                  border-radius: 20px !important;
-                  background: rgba(255, 255, 255, 0.03) !important;
-                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                }
 
       - type: grid
         cards:
@@ -754,13 +673,6 @@ views:
                 format: relative
               - entity: sensor.vaculina_cleaning_count
                 name: Total Cleans
-            card_mod:
-              style: |
-                ha-card {
-                  border-radius: 20px !important;
-                  background: rgba(255, 255, 255, 0.03) !important;
-                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                }
 
       - type: grid
         cards:
@@ -779,13 +691,6 @@ views:
                 name: Total Pages
               - entity: sensor.brother_status
                 name: Status
-            card_mod:
-              style: |
-                ha-card {
-                  border-radius: 20px !important;
-                  background: rgba(255, 255, 255, 0.03) !important;
-                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                }
           - type: heading
             heading: Batteries
             icon: mdi:battery-heart-variant
@@ -801,10 +706,3 @@ views:
             sort:
               method: state
               numeric: true
-            card_mod:
-              style: |
-                ha-card {
-                  border-radius: 20px !important;
-                  background: rgba(255, 255, 255, 0.03) !important;
-                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                }

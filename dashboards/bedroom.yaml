@@ -72,9 +72,6 @@ views:
             card_mod:
               style: |
                 ha-card {
-                  background: rgba(255, 255, 255, 0.04) !important;
-                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                  border-radius: 20px !important;
                   padding: 8px 12px !important;
                 }
           - type: horizontal-stack
@@ -199,9 +196,6 @@ views:
                 card_mod:
                   style: |
                     ha-card {
-                      background: rgba(255, 255, 255, 0.04) !important;
-                      border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                      border-radius: 20px !important;
                       padding: 12px 8px !important;
                     }
               - type: custom:mushroom-light-card
@@ -221,8 +215,5 @@ views:
                 card_mod:
                   style: |
                     ha-card {
-                      background: rgba(255, 255, 255, 0.04) !important;
-                      border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                      border-radius: 20px !important;
                       padding: 12px 8px !important;
                     }

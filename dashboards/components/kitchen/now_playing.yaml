@@ -1,4 +1,4 @@
-# Spotify controls, only while something is playing.
+# Spotify controls, only while something is playing; takes the WeatherTunes slot.
 type: custom:mini-media-player
 entity: media_player.whole_house_spotify
 artwork: cover
@@ -8,13 +8,16 @@ hide:
 card_mod:
   style: |
     ha-card {
-      border-radius: 22px !important;
       overflow: hidden;
     }
 visibility:
   - condition: state
     entity: media_player.whole_house_spotify
     state: playing
+  # No room beside the train-home card.
+  - condition: state
+    entity: binary_sensor.kitchen_show_pm_commute
+    state_not: "on"
 grid_options:
   columns: full
   rows: auto

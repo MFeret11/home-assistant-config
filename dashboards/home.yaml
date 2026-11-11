@@ -252,9 +252,6 @@ views:
                 card_mod:
                   style: |
                     ha-card {
-                      border-radius: 18px !important;
-                      background: rgba(255, 255, 255, 0.04) !important;
-                      border: 1px solid rgba(255, 255, 255, 0.08) !important;
                       margin-bottom: 4px !important;
                     }
 
@@ -268,8 +265,13 @@ views:
                     icon: mdi:layers-outline
                   - entity: select.vaculina_cleangenius
                     name: CleanGenius
-                  - entity: select.vaculina_cleangenius_mode
-                    name: CleanGenius Mode
+                  - type: conditional
+                    conditions:
+                      - entity: select.vaculina_cleangenius_mode
+                        state_not: unavailable
+                    row:
+                      entity: select.vaculina_cleangenius_mode
+                      name: CleanGenius Mode
                   - type: conditional
                     conditions:
                       - entity: select.vaculina_cleaning_mode
@@ -294,9 +296,6 @@ views:
                 card_mod:
                   style: |
                     ha-card {
-                      border-radius: 18px !important;
-                      background: rgba(255, 255, 255, 0.04) !important;
-                      border: 1px solid rgba(255, 255, 255, 0.08) !important;
                       margin-bottom: 4px !important;
                     }
 
@@ -540,9 +539,6 @@ views:
                   style: |
                     ha-card {
                       contain: content !important;
-                      border-radius: 20px !important;
-                      background: rgba(255, 255, 255, 0.03) !important;
-                      border: 1px solid rgba(255, 255, 255, 0.08) !important;
                     }
 
               # Quick Controls
@@ -603,6 +599,8 @@ views:
               show_tv_network: true
               show_league: false
               show_event_name: false
+              date_format: MM/DD/YYYY
+              time_format: 12h
               card_mod:
                 style: |
                   ha-card {
@@ -623,6 +621,8 @@ views:
               show_tv_network: true
               show_league: false
               show_event_name: false
+              date_format: MM/DD/YYYY
+              time_format: 12h
               card_mod:
                 style: |
                   ha-card {
@@ -643,6 +643,8 @@ views:
               show_tv_network: true
               show_league: false
               show_event_name: false
+              date_format: MM/DD/YYYY
+              time_format: 12h
               card_mod:
                 style: |
                   ha-card {
@@ -663,6 +665,8 @@ views:
               show_tv_network: true
               show_league: false
               show_event_name: false
+              date_format: MM/DD/YYYY
+              time_format: 12h
               card_mod:
                 style: |
                   ha-card {
@@ -719,11 +723,18 @@ views:
                 entity: binary_sensor.theater_in_use
                 state: "on"
             card:
-              type: custom:mushroom-media-player-card
-              entity: media_player.onn_pro
-              name: Cinema Playing
-              use_media_info: true
-              show_volume_level: false
+              # Title from the poster sensor (theater.py), so it is right in every
+              # mode; the Onn's own media info is empty for music and games.
+              type: custom:mushroom-template-card
+              primary: >-
+                {{ state_attr('sensor.theater_current_poster', 'title') or 'Theater in use' }}
+              secondary: >-
+                {%- set sub = state_attr('sensor.theater_current_poster', 'subtitle') -%}
+                {{ states('sensor.theater_mode') | title }}{{ ' · ' ~ sub if sub else '' }}
+              icon: >-
+                {{ {'movie': 'mdi:movie-open', 'sports': 'mdi:football', 'game': 'mdi:gamepad-variant',
+                    'music': 'mdi:music'}.get(states('sensor.theater_mode'), 'mdi:theater') }}
+              icon_color: blue
               layout: horizontal
               tap_action:
                 action: navigate
@@ -778,9 +789,6 @@ views:
               card_mod:
                 style: |
                   ha-card {
-                    border-radius: 20px !important;
-                    background: rgba(255, 255, 255, 0.04) !important;
-                    border: 1px solid rgba(255, 255, 255, 0.08) !important;
                     margin-bottom: 6px !important;
                   }
 
@@ -819,6 +827,15 @@ views:
             conditions:
               - condition: state
                 entity: sensor.philadelphia_eagles
+                state_not: IN
+              - condition: state
+                entity: sensor.nba_philadelphia_76ers
+                state_not: IN
+              - condition: state
+                entity: sensor.mlb_philadelphia_phillies
+                state_not: IN
+              - condition: state
+                entity: sensor.nhl_philadelphia_flyers
                 state_not: IN
               - condition: state
                 entity: binary_sensor.septa_am_window
@@ -871,9 +888,6 @@ views:
             card_mod:
               style: |
                 ha-card {
-                  background: rgba(255, 255, 255, 0.04) !important;
-                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                  border-radius: 20px;
                   margin-bottom: 6px;
                 }
 
@@ -942,9 +956,6 @@ views:
                 card_mod:
                   style: |
                     ha-card {
-                      background: rgba(255, 255, 255, 0.04) !important;
-                      border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                      border-radius: 20px !important;
                       padding: 6px 8px !important;
                     }
                     ha-card:active { transform: scale(0.95); }
@@ -953,7 +964,7 @@ views:
             cards:
               - type: custom:mushroom-template-card
                 primary: History
-                secondary: 24h Activity
+                secondary: 48h Activity
                 icon: mdi:chart-timeline-variant-shimmer
                 icon_color: purple
                 layout: horizontal
@@ -964,9 +975,6 @@ views:
                 card_mod:
                   style: |
                     ha-card {
-                      background: rgba(255, 255, 255, 0.04) !important;
-                      border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                      border-radius: 20px !important;
                       padding: 6px 8px !important;
                     }
                     ha-card:active { transform: scale(0.95); }
@@ -985,9 +993,6 @@ views:
                 card_mod:
                   style: |
                     ha-card {
-                      background: rgba(255, 255, 255, 0.04) !important;
-                      border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                      border-radius: 20px !important;
                       padding: 6px 8px !important;
                     }
                     ha-card:active { transform: scale(0.95); }
@@ -1032,9 +1037,6 @@ views:
                 card_mod:
                   style: |
                     ha-card {
-                      background: rgba(255, 255, 255, 0.04) !important;
-                      border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                      border-radius: 20px !important;
                       padding: 6px 8px !important;
                     }
                     ha-card:active { transform: scale(0.95); }
@@ -1128,13 +1130,6 @@ views:
                     name: Filament
                   - entity: light.office_creality_printer_light
                     name: Printer Light
-                card_mod:
-                  style: |
-                    ha-card {
-                      border-radius: 20px !important;
-                      background: rgba(255, 255, 255, 0.03) !important;
-                      border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                    }
 
       # =========================================================
       # SECTION 4: FORECAST
@@ -1155,7 +1150,5 @@ views:
               style: |
                 ha-card {
                   border-radius: 24px !important;
-                  background: rgba(255, 255, 255, 0.03) !important;
-                  border: 1px solid rgba(255, 255, 255, 0.08) !important;
                   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
                 }

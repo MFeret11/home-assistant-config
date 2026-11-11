@@ -1,0 +1,40 @@
+# Philly games: one row per team whose game is live, starts within 24 h, or
+# ended in the last 12 h (binary_sensor.*_game_soon, packages/sports.yaml).
+# Markup: custom_templates/sports.jinja games_panel().
+type: markdown
+content: >-
+  {% from 'sports.jinja' import games_panel %}{{ games_panel() }}
+visibility:
+  - condition: or
+    conditions:
+      - condition: state
+        entity: binary_sensor.eagles_game_soon
+        state: "on"
+      - condition: state
+        entity: binary_sensor.sixers_game_soon
+        state: "on"
+      - condition: state
+        entity: binary_sensor.phillies_game_soon
+        state: "on"
+      - condition: state
+        entity: binary_sensor.flyers_game_soon
+        state: "on"
+grid_options:
+  columns: full
+  rows: auto
+card_mod:
+  style:
+    .: |
+      ha-card {
+        padding: 4px 16px;
+        font-size: 22px;
+      }
+    # Table cells sit inside ha-markdown's shadow root.
+    ha-markdown $: |
+      table { width: 100%; border-collapse: collapse; margin: 0; }
+      td { border: none !important; padding: 6px 0 !important; vertical-align: middle; }
+      td.teams { font-weight: 600; }
+      td.teams img { vertical-align: middle; }
+      td.teams .mid { opacity: 0.6; font-weight: 400; padding: 0 4px; }
+      td.when { text-align: right; white-space: nowrap; }
+      td.when .note { font-size: 15px; opacity: 0.7; }
