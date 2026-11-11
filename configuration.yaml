@@ -89,6 +89,10 @@ recorder:
       - sensor.kitchen_display_mode
       - sensor.kitchen_weather
       - sensor.kitchen_today_events
+      # Neutral copies of the location trackers (private package); the
+      # coordinates are not kept in history.
+      - sensor.partner_location
+      - sensor.me_location
   # No include list on purpose: with exclude-only filters HA records everything
   # not listed above, so the receiver and projector power state stay recorded.
 

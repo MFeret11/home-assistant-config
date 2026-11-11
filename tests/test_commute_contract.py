@@ -73,6 +73,7 @@ EXPECTED_COMMUTE_ATTRIBUTES = {
     "arrival_time", "planned_arrival_time", "actual_arrival_time", "total_delay_minutes",
     "missed_connection", "planned_connection_cancelled", "planned_connection_train",
     "backup_train_departure", "data_stale", "service_alerts", "alerts_unavailable",
+    "rider_on_train", "rider_home", "rider_location_age_minutes",
 }
 
 EXPECTED_WEATHER_ATTRIBUTES = {
@@ -304,6 +305,14 @@ def test_commute_card_rendering_matrix():
     dry = _render(cards["am"]["content"], "ok", BASE, {"morning_warning": None})
     assert "☔" not in dry and "None" not in dry, dry
     print("    ✓ Weather warnings")
+
+    # GPS: the train the commuter is on, and a plain "home" once they are back.
+    riding = _render(cards["pm"]["content"], "ok", {**BASE, "rider_on_train": "1234"})
+    assert "On train 1234 now" in riding, riding
+    assert "On train" not in _render(cards["pm"]["content"], "ok", BASE)
+    home = _render(cards["pm"]["content"], "ok", {**BASE, "rider_home": True})
+    assert "🏡 Home" in home and "Train " not in home, home
+    print("    ✓ Rider location")
 
     red = "rgba(244, 67, 54, 0.4)"
     alert = {**BASE, "service_alerts": ["Line A: Suspended"]}

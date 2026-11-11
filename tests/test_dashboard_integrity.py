@@ -64,7 +64,7 @@ REGISTERED_ENTITIES = {
     "sensor.septa_commute", "sensor.commute_weather", "sensor.commute_drive_time",
     "sensor.commute_am_severity", "sensor.commute_pm_severity",
     "sensor.maintenance_attention", "sensor.next_calendar_event", "binary_sensor.theater_media_playing",
-    "sensor.cameras_online",
+    "sensor.cameras_online", "sensor.partner_location", "sensor.me_location",
     "weather.whole_house_national_weather_service_kphl", "weather.forecast_home",
     "calendar.matt", "calendar.partner", "calendar.family", "calendar.birthdays",
     "vacuum.vaculina", "camera.vaculina_map",

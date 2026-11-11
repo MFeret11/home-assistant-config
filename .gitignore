@@ -49,3 +49,5 @@ context.md
 
 # Private dashboard values (real names), loaded with !include
 dashboards/private/
+# Private packages: entity IDs that contain real names (see packages/private_*.yaml)
+packages/private_*.yaml

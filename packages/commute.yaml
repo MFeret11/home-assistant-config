@@ -57,6 +57,11 @@ rest:
           - preferred_transfer_station
           - service_alerts
           - alerts_unavailable
+          # From the commuter's GPS (pyscript/commute_location.py posts it):
+          # the train they are on, whether they are home, age of the position.
+          - rider_on_train
+          - rider_home
+          - rider_location_age_minutes
 
   - resource: "http://127.0.0.1:8000/api/weather"
     scan_interval: 300
@@ -125,4 +130,4 @@ template:
              or c.get('at_risk', false)
              or c.get('is_stalled', false) or c.get('connection_is_stalled', false)
              or c.get('origin_delay_unknown', false) or c.get('connection_delay_unknown', false) %}
-          {{ 'alert' if alert else ('warn' if warn else 'ok') }}
+          {{ 'ok' if c.get('rider_home', false) else ('alert' if alert else ('warn' if warn else 'ok')) }}
