@@ -12,7 +12,11 @@ content: >-
     🚨 **{{ a | truncate(160) }}**
   {% endfor %}
 
-  {% if origin is none or states('sensor.septa_commute') in ['unavailable', 'unknown', 'error', 'idle'] %}
+  {% if c.get('rider_home', false) %}
+    # 🏡 Home
+
+    ### Already back, no train to watch
+  {% elif origin is none or states('sensor.septa_commute') in ['unavailable', 'unknown', 'error', 'idle'] %}
     # ⚠️ Train times unavailable
 
     ### Check SEPTA before heading home
@@ -66,6 +70,10 @@ content: >-
       # 🟢 On Time
     {% endif %}
 
+    {% if c.get('rider_on_train') %}
+    📍 **On train {{ c.get('rider_on_train') }} now**
+    {% endif %}
+
     Train {{ c.get('origin_train') }} at {{ c.get('origin_actual_departure_time', '—') }} · {{ origin }}{% if c.get('trip_type') == 'transfer' %} → {{ c.get('connection_line', '—') }} via {{ c.get('connection_station', '—') }}{{ track_str }}{% endif %}
 
     ---
@@ -86,7 +94,7 @@ content: >-
   {% endif %}
 grid_options:
   columns: full
-  rows: 5
+  rows: auto
 card_mod:
   style:
     .: >

@@ -90,7 +90,7 @@ content: >-
   {% endif %}
 grid_options:
   columns: full
-  rows: 5
+  rows: auto
 card_mod:
   style:
     .: >

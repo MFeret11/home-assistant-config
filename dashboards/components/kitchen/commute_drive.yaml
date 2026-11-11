@@ -11,7 +11,7 @@ content: >-
   | default('—', true) }}
 grid_options:
   columns: full
-  rows: 3
+  rows: auto
 card_mod:
   style:
     .: >

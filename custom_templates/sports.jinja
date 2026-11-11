@@ -39,7 +39,7 @@
       {%- set note = a.get('tv_network') or '' -%}
     {%- endif -%}
   {%- endif -%}
-<tr><td class="teams"><img src="{{ a.get('team_logo') }}" height="34"> {{ a.get('team_name') or '—' }} <span class="mid">{{ mid }}</span> {{ a.get('opponent_name') or '—' }} <img src="{{ a.get('opponent_logo') }}" height="34"></td><td class="when"><b>{{ when }}</b>{% if note %}<br><span class="note">{{ note }}</span>{% endif %}</td></tr>
+<tr><td class="teams"><img src="{{ a.get('team_logo') }}" height="34"> {{ a.get('team_name') or '—' }} <span class="mid">{{ mid }}</span> {{ a.get('opponent_name') or '—' }} <img src="{{ a.get('opponent_logo') }}" height="34"></td><td class="when">{% if note %}<span class="note">{{ note }} · </span>{% endif %}<b>{{ when }}</b></td></tr>
 {%- endmacro -%}
 
 {%- macro games_panel() -%}
