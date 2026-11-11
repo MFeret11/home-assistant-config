@@ -466,6 +466,18 @@ def _read_secret(key_name):
     return val or None
 
 
+def _is_stale_music_session(mp):
+    """True when a player's media info belongs to Spotify/music, not the video on screen."""
+    app = str(safe_state_getattr(mp, "app_name") or "").lower()
+    if "spotify" in app:
+        return True
+    if str(safe_state_getattr(mp, "media_content_type") or "").lower() == "music":
+        return True
+    title = safe_state_getattr(mp, "media_title")
+    spotify_title = safe_state_getattr(SPOTIFY_PLAYER, "media_title")
+    return bool(title and spotify_title and str(title).strip() == str(spotify_title).strip())
+
+
 def get_active_media_info():
     title = None
     artist = None
@@ -473,8 +485,15 @@ def get_active_media_info():
 
     app_id = get_active_app_id()
 
+    # A Spotify session left open on the Onn keeps reporting its last song after
+    # another app takes the screen; skip those players so the song isn't looked
+    # up as a movie.
+    players = [ONN_PRO, ONN_PRO_2]
+    if app_id not in MUSIC_APPS:
+        players = [mp for mp in players if not _is_stale_music_session(mp)]
+
     if not title:
-        for mp in [ONN_PRO, ONN_PRO_2]:
+        for mp in players:
             for attr in ["media_title", "media_series_title", "title"]:
                 val = safe_state_getattr(mp, attr)
                 if val and str(val).strip() not in ["unknown", "unavailable", "None", ""]:
@@ -484,7 +503,7 @@ def get_active_media_info():
                 break
 
     if not artist:
-        for mp in [ONN_PRO, ONN_PRO_2]:
+        for mp in players:
             for a_attr in ["media_series_title", "media_artist", "artist"]:
                 val = safe_state_getattr(mp, a_attr)
                 if val and str(val).strip() not in ["unknown", "unavailable", "None", ""]:
@@ -664,6 +683,30 @@ def _fetch_json(service_name, url, headers=None, timeout=5):
     return None
 
 
+def _title_words(text):
+    return [w for w in re.sub(r"[^a-z0-9]+", " ", str(text or "").lower()).split() if w]
+
+
+def _title_resembles(candidate, item):
+    """True when a TMDB result's name plausibly is the title searched for:
+    one contains the other, or they share most of the shorter one's words."""
+    want = _title_words(candidate)
+    if not want:
+        return False
+    for key in ("title", "name", "original_title", "original_name"):
+        have = _title_words(item.get(key))
+        if not have:
+            continue
+        a, b = " ".join(want), " ".join(have)
+        if a in b or b in a:
+            return True
+        shorter = want if len(want) <= len(have) else have
+        shared = len(set(want) & set(have))
+        if shared / len(set(shorter)) >= 0.6:
+            return True
+    return False
+
+
 def _movie_or_tv_art_lookup(raw_title, artist=None):
     if not raw_title and not artist:
         return None
@@ -694,13 +737,16 @@ def _movie_or_tv_art_lookup(raw_title, artist=None):
             results = (data or {}).get("results", [])
             if not results:
                 continue
+            # Take the first top result that has a poster and whose name resembles
+            # what was searched; TMDB pads thin searches with unrelated titles.
             best = None
             for item in results[:5]:
-                if item.get("media_type") in ["movie", "tv"] and item.get("poster_path"):
+                if (item.get("media_type") in ["movie", "tv"] and item.get("poster_path")
+                        and _title_resembles(candidate, item)):
                     best = item
                     break
             if not best:
-                best = results[0]
+                continue
             poster_path = best.get("poster_path")
             backdrop_path = best.get("backdrop_path")
             if poster_path:

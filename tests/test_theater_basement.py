@@ -1086,6 +1086,49 @@ def test_stremio_movie_title_resolution():
     print("  ✓ [Atmospheric] test_stremio_movie_title_resolution PASSED")
 
 
+def test_stale_spotify_title_ignored_in_movie_mode():
+    """A Spotify session left on the Onn's Cast player must not be looked up as a movie."""
+    setup_clean_environment()
+    state.set("sensor.theater_mode", "movie")
+    state.set("binary_sensor.theater_in_use", "on")
+    state._attrs.setdefault("media_player.onn_pro", {})["app_id"] = "com.stremio.one"
+    state.set("media_player.theater_onn_pro_adb", "playing")
+    cast = state._attrs.setdefault("media_player.onn_pro_2", {})
+    cast["app_name"] = "Spotify"
+    cast["media_content_type"] = "music"
+    cast["media_title"] = "Hands Clean"
+    cast["media_artist"] = "Alanis Morissette"
+
+    info = theater.get_active_media_info()
+    assert info["title"] is None, f"FAIL: stale Spotify title used: {info['title']!r}"
+    assert info["artist"] is None, f"FAIL: stale Spotify artist used: {info['artist']!r}"
+
+    theater.update_theater_media_art()
+    assert state.getattr("sensor.theater_current_poster", "raw_title") in ("", None), "FAIL: poster looked up the song!"
+    print("  ✓ [Atmospheric] test_stale_spotify_title_ignored_in_movie_mode PASSED")
+
+
+def test_tmdb_rejects_unrelated_result():
+    """A TMDB hit whose name is nothing like the search must not become the poster."""
+    assert theater._title_resembles("Futurama", {"name": "Futurama"})
+    assert theater._title_resembles("Inception", {"title": "Inception: The Cobol Job"})
+    assert theater._title_resembles("The Backrooms", {"title": "Backrooms"})
+    assert not theater._title_resembles("Avatar: Seven Havens", {"name": "The Order"})
+
+    saved = (theater._fetch_json, theater._read_secret)
+    theater._ART_CACHE.clear()
+    theater._read_secret = lambda key: "k" if key == "tmdb_api_key" else None
+    theater._fetch_json = lambda service, url, headers=None, timeout=5: (
+        {"results": [{"media_type": "tv", "name": "The Order", "poster_path": "/x.jpg"}]}
+        if service == "tmdb" else None)
+    try:
+        assert theater._movie_or_tv_art_lookup("Avatar: Seven Havens") is None, "FAIL: unrelated TMDB result accepted!"
+    finally:
+        theater._fetch_json, theater._read_secret = saved
+        theater._ART_CACHE.clear()
+    print("  ✓ [Atmospheric] test_tmdb_rejects_unrelated_result PASSED")
+
+
 # ==============================================================================
 # SUITE 8: ATMOSPHERIC ENGINE & PRE-SHOW (5 TESTS)
 # ==============================================================================
@@ -3920,6 +3963,8 @@ if __name__ == "__main__":
         test_play_movie_resets_center_trim,
         test_stremio_futurama_episode_art_resolution,
         test_stremio_movie_title_resolution,
+        test_stale_spotify_title_ignored_in_movie_mode,
+        test_tmdb_rejects_unrelated_result,
         # Suite 8: Atmospheric Engine & Pre-Show (5)
         test_lobby_browsing_android_launcher,
         test_lobby_browsing_batocera_carousel,
