@@ -25,6 +25,13 @@ template:
              or (is_state('binary_sensor.working_from_home', 'on')
                  and now().weekday() < 5 and now().hour in [14, 15]) }}
 
+      # Weekend mornings, 8-11 AM: the tablet's screen stays on
+      # (pyscript/kitchen_tablet.py; weekdays follow the commute windows).
+      - name: Kitchen Weekend Wake
+        unique_id: kitchen_weekend_wake
+        icon: mdi:tablet
+        state: "{{ now().weekday() >= 5 and 8 <= now().hour < 11 }}"
+
   # Weather for the kitchen card. Forecasts aren't entity attributes any more,
   # so fetch them on a timer and keep only the fields the card uses.
   - trigger:

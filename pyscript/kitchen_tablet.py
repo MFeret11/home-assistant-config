@@ -16,9 +16,9 @@
 #    sensor unavailable for an hour.
 #
 # Morning wake: while any WAKE_WINDOWS sensor is on (the commute cards' own
-# display windows), the screen is turned on and held on through the Companion
-# app. When they all end, keep-screen-on is cleared and Android's normal
-# screen timeout takes over.
+# display windows on weekdays, 8-11 AM on weekends), the screen is turned on
+# and held on through the Companion app. When they all end, keep-screen-on is
+# cleared and Android's normal screen timeout takes over.
 
 PLUG = "switch.kitchen_tablet_mains"
 PLUG_COUNTDOWN = "number.kitchen_tablet_mains_countdown_to_turn_off"
@@ -28,7 +28,13 @@ CHARGE_ON_PCT = 30
 CHARGE_OFF_PCT = 80
 LOW_ALERT_PCT = 15
 TABLET_NOTIFY = "mobile_app_big_tablet"
-WAKE_WINDOWS = ["binary_sensor.septa_am_window", "binary_sensor.drive_display_window"]
+WAKE_WINDOWS = [
+    "binary_sensor.septa_am_window",
+    "binary_sensor.drive_display_window",
+    "binary_sensor.kitchen_weekend_wake",
+]
+WAKE_ON = " or ".join([f"{e} == 'on'" for e in WAKE_WINDOWS])
+WAKE_OFF = " or ".join([f"{e} == 'off'" for e in WAKE_WINDOWS])
 MAX_CHARGE_S = 4 * 3600  # 30->80% takes about 2 h; 4 h leaves room for heavy use while charging
 
 
@@ -119,7 +125,7 @@ def _in_wake_window():
     return False
 
 
-@state_trigger("binary_sensor.septa_am_window == 'on' or binary_sensor.drive_display_window == 'on'")
+@state_trigger(WAKE_ON)
 def kitchen_tablet_wake(var_name=None, value=None, old_value=None):
     # Send once, when the first window opens. At 8 AM one window ends as the
     # next begins; a second command then turned the screen off (2026-11-06).
@@ -130,7 +136,7 @@ def kitchen_tablet_wake(var_name=None, value=None, old_value=None):
     _screen_command(True)
 
 
-@state_trigger("binary_sensor.septa_am_window == 'off' or binary_sensor.drive_display_window == 'off'")
+@state_trigger(WAKE_OFF)
 def kitchen_tablet_release(var_name=None, old_value=None):
     if old_value == "on" and not _in_wake_window():
         _screen_command(False)
