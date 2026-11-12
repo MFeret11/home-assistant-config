@@ -765,53 +765,7 @@ views:
                     margin-bottom: 6px !important;
                   }
 
-          # 4. Vaculina Active
-          - type: conditional
-            conditions:
-              - condition: state
-                entity: vacuum.vaculina
-                state:
-                  - cleaning
-                  - returning
-                  - paused
-                  - error
-            card:
-              type: custom:vacuum-card
-              entity: vacuum.vaculina
-              name: Vaculina
-              stats:
-                default:
-                  - entity_id: sensor.vaculina_battery_level
-                    subtitle: Battery
-                    unit: "%"
-                  - entity_id: sensor.vaculina_cleaned_area
-                    subtitle: Cleaned Area
-                    unit: "ft²"
-                  - entity_id: sensor.vaculina_charging_status
-                    subtitle: Status
-              actions:
-                start:
-                  service: vacuum.start
-                pause:
-                  service: vacuum.pause
-                stop:
-                  service: vacuum.stop
-                return_to_base:
-                  service: vacuum.return_to_base
-              shortcuts:
-                - name: Pause
-                  service: vacuum.pause
-                  icon: mdi:pause
-                - name: Dock
-                  service: vacuum.return_to_base
-                  icon: mdi:home-import-outline
-              card_mod:
-                style: |
-                  ha-card {
-                    margin-bottom: 6px !important;
-                  }
-
-          # 5. 3D Print Progress
+          # 4. 3D Print Progress
           - type: conditional
             conditions:
               - condition: state
@@ -841,7 +795,7 @@ views:
                     margin-bottom: 6px !important;
                   }
 
-          # 6. Nominal Resting State
+          # 5. Nominal Resting State
           - type: conditional
             conditions:
               - condition: state
@@ -862,8 +816,8 @@ views:
               - condition: state
                 entity: binary_sensor.theater_in_use
                 state: "off"
-              # Mirror of the vacuum card's states, so one of the two always shows
-              # (including when the vacuum is unavailable).
+              # Not "quiet" while the vacuum is running; the Vacuum tile in the
+              # command bar shows that state.
               - condition: state
                 entity: vacuum.vaculina
                 state_not:
@@ -894,7 +848,7 @@ views:
                     opacity: 0.85;
                   }
 
-          # 7. Next Calendar Event
+          # 6. Next Calendar Event
           - type: custom:mushroom-template-card
             primary: "{{ states('sensor.next_calendar_event') }}"
             secondary: "{{ state_attr('sensor.next_calendar_event', 'when') or '' }}"
