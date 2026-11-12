@@ -1017,7 +1017,7 @@ views:
           # Where the commuter is (sensor.partner_location is a neutral copy of the
           # location tracker; the train comes from the transit service).
           - type: custom:mushroom-template-card
-            primary: Partner
+            primary: !include private/partner_name.yaml
             secondary: >-
               {%- set s = states('sensor.partner_location') -%}
               {%- set train = state_attr('sensor.septa_commute', 'rider_on_train') -%}
@@ -1058,9 +1058,9 @@ views:
               - type: map
                 entities:
                   - entity: sensor.partner_location
-                    name: Partner
+                    name: !include private/partner_name.yaml
                   - entity: sensor.me_location
-                    name: Me
+                    name: !include private/me_name.yaml
                 auto_fit: true
                 aspect_ratio: "1"
 

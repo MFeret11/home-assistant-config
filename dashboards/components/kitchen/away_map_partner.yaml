@@ -4,7 +4,7 @@
 type: map
 entities:
   - entity: sensor.partner_location
-    name: Partner
+    name: !include ../../private/partner_name.yaml
 default_zoom: 14
 theme_mode: auto
 # A fixed height, the same as the WeatherTunes card: in the day layout the map
