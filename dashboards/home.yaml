@@ -13,7 +13,13 @@ views:
             icon: mdi:clock-outline
           - type: custom:mushroom-title-card
             title: "{{ now().strftime('%-I:%M %p') }}"
-            subtitle: "{{ now().strftime('%A, %B %-d') }}"
+            # Date, then the outdoor temp and what to wear (sensor.commute_weather).
+            subtitle: >-
+              {%- set t = state_attr('sensor.commute_weather', 'current_temp_f') -%}
+              {%- set w = states('sensor.commute_weather') -%}
+              {{ now().strftime('%A, %B %-d') }}
+              {%- if t is number %} · {{ t }}°{% endif %}
+              {%- if w not in ['unknown', 'unavailable', ''] %} · {{ w }}{% endif %}
             alignment: center
             card_mod:
               style: |
@@ -40,88 +46,6 @@ views:
                   margin-bottom: 6px !important;
                 }
             chips:
-              # Theater Active Indicator
-              - type: conditional
-                conditions:
-                  - condition: state
-                    entity: binary_sensor.theater_in_use
-                    state: "on"
-                chip:
-                  type: template
-                  icon: mdi:filmstrip
-                  icon_color: blue
-                  tap_action:
-                    action: navigate
-                    navigation_path: /basement-yaml/basement
-                    haptic: light
-                  card_mod:
-                    style: |
-                      ha-card {
-                        width: 44px !important;
-                        height: 44px !important;
-                        padding: 0 !important;
-                        border-radius: 50% !important;
-                        background: rgba(33, 150, 243, 0.15) !important;
-                        border: 1px solid rgba(33, 150, 243, 0.4) !important;
-                      }
-
-              # Commute Window
-              - type: conditional
-                conditions:
-                  - condition: state
-                    entity: binary_sensor.septa_am_window
-                    state: "on"
-                chip:
-                  type: template
-                  icon: mdi:train
-                  icon_color: >-
-                    {{ 'red' if state_attr('sensor.septa_commute', 'leave_now')
-                    or state_attr('sensor.septa_commute', 'missed_connection')
-                    else 'blue' }}
-                  tap_action:
-                    action: navigate
-                    navigation_path: /kitchen-kiosk
-                    haptic: light
-                  card_mod:
-                    style: |
-                      ha-card {
-                        width: 44px !important;
-                        height: 44px !important;
-                        padding: 0 !important;
-                        border-radius: 50% !important;
-                        background: rgba(33, 150, 243, 0.15) !important;
-                        border: 1px solid rgba(33, 150, 243, 0.4) !important;
-                      }
-
-              # 3D Printer
-              - type: conditional
-                conditions:
-                  - condition: state
-                    entity: sensor.office_creality_printer_print_status
-                    state_not:
-                      - unavailable
-                      - unknown
-                      - "off"
-                      - standby
-                chip:
-                  type: template
-                  icon: mdi:printer-3d
-                  icon_color: amber
-                  tap_action:
-                    action: navigate
-                    navigation_path: '#printer-3d'
-                    haptic: light
-                  card_mod:
-                    style: |
-                      ha-card {
-                        width: 44px !important;
-                        height: 44px !important;
-                        padding: 0 !important;
-                        border-radius: 50% !important;
-                        background: rgba(255, 179, 0, 0.15) !important;
-                        border: 1px solid rgba(255, 179, 0, 0.4) !important;
-                      }
-
               # High Host CPU Alert
               - type: conditional
                 conditions:
@@ -146,6 +70,29 @@ views:
                         background: rgba(244, 67, 54, 0.2) !important;
                         border: 1px solid rgba(244, 67, 54, 0.5) !important;
                       }
+
+          # Weather Service watch/warning banner (same text as the kitchen tablet's);
+          # hidden when there's none.
+          - type: markdown
+            visibility:
+              - condition: numeric_state
+                entity: sensor.weather_alert_count
+                above: 0
+            content: >-
+              ### ⚠️ {{ states('sensor.weather_alert') }}{% if states('sensor.weather_alert_count') | int(0) > 1 %} (+{{ states('sensor.weather_alert_count') | int - 1 }} more){% endif %}
+            card_mod:
+              style:
+                .: |
+                  ha-card {
+                    background: linear-gradient(135deg, rgba(244, 67, 54, 0.4), rgba(183, 28, 28, 0.2)) !important;
+                    border: 2px solid rgba(244, 67, 54, 0.8) !important;
+                    border-radius: 20px !important;
+                    padding: 6px 12px;
+                    margin-bottom: 6px !important;
+                  }
+                ha-markdown $: |
+                  :host { text-align: center; }
+                  h3 { margin: 0 !important; }
 
           # --- QUICK ACTION COMMAND BAR ---
           - type: horizontal-stack
@@ -832,10 +779,13 @@ views:
                   - unknown
                   - "off"
                   - standby
+              - condition: numeric_state
+                entity: sensor.weather_alert_count
+                below: 1
             card:
               type: custom:mushroom-template-card
-              primary: All Systems Quiet
-              secondary: House running nominal in resting state
+              primary: All quiet
+              secondary: Nothing running right now
               icon: mdi:shield-check
               icon_color: green
               layout: horizontal
@@ -920,7 +870,8 @@ views:
                 secondary: >-
                   {{ states('light.zigbee_bedroom_lights') | default('Off', true) | title }}
                 icon: mdi:bed
-                icon_color: blue
+                icon_color: >-
+                  {{ 'amber' if is_state('light.zigbee_bedroom_lights', 'on') else 'grey' }}
                 layout: horizontal
                 tap_action:
                   action: navigate
@@ -999,9 +950,11 @@ views:
                 primary: Maintenance
                 secondary: >-
                   {%- set n = states('sensor.maintenance_attention') | int(0) -%}
-                  {{ 'All good' if n == 0 else n ~ ' need' ~ ('s' if n == 1 else '') ~ ' attention' }}
+                  {%- set items = state_attr('sensor.maintenance_attention', 'items') or [] -%}
+                  {{ 'All good' if n == 0 else (items[0] if n == 1 and items else n ~ ' need attention') }}
                 icon: mdi:tools
-                icon_color: orange
+                icon_color: >-
+                  {{ 'green' if states('sensor.maintenance_attention') | int(0) == 0 else 'orange' }}
                 layout: horizontal
                 tap_action:
                   action: navigate
@@ -1162,6 +1115,21 @@ views:
           - type: heading
             heading: Forecast
             icon: mdi:weather-partly-cloudy
+          # WeatherTunes: today's forecast as a song, the same widget page as the
+          # kitchen tablet (see dashboards/components/kitchen/weathertunes.yaml for
+          # how the page is rendered and versioned). Tap it to play.
+          - type: iframe
+            url: /local/weathertunes/kitchen.html?kitchen&widget&v=3
+            allow: autoplay
+            grid_options:
+              columns: full
+              rows: 3
+            card_mod:
+              style: |
+                ha-card {
+                  overflow: hidden;
+                  border-radius: 20px !important;
+                }
           - type: weather-forecast
             # Same NWS source as the kitchen kiosk. NWS has no "daily" forecast, only day/night pairs.
             entity: weather.whole_house_national_weather_service_kphl

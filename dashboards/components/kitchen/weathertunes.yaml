@@ -6,7 +6,7 @@
 # gitignored because it holds the home forecast. Bump v= if a browser keeps
 # showing an old version (HA lets browsers cache /local/ files for a month).
 type: iframe
-url: /local/weathertunes/kitchen.html?kitchen&widget&v=2
+url: /local/weathertunes/kitchen.html?kitchen&widget&v=3
 allow: autoplay
 # Hidden while Spotify is playing or the train-home card is up: those take
 # this slot so the page never needs scrolling. In the morning layout today's
