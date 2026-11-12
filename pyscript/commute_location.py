@@ -1,14 +1,18 @@
 # /config/pyscript/commute_location.py
 #
 # Sends the commuter's position to the transit service (:8000) during the
-# weekday commute hours, so it can tell which train they are actually on and
-# follow that train instead of the one nearest the usual time.
+# weekday commute hours, and at any hour while they're on the way home
+# (binary_sensor.partner_heading_home, packages/commute.yaml), so it can tell
+# which train they are actually on and follow that train instead of the one
+# nearest the usual time. Each post says whether they're heading home, so the
+# service shows the next train they can still make once they've left work.
 #
 # The position comes from sensor.partner_location, a neutral copy of the
 # location tracker defined in a private (gitignored) package. It goes only to
 # the service on this machine, which keeps it in memory; nothing is logged.
 
 LOCATION = "sensor.partner_location"
+HEADING_HOME = "binary_sensor.partner_heading_home"  # left work, not home yet
 ENDPOINT = "http://127.0.0.1:8000/api/location"
 
 
@@ -39,7 +43,8 @@ def _send_location():
     attrs = state.getattr(LOCATION) or {}
     lat, lon = attrs.get("latitude"), attrs.get("longitude")
     try:
-        body = {"latitude": float(lat), "longitude": float(lon), "zone": state.get(LOCATION)}
+        body = {"latitude": float(lat), "longitude": float(lon), "zone": state.get(LOCATION),
+                "heading_home": state.get(HEADING_HOME) == "on"}
     except (TypeError, ValueError):
         return  # tracker has no position right now
     try:
@@ -55,7 +60,17 @@ def _send_location():
 
 @state_trigger(LOCATION, f"{LOCATION}.latitude", f"{LOCATION}.longitude", f"{LOCATION}.last_seen")
 def commute_location_changed():
-    if _in_commute_hours():
+    # On the way home the service needs the position at any hour, not only in
+    # the usual afternoon window.
+    if _in_commute_hours() or state.get(HEADING_HOME) == "on":
+        _send_location()
+
+
+@state_trigger(HEADING_HOME)
+def commute_heading_home_changed(value=None, old_value=None):
+    """Tell the service at once when the commuter leaves work or gets home,
+    rather than at the next position update."""
+    if value in ("on", "off") and old_value in ("on", "off"):
         _send_location()
 
 

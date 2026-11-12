@@ -17,7 +17,8 @@
 #
 # Screen: while any WAKE_WINDOWS sensor is on (mornings: the commute cards' own
 # display windows on weekdays, 8-11 AM on weekends; evenings: 4-8 PM every
-# day), the screen is turned on and held on through the Companion app. When
+# day, or earlier once the commuter leaves work and the train-home card
+# shows), the screen is turned on and held on through the Companion app. When
 # they all end, keep-screen-on is cleared and Android's normal screen timeout
 # turns the screen off, so it is dark for the rest of the day and overnight.
 
@@ -34,6 +35,8 @@ WAKE_WINDOWS = [
     "binary_sensor.drive_display_window",
     "binary_sensor.kitchen_weekend_wake",
     "binary_sensor.kitchen_evening_wake",
+    # The train-home card: on from when the commuter leaves work, even before 4 PM.
+    "binary_sensor.kitchen_show_pm_commute",
 ]
 WAKE_ON = " or ".join([f"{e} == 'on'" for e in WAKE_WINDOWS])
 WAKE_OFF = " or ".join([f"{e} == 'off'" for e in WAKE_WINDOWS])

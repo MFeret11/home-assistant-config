@@ -15,15 +15,25 @@ template:
         state: "{{ 'morning' if now().weekday() < 5 and 6 <= now().hour < 9 else 'day' }}"
 
   - binary_sensor:
-      # Train-home card: the usual 4-6 PM window, or from 2 PM on work-from-home
-      # days (the transit service has return-trip data from 2 PM).
+      # Train-home card: on once the commuter leaves work
+      # (binary_sensor.partner_heading_home), whatever the time, until they're
+      # home. Without a live location (tracker unavailable or silent for 30
+      # minutes) it falls back to the fixed hours: 4-6 PM, or from 2 PM on
+      # work-from-home days.
       - name: Kitchen Show PM Commute
         unique_id: kitchen_show_pm_commute
         icon: mdi:train
         state: >-
-          {{ is_state('binary_sensor.septa_pm_window', 'on')
+          {% set home = state_attr('sensor.septa_commute', 'rider_home')
+             or is_state('sensor.partner_location', 'home') %}
+          {% set seen = state_attr('sensor.partner_location', 'last_seen') | as_datetime(none) %}
+          {% set live = states('sensor.partner_location') not in ['unknown', 'unavailable']
+             and seen is not none and (now() - seen).total_seconds() < 1800 %}
+          {% set fixed_hours = is_state('binary_sensor.septa_pm_window', 'on')
              or (is_state('binary_sensor.working_from_home', 'on')
-                 and now().weekday() < 5 and now().hour in [14, 15]) }}
+                 and now().weekday() < 5 and now().hour in [14, 15]) %}
+          {{ not home and (is_state('binary_sensor.partner_heading_home', 'on')
+             or (not live and fixed_hours)) }}
 
       # Weekend mornings, 8-11 AM: the tablet's screen stays on
       # (pyscript/kitchen_tablet.py; weekdays follow the commute windows).

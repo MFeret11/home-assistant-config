@@ -8,9 +8,11 @@ content: >-
 
   {% set origin = c.get('origin_line') %}
 
+  {% if not c.get('rider_home', false) %}
   {% for a in (c.get('service_alerts') or [])[:2] %}
     🚨 **{{ a | truncate(160) }}**
   {% endfor %}
+  {% endif %}
 
   {% if c.get('rider_home', false) %}
     # 🏡 Home

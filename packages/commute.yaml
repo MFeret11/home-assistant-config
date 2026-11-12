@@ -106,6 +106,41 @@ template:
         icon: mdi:map-marker-account
         state: "{{ states('sensor.me_location') not in ['home', 'unknown', 'unavailable'] }}"
 
+  # On from when the commuter leaves work until they're home: the kitchen's
+  # train-home card and the tablet's screen follow it, and the transit service
+  # is told (pyscript/commute_location.py) so it shows the next train they can
+  # make, at any hour. "At work" comes from sensor.partner_location (private
+  # package). left_work_at is set once, when that state ends, so a brief
+  # "unavailable" while the tracker refreshes doesn't lose the departure, and
+  # the flag only turns on after 3 minutes away (GPS jitter at the desk).
+  # It ends at home, back at work, at midnight, or 3 hours after leaving.
+  - trigger:
+      - trigger: state
+        entity_id: sensor.partner_location
+      - trigger: time_pattern
+        minutes: "/1"
+    binary_sensor:
+      - name: "Partner Heading Home"
+        unique_id: partner_heading_home
+        icon: mdi:walk
+        state: >-
+          {% set s = states('sensor.partner_location') %}
+          {% set left = this.attributes.get('left_work_at') or '' %}
+          {% set left = left | as_datetime(none) if left else none %}
+          {% if s in ['At work', 'home'] or left is none %}false
+          {% elif s in ['unknown', 'unavailable'] %}{{ this.state == 'on' }}
+          {% else %}
+            {% set away = (now() - left).total_seconds() %}
+            {{ now().weekday() < 5 and left.date() == now().date() and 180 <= away < 3 * 3600 }}
+          {% endif %}
+        attributes:
+          left_work_at: >-
+            {% set to = trigger.to_state.state if trigger.platform == 'state' and trigger.to_state else none %}
+            {% set from = trigger.from_state.state if trigger.platform == 'state' and trigger.from_state else none %}
+            {% if to == 'At work' or states('sensor.partner_location') == 'home' %}
+            {% elif from == 'At work' %}{{ now().isoformat() }}
+            {% else %}{{ this.attributes.get('left_work_at') or '' }}{% endif %}
+
   # How urgent the kitchen commute cards look: ok, warn or alert.
   # The card text explains why; these only pick the colour.
   - sensor:
