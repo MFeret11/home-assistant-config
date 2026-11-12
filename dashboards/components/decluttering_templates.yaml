@@ -37,12 +37,11 @@ avr_volume_slider:
           border: 1px solid rgba(66, 165, 245, 0.3) !important;
         }
 
-# Theater Mode Grid Card (Cinema, Sports, Arcade, Hi-Fi)
+# Theater mode pill: four sit in one row (Cinema, Sports, Arcade, Hi-Fi)
 theater_mode_button:
   card:
     type: custom:mushroom-template-card
     primary: "[[primary]]"
-    secondary: "[[secondary]]"
     icon: "[[icon]]"
     icon_color: "[[icon_color]]"
     layout: vertical
@@ -56,15 +55,17 @@ theater_mode_button:
           contain: content !important;
           {% set active = is_state('sensor.theater_mode', '[[mode]]') and is_state('binary_sensor.theater_in_use', 'on') %}
           background: {{ '[[bg_gradient]]' if active else 'rgba(255, 255, 255, 0.03)' }} !important;
-          border: {{ '2px solid rgba(255, 255, 255, 0.95) !important; box-shadow: 0 0 24px [[glow_color]], inset 0 1px 1px rgba(255, 255, 255, 0.6); transform: scale(1.02);' if active else '1px solid rgba(255, 255, 255, 0.08) !important;' }}
+          border: {{ '2px solid rgba(255, 255, 255, 0.95) !important; box-shadow: 0 0 14px [[glow_color]], inset 0 1px 1px rgba(255, 255, 255, 0.6);' if active else '1px solid rgba(255, 255, 255, 0.08) !important;' }}
           opacity: {{ '1.0' if active else '0.55' }};
-          border-radius: 20px;
-          padding: 12px 8px !important;
+          border-radius: 16px;
+          padding: 6px 2px !important;
           margin: 0 !important;
           transition: all 0.25s cubic-bezier(0.25, 1, 0.5, 1) !important;
         }
         ha-card:active { transform: scale(0.94); opacity: 1.0; }
-        ha-card .primary { font-weight: 700 !important; }
+        ha-card .primary { font-weight: 700 !important; font-size: 0.72rem !important; }
+        ha-card mushroom-shape-icon { --shape-size: 30px !important; --icon-size: 18px !important; }
+        ha-card mushroom-state-item { --spacing: 4px; }
 
 # Clean Remote App Launch Dock Button
 remote_app_button:
@@ -128,7 +129,7 @@ spacer_card:
       style: >
         ha-card { background: transparent !important; border: none !important; box-shadow: none !important; }
 
-# Inline Quick Mood Pill for Zone Lighting Drawer (3x2 grid, icon beside label)
+# Palette pill for the lighting card (2x2 grid, icon beside label)
 quick_mood_pill:
   card:
     type: custom:mushroom-template-card

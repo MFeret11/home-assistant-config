@@ -43,14 +43,19 @@ cards:
           --shape-color: transparent !important;
         }
 
-  # --- ROW 1: CINEMA & SPORTS ---
+  # --- ROW 1: MODE STRIP ---
+  # One compact row. The Onn remote's app buttons start the modes day to day
+  # (docs/onn-remote.md); these are the phone fallback and show the active mode.
   - type: horizontal-stack
+    card_mod:
+      style: |
+        #root { gap: 6px !important; }
+        #root > * { margin: 0 !important; }
     cards:
       - type: custom:decluttering-card
         template: theater_mode_button
         variables:
           - primary: Cinema
-          - secondary: Movie Night
           - icon: mdi:movie-open
           - icon_color: blue
           - action: pyscript.play_movie
@@ -61,22 +66,16 @@ cards:
         template: theater_mode_button
         variables:
           - primary: Sports
-          - secondary: Stadium Sound
           - icon: mdi:football
           - icon_color: teal
           - action: pyscript.play_sports
           - mode: sports
           - bg_gradient: "linear-gradient(145deg, rgba(0, 150, 136, 0.55), rgba(0, 77, 64, 0.25))"
           - glow_color: "rgba(0, 150, 136, 0.8)"
-
-  # --- ROW 2: ARCADE & HI-FI LOUNGE ---
-  - type: horizontal-stack
-    cards:
       - type: custom:decluttering-card
         template: theater_mode_button
         variables:
           - primary: Arcade
-          - secondary: Batocera Retro
           - icon: mdi:gamepad-variant
           - icon_color: green
           - action: pyscript.play_game
@@ -86,8 +85,7 @@ cards:
       - type: custom:decluttering-card
         template: theater_mode_button
         variables:
-          - primary: Hi-Fi Lounge
-          - secondary: Multi-Stereo
+          - primary: Hi-Fi
           - icon: mdi:music-note-eighth
           - icon_color: purple
           - action: pyscript.play_music
@@ -95,7 +93,7 @@ cards:
           - bg_gradient: "linear-gradient(145deg, rgba(156, 39, 176, 0.55), rgba(74, 20, 140, 0.25))"
           - glow_color: "rgba(156, 39, 176, 0.8)"
 
-  # --- ROW 3: YAMAHA AVR HARDWARE MIXER (MINI-MEDIA-PLAYER) ---
+  # --- ROW 2: YAMAHA AVR HARDWARE MIXER (MINI-MEDIA-PLAYER) ---
   - type: conditional
     conditions:
       - condition: state
@@ -135,7 +133,7 @@ cards:
             margin: 2px 0 !important;
           }
 
-  # --- ROW 4: CURTAIN CALL ---
+  # --- ROW 3: CURTAIN CALL ---
   - type: conditional
     conditions:
       - condition: state

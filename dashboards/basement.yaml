@@ -16,16 +16,15 @@ views:
           - !include components/header_avr_volume.yaml
           - !include components/header_booth_announcer.yaml
 
-      # LEFT: cinema, sports, arcade
+      # LEFT (first on a phone): lighting, the most-used controls
+      - type: grid
+        cards:
+          - !include components/zone_lighting.yaml
+
+      # RIGHT: theater. Modes usually start from the Onn remote, so this
+      # column is now-playing plus a compact mode strip and session controls.
       - type: grid
         cards:
           - !include components/now_playing_marquee.yaml
           - !include components/theater_stage.yaml
           - !include components/theater_remote_popup.yaml
-
-      # RIGHT: lighting
-      - type: grid
-        cards:
-          - !include components/zone_lighting.yaml
-
-

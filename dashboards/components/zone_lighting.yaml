@@ -16,7 +16,7 @@ cards:
   - type: custom:mushroom-template-card
     primary: Lighting
     secondary: >-
-      {{ 'Social' if is_state('input_select.basement_lighting_mode', 'Social Mode') else 'Daily Driver' }} • {{ 'Lights on' if is_state('binary_sensor.basement_lights_active', 'on') else 'Lights off' }}
+      {% if is_state('input_select.basement_lighting_mode', 'Social Mode') %}Social • {{ states('sensor.basement_palette') | title }}{% else %}Daily Driver{% endif %} • {{ 'Lights on' if is_state('binary_sensor.basement_lights_active', 'on') else 'Lights off' }}
     icon: mdi:lightbulb-multiple
     icon_color: amber
     layout: horizontal
@@ -43,84 +43,15 @@ cards:
           --shape-color: transparent !important;
         }
 
-  # --- QUICK MOOD & SHIFTING COLORS CONTROLLER ---
-  - type: horizontal-stack
-    card_mod:
-      style: |
-        #root {
-          gap: 6px !important;
-          margin-top: 4px !important;
-          margin-bottom: 2px !important;
-        }
-    cards:
-      - type: custom:mushroom-template-card
-        primary: Room Ambience
-        secondary: >-
-          {% if is_state('input_select.basement_lighting_mode', 'Social Mode') %}
-            {{ states('sensor.basement_palette') | title }} • {{ '22s Wave' if is_state('sensor.basement_effect', 'drift') else 'Static Lock' }}
-          {% else %}
-            Daily Driver (Adaptive)
-          {% endif %}
-        icon: mdi:palette-swatch
-        icon_color: >-
-          {% if is_state('sensor.basement_effect', 'drift') %}
-            purple
-          {% elif is_state('input_select.basement_lighting_mode', 'Social Mode') %}
-            amber
-          {% else %}
-            grey
-          {% endif %}
-        layout: horizontal
-        tap_action:
-          action: perform-action
-          perform_action: pyscript.toggle_lighting_mode
-          haptic: light
-        card_mod:
-          style: |
-            ha-card {
-              background: rgba(255, 255, 255, 0.05) !important;
-              border: 1px solid rgba(255, 255, 255, 0.1) !important;
-              border-radius: 14px !important;
-              padding: 4px 10px !important;
-            }
-            ha-card .primary { font-weight: 700 !important; font-size: 0.85rem !important; }
-            ha-card .secondary { font-size: 0.70rem !important; opacity: 0.8 !important; }
-            ha-card mushroom-shape-icon { --shape-size: 28px !important; --icon-size: 16px !important; }
-      - type: custom:mushroom-template-card
-        primary: >-
-          {{ 'Shifting ON' if is_state('sensor.basement_effect', 'drift') else 'Shifting OFF' }}
-        secondary: >-
-          {{ '22s Wave Active' if is_state('sensor.basement_effect', 'drift') else 'Tap for Shifting' }}
-        icon: mdi:waves
-        icon_color: >-
-          {{ 'cyan' if is_state('sensor.basement_effect', 'drift') else 'disabled' }}
-        layout: horizontal
-        tap_action:
-          action: perform-action
-          perform_action: pyscript.toggle_ambient_drift
-          haptic: medium
-        card_mod:
-          style: |
-            {% set on = is_state('sensor.basement_effect', 'drift') %}
-            ha-card {
-              background: {{ 'rgba(6, 182, 212, 0.18)' if on else 'rgba(255, 255, 255, 0.05)' }} !important;
-              border: 1px solid {{ 'rgba(6, 182, 212, 0.6)' if on else 'rgba(255, 255, 255, 0.12)' }} !important;
-              border-radius: 14px !important;
-              padding: 4px 10px !important;
-            }
-            ha-card:active { transform: scale(0.96); }
-            ha-card .primary { font-weight: 700 !important; font-size: 0.82rem !important; }
-            ha-card .secondary { font-size: 0.70rem !important; opacity: 0.75 !important; }
-            ha-card mushroom-shape-icon { --shape-size: 28px !important; --icon-size: 16px !important; }
-
-  # --- QUICK MOOD RIBBON (1-TAP ROOM COLOR SWATCHES & CELEBRATIONS) ---
+  # --- PALETTES: 2x2 so the names fit on a phone. Tapping one switches to
+  # Social Mode with that palette; the header chip toggles Social/Daily Driver.
   - type: grid
     square: false
-    columns: 3
+    columns: 2
     card_mod:
       style: |
         :host {
-          margin: 0 0 6px 0 !important;
+          margin: 4px 0 0 0 !important;
           display: block !important;
         }
         #root { gap: 4px !important; }
@@ -156,6 +87,43 @@ cards:
           - active_border: "rgba(6, 182, 212, 0.95)"
           - glow: "rgba(6, 182, 212, 0.45)"
       - type: custom:decluttering-card
+        template: quick_mood_pill
+        variables:
+          - name: Nordic
+          - icon: mdi:snowflake
+          - color: light-blue
+          - palette_id: nordic
+          - active_bg: "linear-gradient(135deg, rgba(56, 189, 248, 0.40), rgba(3, 105, 161, 0.22))"
+          - active_border: "rgba(56, 189, 248, 0.95)"
+          - glow: "rgba(56, 189, 248, 0.45)"
+
+  # --- EFFECTS: Shifting (22s color drift toggle), Toast flash, Eagles chant.
+  - type: grid
+    square: false
+    columns: 3
+    card_mod:
+      style: |
+        :host {
+          margin: 0 0 6px 0 !important;
+          display: block !important;
+        }
+        #root { gap: 4px !important; }
+    cards:
+      - type: custom:decluttering-card
+        template: effect_pill
+        variables:
+          - name: Shifting
+          - icon: mdi:waves
+          - color: cyan
+          - action: pyscript.toggle_ambient_drift
+          - active_expr: "is_state('sensor.basement_effect', 'drift')"
+          - idle_bg: "rgba(255, 255, 255, 0.05)"
+          - idle_border: "rgba(255, 255, 255, 0.12)"
+          - active_bg: "linear-gradient(135deg, rgba(6, 182, 212, 0.40), rgba(14, 116, 144, 0.22))"
+          - active_border: "rgba(6, 182, 212, 0.95)"
+          - glow: "rgba(6, 182, 212, 0.45)"
+          - text_color: "#67e8f9"
+      - type: custom:decluttering-card
         template: effect_pill
         variables:
           - name: Toast
@@ -179,16 +147,6 @@ cards:
           - active_border: "rgba(0, 170, 35, 0.95)"
           - glow: "rgba(0, 170, 35, 0.5)"
           - text_color: "#4ade80"
-      - type: custom:decluttering-card
-        template: quick_mood_pill
-        variables:
-          - name: Nordic
-          - icon: mdi:snowflake
-          - color: light-blue
-          - palette_id: nordic
-          - active_bg: "linear-gradient(135deg, rgba(56, 189, 248, 0.40), rgba(3, 105, 161, 0.22))"
-          - active_border: "rgba(56, 189, 248, 0.95)"
-          - glow: "rgba(56, 189, 248, 0.45)"
 
   # 1. Lounge & Bar Master (9 Bulbs ZHA Group)
   - type: custom:bubble-card
@@ -222,13 +180,19 @@ cards:
         hold_action:
           action: more-info
           haptic: medium
+    # Tint follows the light: its own color when it reports one, warm amber
+    # when on without color, neutral when off. config.entity is the card's entity.
     card_mod: &zone_slider_style
       style: |
+        {% set on = is_state(config.entity, 'on') %}
+        {% set rgb = state_attr(config.entity, 'rgb_color') %}
+        {% set c = (rgb | join(', ')) if (on and rgb) else ('255, 193, 7' if on else '255, 255, 255') %}
         ha-card { border: none !important; background: none !important;}
         .bubble-container {
-          border: 1px solid rgba(255, 193, 7, 0.45) !important;
+          border: 1px solid rgba({{ c }}, {{ 0.5 if on else 0.12 }}) !important;
           border-radius: 20px !important;
-          background: linear-gradient(135deg, rgba(255, 193, 7, 0.16), rgba(255, 111, 0, 0.08)) !important;
+          background: linear-gradient(135deg, rgba({{ c }}, {{ 0.20 if on else 0.05 }}), rgba({{ c }}, {{ 0.07 if on else 0.03 }})) !important;
+          transition: background 0.4s ease, border-color 0.4s ease !important;
         }
 
   # 2. Theater Zone Master

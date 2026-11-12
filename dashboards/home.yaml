@@ -490,11 +490,11 @@ views:
                               offset_y: 35
                           - id: "7"
                             icon:
-                              name: mdi:home-outline
+                              name: mdi:desk
                               x: -2125
                               y: 4425
                             label:
-                              text: "Room 7"
+                              text: "Office 2"
                               x: -2125
                               y: 4425
                               offset_y: 35
@@ -539,6 +539,25 @@ views:
                   style: |
                     ha-card {
                       contain: content !important;
+                      /* Room markers: the card's defaults lean on theme variables
+                         this theme doesn't set, so picked and unpicked rooms looked
+                         alike. Unpicked = dark chip, picked = orange chip. */
+                      --map-card-room-icon-background-color: rgba(28, 32, 40, 0.78);
+                      --map-card-room-icon-color: rgba(255, 255, 255, 0.92);
+                      --map-card-room-label-color: rgba(255, 255, 255, 0.95);
+                      --map-card-room-icon-background-color-selected: #ff6d00;
+                      --map-card-room-icon-color-selected: #ffffff;
+                      --map-card-room-label-color-selected: #ffb74d;
+                    }
+                    /* Dark halo keeps room names readable on any room color. */
+                    .room-label {
+                      paint-order: stroke;
+                      stroke: rgba(0, 0, 0, 0.7);
+                      stroke-width: calc(3px / var(--map-scale, 1));
+                      stroke-linejoin: round;
+                    }
+                    .room-wrapper.selected > * > .room-icon-wrapper {
+                      box-shadow: 0 0 0 2px #ffffff;
                     }
 
               # Quick Controls
