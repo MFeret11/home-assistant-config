@@ -9,8 +9,31 @@ type: iframe
 url: /local/weathertunes/kitchen.html?kitchen&widget&v=2
 allow: autoplay
 # Hidden while Spotify is playing or the train-home card is up: those take
-# this slot so the page never needs scrolling.
+# this slot so the page never needs scrolling. In the morning layout today's
+# events come first, so with 3 or more of them the song is hidden too. In the
+# day layout the away map (away_map_*.yaml) takes this slot while someone is out.
 visibility:
+  - condition: or
+    conditions:
+      - condition: state
+        entity: sensor.kitchen_display_mode
+        state: morning
+      - condition: and
+        conditions:
+          - condition: state
+            entity: binary_sensor.partner_away
+            state_not: "on"
+          - condition: state
+            entity: binary_sensor.me_away
+            state_not: "on"
+  - condition: or
+    conditions:
+      - condition: state
+        entity: sensor.kitchen_display_mode
+        state_not: morning
+      - condition: numeric_state
+        entity: sensor.kitchen_today_events
+        below: 3
   - condition: state
     entity: media_player.whole_house_spotify
     state_not: playing

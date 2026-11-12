@@ -1,14 +1,12 @@
+# The drive to work, kept to one compact line so the train card above stays
+# the main thing on the morning page.
 type: markdown
 content: >-
-  # 🚗 Matt's Drive: **{{
-  state_attr('sensor.commute_drive_time',
-  'duration_in_traffic') | default('Calculating...', true) }}**
-
-
-  {{ state_attr('sensor.commute_drive_time',
-  'distance') | default('—', true) }} · normally {{
+  🚗 Matt's drive **{{ state_attr('sensor.commute_drive_time',
+  'duration_in_traffic') | default('calculating…', true) }}** · normally {{
   state_attr('sensor.commute_drive_time', 'duration')
-  | default('—', true) }}
+  | default('—', true) }} · {{ state_attr('sensor.commute_drive_time',
+  'distance') | default('—', true) }}
 grid_options:
   columns: full
   rows: auto
@@ -16,15 +14,15 @@ card_mod:
   style:
     .: >
       ha-card {
-        font-size: 22px;
-        line-height: 1.35;
+        font-size: 18px;
+        line-height: 1.3;
         text-align: center;
-        padding: 16px;
+        padding: 0 12px;
       }
-    # Headings sit inside ha-markdown's shadow root.
+    # The text sits inside ha-markdown's shadow root.
     ha-markdown $: |
       :host { text-align: center; }
-      h1 { font-size: 30px !important; margin: 0 0 6px 0 !important; }
+      p { margin: 8px 0 !important; }
 visibility:
   - condition: state
     entity: binary_sensor.drive_display_window

@@ -1,9 +1,23 @@
 # One chores line from Home Keeper; hidden when nothing is overdue or due today.
+# Low priority: it shows only when no game card is up in the same column, so
+# it never pushes the page past one screen.
 type: markdown
 visibility:
   - condition: numeric_state
     entity: sensor.home_keeper_tasks
     above: 0
+  - condition: state
+    entity: binary_sensor.eagles_game_soon
+    state_not: "on"
+  - condition: state
+    entity: binary_sensor.sixers_game_soon
+    state_not: "on"
+  - condition: state
+    entity: binary_sensor.phillies_game_soon
+    state_not: "on"
+  - condition: state
+    entity: binary_sensor.flyers_game_soon
+    state_not: "on"
 content: >-
   {% from 'kitchen.jinja' import chores_line %}{{ chores_line() }}
 grid_options:

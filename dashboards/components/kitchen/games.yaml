@@ -4,12 +4,9 @@
 type: markdown
 content: >-
   {% from 'sports.jinja' import games_panel %}{{ games_panel() }}
-# Nice-to-have: it gives way to the chores line (same column) so the page
-# stays on one screen.
+# The chores line (same column) gives way to this card, so the page stays on
+# one screen.
 visibility:
-  - condition: numeric_state
-    entity: sensor.home_keeper_tasks
-    below: 1
   - condition: or
     conditions:
       - condition: state

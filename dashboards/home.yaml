@@ -716,7 +716,7 @@ views:
             card:
               type: custom:mushroom-template-card
               primary: >-
-                {{ '🚨 LEAVE NOW' if state_attr('sensor.septa_commute', 'leave_now') else 'Leave by ' ~ (state_attr('sensor.septa_commute', 'leave_by_time') | default('—', true)) }}
+                {{ '🚨 LEAVE NOW' if state_attr('sensor.septa_commute', 'leave_now') else ('Train left ' ~ (state_attr('sensor.septa_commute', 'origin_actual_departure_time') | default('—', true)) if state_attr('sensor.septa_commute', 'already_departed') else 'Leave by ' ~ (state_attr('sensor.septa_commute', 'leave_by_time') | default('—', true))) }}
               secondary: >-
                 {{ states('sensor.commute_weather') | default('Check transit schedule', true) }}
               icon: mdi:train-car

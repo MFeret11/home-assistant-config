@@ -1,4 +1,6 @@
-# Weekday mornings: today's weather (and its song) and events only.
+# Weekday mornings: today's weather, today's events, then the weather's song.
+# Events come first: on a busy day (3 or more) the song gives up its slot so
+# the list fits without scrolling (see the visibility rule in weathertunes.yaml).
 - !include weather_today.yaml
-- !include weathertunes.yaml
 - !include today_events.yaml
+- !include weathertunes.yaml

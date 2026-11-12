@@ -94,15 +94,17 @@ template:
         state: "{{ now().weekday() < 5 and now().hour in [6, 7] }}"
       - name: "Septa PM Window"
         state: "{{ now().weekday() < 5 and now().hour in [16, 17] }}"
-      # On while the commuter is on a train (the transit service's GPS match)
-      # or at their station (binary_sensor.partner_at_station, defined with the
-      # station's position in a private package). Shows the kitchen map card.
-      - name: "Partner In Transit"
-        unique_id: partner_in_transit
-        icon: mdi:train
-        state: >-
-          {{ (state_attr('sensor.septa_commute', 'rider_on_train') or '') | string | length > 0
-             or is_state('binary_sensor.partner_at_station', 'on') }}
+      # On while that person is away from home, from the home / away state of
+      # the neutral location sensors (made in a private package). The kitchen
+      # map shows whoever is away, so the one at home can see where they are.
+      - name: "Partner Away"
+        unique_id: partner_away
+        icon: mdi:map-marker-account
+        state: "{{ states('sensor.partner_location') not in ['home', 'unknown', 'unavailable'] }}"
+      - name: "Me Away"
+        unique_id: me_away
+        icon: mdi:map-marker-account
+        state: "{{ states('sensor.me_location') not in ['home', 'unknown', 'unavailable'] }}"
 
   # How urgent the kitchen commute cards look: ok, warn or alert.
   # The card text explains why; these only pick the colour.

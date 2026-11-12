@@ -47,6 +47,10 @@ content: >-
     # 🚆 On train {{ c.get('origin_train') }}
 
     ### Arrives **{{ c.get('actual_arrival_time', '—') }}**
+  {% elif c.get('already_departed', false) %}
+    # 🚆 Train {{ c.get('origin_train') }} has left
+
+    ### Departed **{{ c.get('origin_actual_departure_time', '—') }}**
   {% elif c.get('leave_now', false) %}
     # 🚨 LEAVE NOW
 

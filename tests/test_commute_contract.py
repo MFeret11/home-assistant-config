@@ -313,6 +313,9 @@ def test_commute_card_rendering_matrix():
     aboard = _render(cards["am"]["content"], "ok", {**BASE, "rider_on_train": BASE["origin_train"]})
     assert "On train " + str(BASE["origin_train"]) in aboard and "Leave by" not in aboard, aboard
     assert "On train" not in _render(cards["am"]["content"], "ok", {**BASE, "rider_on_train": "0000"})
+    # A train that has gone is never shown as one to leave for.
+    gone = _render(cards["am"]["content"], "ok", {**BASE, "already_departed": True})
+    assert "has left" in gone and "Leave by" not in gone, gone
     home = _render(cards["pm"]["content"], "ok", {**BASE, "rider_home": True})
     assert "🏡 Home" in home and "Train " not in home, home
     print("    ✓ Rider location")

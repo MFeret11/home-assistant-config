@@ -1,13 +1,9 @@
-# Today's events, morning only. Hidden when the calendars have nothing today.
+# Today's events, morning only. Always shown: an empty day says so.
 type: markdown
-visibility:
-  - condition: numeric_state
-    entity: sensor.kitchen_today_events
-    above: 0
 content: >-
   {% from 'kitchen.jinja' import today_events %}### Today
 
-  {{ today_events() }}
+  {{ today_events(6) }}
 grid_options:
   columns: full
   rows: auto

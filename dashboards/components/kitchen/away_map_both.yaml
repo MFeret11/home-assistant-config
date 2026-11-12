@@ -1,0 +1,23 @@
+# Where whoever is away is right now, for the one at home. One of three map
+# cards (partner away, me away, both away): only the people who are away are
+# drawn, so the map stays zoomed in on them rather than stretching back home.
+type: map
+entities:
+  - entity: sensor.partner_location
+    name: Partner
+  - entity: sensor.me_location
+    name: Me
+auto_fit: true
+theme_mode: auto
+# A fixed height, the same as the WeatherTunes card: in the day layout the map
+# takes that card's slot, so the page still fits one screen.
+grid_options:
+  columns: full
+  rows: 3
+visibility:
+  - condition: state
+    entity: binary_sensor.partner_away
+    state: "on"
+  - condition: state
+    entity: binary_sensor.me_away
+    state: "on"

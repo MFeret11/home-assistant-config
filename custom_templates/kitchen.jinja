@@ -96,6 +96,7 @@
 {{ dots.get(e.who, '📅') }} {% if e.time %}**{{ e.time }}** {% endif %}{{ e.title }}
 {% endfor -%}
   {%- if evs | length > limit %}…and {{ evs | length - limit }} more{% endif -%}
+  {%- if not evs %}Nothing on the calendar{% endif -%}
 {%- endmacro -%}
 
 {#- One line for chores, or empty when nothing is due. -#}
