@@ -1119,11 +1119,12 @@ views:
           # kitchen tablet (see dashboards/components/kitchen/weathertunes.yaml for
           # how the page is rendered and versioned). Tap it to play.
           - type: iframe
-            url: /local/weathertunes/kitchen.html?kitchen&widget&v=3
+            url: /local/weathertunes/kitchen.html?kitchen&widget&v=4
             allow: autoplay
+            # Two rows: at phone width the cover then fills the card's height.
             grid_options:
               columns: full
-              rows: 3
+              rows: 2
             card_mod:
               style: |
                 ha-card {
