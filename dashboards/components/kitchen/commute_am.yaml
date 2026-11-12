@@ -43,6 +43,10 @@ content: >-
     # ⚠️ CONNECTION STALLED
 
     ### Train {{ c.get('connection_train') }} stopped at {{ c.get('connection_current_stop') or 'its last stop' }} (~{{ c.get('connection_stall_minutes', 0) }}m)
+  {% elif c.get('rider_on_train') and c.get('rider_on_train') == c.get('origin_train') %}
+    # 🚆 On train {{ c.get('origin_train') }}
+
+    ### Arrives **{{ c.get('actual_arrival_time', '—') }}**
   {% elif c.get('leave_now', false) %}
     # 🚨 LEAVE NOW
 

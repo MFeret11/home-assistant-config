@@ -1,6 +1,7 @@
 # Rest of the day: clock, train home, full weather and its song, music.
 - !include clock.yaml
 - !include commute_pm.yaml
+- !include commute_map.yaml
 - !include weather_full.yaml
 - !include weathertunes.yaml
 - !include now_playing.yaml

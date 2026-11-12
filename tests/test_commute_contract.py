@@ -310,6 +310,9 @@ def test_commute_card_rendering_matrix():
     riding = _render(cards["pm"]["content"], "ok", {**BASE, "rider_on_train": "1234"})
     assert "On train 1234 now" in riding, riding
     assert "On train" not in _render(cards["pm"]["content"], "ok", BASE)
+    aboard = _render(cards["am"]["content"], "ok", {**BASE, "rider_on_train": BASE["origin_train"]})
+    assert "On train " + str(BASE["origin_train"]) in aboard and "Leave by" not in aboard, aboard
+    assert "On train" not in _render(cards["am"]["content"], "ok", {**BASE, "rider_on_train": "0000"})
     home = _render(cards["pm"]["content"], "ok", {**BASE, "rider_home": True})
     assert "🏡 Home" in home and "Train " not in home, home
     print("    ✓ Rider location")

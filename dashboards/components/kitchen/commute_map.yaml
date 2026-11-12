@@ -1,0 +1,15 @@
+# Where the commuter is right now. Shown only while they are on a train or at
+# their station (binary_sensor.partner_in_transit, packages/commute.yaml).
+type: map
+entities:
+  - entity: sensor.partner_location
+    name: Partner
+default_zoom: 14
+aspect_ratio: "16:9"
+theme_mode: auto
+grid_options:
+  columns: full
+visibility:
+  - condition: state
+    entity: binary_sensor.partner_in_transit
+    state: "on"
