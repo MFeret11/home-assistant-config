@@ -20,7 +20,8 @@ _Moved verbatim from AGENTS.md. "§N" references point to the old AGENTS.md sect
 |---|---|---|---|---|
 | RPi 4 (Docker Host) | `192.168.1.x` / `100.82.195.2` | Eth / `tailscale0` | 8123 (HA), 34400 (xTeVe), 9000 (Portainer), 8000 (Transit) | Docker stack: `~/docker/docker-compose.yml` (xTeVe used over Threadfin for Pi 4) |
 | HDHomeRun FLEX DUO | `192.168.1.221` | Static DHCP | 80 (HTTP), 5004 (RTSP/MPEG-TS) | 2x ATSC 1.0 tuners, mDNS `hdhomerun.local` |
-| Onn 4K Pro (Android TV) | `192.168.1.216` | Ethernet | ADB / Cast / Android TV Remote | Primary theater streamer (HDHomeRun, Stremio, YouTube, Spotify) |
+| Onn 4K Pro (Android TV) | `192.168.1.216` | WiFi (5 GHz) | ADB / Cast / Android TV Remote | Primary theater streamer (HDHomeRun, Stremio, YouTube, Spotify). On WiFi since 2026-11: its built-in Ethernet is 10/100 (measured 95 Mbps), too slow for large 4K remuxes; WiFi measured 367 Mbps. |
+| goCoax MA2500D (MoCA 2.5) | n/a | Coax ↔ 2.5GbE | Ethernet over coax | MoCA adapters (2.5 Gbps, 2.5GbE port), used for wired runs over the home's coax. Not the bottleneck for the Onn; its own port is. |
 | Yamaha RX-V673 AVR | `192.168.1.250` | Ethernet | Native `yamaha` Core Integration | 5.1 AVR (HDMI1: Onn, HDMI2: Batocera, HDMI3: Switch) |
 | Batocera x86 PC | `192.168.1.220` (Eth) / `.190` (WiFi) | Dual NIC | SSH / Web (credentials in `secrets.yaml`) | EmulationStation / RetroArch; also runs the Moonlight client that streams the ROG Gaming PC |
 | ASUS ROG Gaming PC | `192.168.1.205` | Ethernet | WOL / RDP | Dedicated PC gaming; streamed to the theater through Moonlight on Batocera |
