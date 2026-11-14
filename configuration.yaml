@@ -93,6 +93,12 @@ recorder:
       # coordinates are not kept in history.
       - sensor.partner_location
       - sensor.me_location
+      # Chatty, nobody reads their history (~2k rows/week, 2026-11-14).
+      - sensor.watchman_last_update
+      - media_player.theater_onn_pro_adb
+      - sensor.vaculina_task_type
+      - sensor.gaming_pc_active_game
+      - binary_sensor.pixel_8_music_active
   # No include list on purpose: with exclude-only filters HA records everything
   # not listed above, so the receiver and projector power state stay recorded.
 
