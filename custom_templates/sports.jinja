@@ -11,9 +11,23 @@
          or (s == 'POST' and now() - d < timedelta(hours=12))))) | lower -}}
 {%- endmacro -%}
 
+{#- Networks the house can watch without cable: Philly over-the-air channels
+    (antenna / HDHomeRun) plus the streaming services we have. Each name in
+    Team Tracker's tv_network ("ESPN/ABC") is checked and the first match is
+    returned, or empty when none can be watched. -#}
+{%- macro watchable_network(tv) -%}
+  {%- set ok = ['ABC', 'CBS', 'NBC', 'FOX', 'PHL17', 'NBC10', '6ABC', 'CBS3', 'FOX29',
+                'PRIME VIDEO', 'AMAZON PRIME VIDEO', 'NETFLIX'] -%}
+  {%- set ns = namespace(hit='') -%}
+  {%- for n in (tv or '').split('/') if not ns.hit and n | trim | upper in ok -%}
+    {%- set ns.hit = n | trim -%}
+  {%- endfor -%}
+  {{- ns.hit -}}
+{%- endmacro -%}
+
 {#- Kitchen games card (dashboards/components/kitchen/games.yaml): one row per
-    team whose game is live, starts within 24 hours or just ended. Shows the
-    start time in plain words ("Tonight 9:00 PM"), the live score, or the final. -#}
+    team whose game is live, starts within 24 hours or just ended. Shows
+    abbreviations, a short start time ("Sun 1 PM"), the live score, or the final. -#}
 {%- macro game_row(entity) -%}
   {%- set s = states(entity) -%}
   {%- set a = states[entity].attributes if states[entity] is not none else {} -%}
@@ -25,21 +39,23 @@
     {%- if d is none -%}{%- set when = 'Upcoming' -%}
     {%- else -%}
       {%- set days = (d.date() - now().date()).days -%}
-      {%- set day = ('Tonight' if d.hour >= 17 else 'Today') if days == 0 else ('Tomorrow' if days == 1 else d.strftime('%A')) -%}
-      {%- set when = day ~ ' ' ~ d.strftime('%-I:%M %p') -%}
+      {#- Kept short: "Today 7 PM", "Sun 1 PM", "Mon 7:30 PM". -#}
+      {%- set day = 'Today' if days == 0 else d.strftime('%a') -%}
+      {%- set when = day ~ ' ' ~ d.strftime('%-I %p' if d.minute == 0 else '%-I:%M %p') -%}
     {%- endif -%}
-    {%- set note = a.get('tv_network') or '' -%}
+    {%- set note = watchable_network(a.get('tv_network')) -%}
   {%- else -%}
     {%- set mid = (a.get('team_score') or '0') ~ ' – ' ~ (a.get('opponent_score') or '0') -%}
     {%- if s == 'POST' -%}{%- set when = 'Final' -%}{%- set note = '' -%}
     {%- else -%}
       {%- set q, clock = a.get('quarter'), a.get('clock') -%}
-      {%- set when = clock if (a.get('sport') == 'baseball' or not q) else (('P' if a.get('sport') == 'hockey' else 'Q') ~ q ~ ' · ' ~ clock) -%}
+      {#- Team Tracker's clock often carries the period already ("6:02 - 1st"). -#}
+      {%- set when = clock if (a.get('sport') == 'baseball' or not q or ' - ' in (clock or '')) else (('P' if a.get('sport') == 'hockey' else 'Q') ~ q ~ ' · ' ~ clock) -%}
       {%- set when = '🔴 ' ~ (when or 'Live') -%}
-      {%- set note = a.get('tv_network') or '' -%}
+      {%- set note = watchable_network(a.get('tv_network')) -%}
     {%- endif -%}
   {%- endif -%}
-<tr><td class="teams"><img src="{{ a.get('team_logo') }}" height="34"> {{ a.get('team_name') or '—' }} <span class="mid">{{ mid }}</span> {{ a.get('opponent_name') or '—' }} <img src="{{ a.get('opponent_logo') }}" height="34"></td><td class="when">{% if note %}<span class="note">{{ note }} · </span>{% endif %}<b>{{ when }}</b></td></tr>
+<tr><td class="teams"><img src="{{ a.get('team_logo') }}" height="22"> {{ a.get('team_abbr') or '—' }} <span class="mid">{{ mid }}</span> {{ a.get('opponent_abbr') or '—' }} <img src="{{ a.get('opponent_logo') }}" height="22"></td><td class="when">{% if note %}<span class="note">{{ note }} · </span>{% endif %}<b>{{ when }}</b></td></tr>
 {%- endmacro -%}
 
 {%- macro games_panel() -%}
