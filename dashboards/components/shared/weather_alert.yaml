@@ -1,4 +1,6 @@
 # Weather Service watch/warning/advisory banner; hidden when there's none.
+# Shared by the kitchen tablet and the Home dashboard. Sized for the tablet;
+# the media queries shrink it on phone-width screens.
 type: markdown
 visibility:
   - condition: numeric_state
@@ -18,7 +20,17 @@ card_mod:
         text-align: center;
         padding: 10px 16px;
       }
+      @media (max-width: 600px) {
+        ha-card {
+          border-radius: 20px !important;
+          padding: 6px 12px;
+          margin-bottom: 6px !important;
+        }
+      }
     # Headings and tables sit inside ha-markdown's shadow root.
     ha-markdown $: |
       :host { text-align: center; }
       h2 { font-size: 26px !important; margin: 0 !important; }
+      @media (max-width: 600px) {
+        h2 { font-size: 18px !important; }
+      }

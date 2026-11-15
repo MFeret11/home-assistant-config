@@ -7,7 +7,7 @@ kiosk_mode:
 views:
   # Live page. sensor.kitchen_display_mode (packages/kitchen_display.yaml) picks
   # the layout: "morning" on weekdays 6-9 AM shows only commute, weather and
-  # today's events; "day" shows the rest. Cards are in components/kitchen/.
+  # today's events; "day" shows the rest. Cards are in components/shared/.
   - title: Kitchen Kiosk
     path: kitchen-kiosk
     type: sections
@@ -20,29 +20,29 @@ views:
             entity: sensor.weather_alert_count
             above: 0
         cards:
-          - !include components/kitchen/weather_alert.yaml
+          - !include components/shared/weather_alert.yaml
       - type: grid
         visibility: &morning
           - condition: state
             entity: sensor.kitchen_display_mode
             state: morning
-        cards: !include components/kitchen/morning_left.yaml
+        cards: !include components/shared/morning_left.yaml
       - type: grid
         visibility: *morning
-        cards: !include components/kitchen/morning_right.yaml
+        cards: !include components/shared/morning_right.yaml
       # state_not, so an unknown mode falls back to the full layout.
       - type: grid
         visibility: &day
           - condition: state
             entity: sensor.kitchen_display_mode
             state_not: morning
-        cards: !include components/kitchen/day_left.yaml
+        cards: !include components/shared/day_left.yaml
       - type: grid
         visibility: *day
-        cards: !include components/kitchen/day_right.yaml
+        cards: !include components/shared/day_right.yaml
 
   # ---------------------------------------------------------------------------
-  # PREVIEWS of the time-of-day layout (cards in components/kitchen/). Each shows
+  # PREVIEWS of the time-of-day layout (cards in components/shared/). Each shows
   # one mode regardless of the clock. The commute cards still follow their own
   # time windows, so they only appear at commute times.
   # ---------------------------------------------------------------------------
@@ -58,11 +58,11 @@ views:
             entity: sensor.weather_alert_count
             above: 0
         cards:
-          - !include components/kitchen/weather_alert.yaml
+          - !include components/shared/weather_alert.yaml
       - type: grid
-        cards: !include components/kitchen/morning_left.yaml
+        cards: !include components/shared/morning_left.yaml
       - type: grid
-        cards: !include components/kitchen/morning_right.yaml
+        cards: !include components/shared/morning_right.yaml
 
   - title: Preview Day
     path: preview-day
@@ -76,8 +76,8 @@ views:
             entity: sensor.weather_alert_count
             above: 0
         cards:
-          - !include components/kitchen/weather_alert.yaml
+          - !include components/shared/weather_alert.yaml
       - type: grid
-        cards: !include components/kitchen/day_left.yaml
+        cards: !include components/shared/day_left.yaml
       - type: grid
-        cards: !include components/kitchen/day_right.yaml
+        cards: !include components/shared/day_right.yaml
