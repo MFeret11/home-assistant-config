@@ -51,7 +51,10 @@
   {%- set now_pop = hourly[0].rain if hourly else 0 -%}
 # <ha-icon icon="{{ wx_icon(cond, now_pop, night) }}"></ha-icon> {{ temp | round(0) | int if temp is number else '—' }}° · {{ _cond_text('cloudy' if cond in ['rainy'] and now_pop < 30 else cond) }}
 
+{#- The full panel's 5-day strip already shows today's high and low. -#}
+{% if not (full and daily) %}
 ### {% if hi is not none %}High {{ hi }}° · {% endif %}{% if lo is not none %}Low {{ lo }}°{% endif %}
+{%- endif %}
 {%- set wear = states('sensor.commute_weather') %}
 {%- if wear not in ['unknown', 'unavailable', 'None', ''] %}
 
