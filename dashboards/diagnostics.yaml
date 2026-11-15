@@ -224,6 +224,49 @@ views:
                 name: Missing Entities
               - entity: sensor.watchman_missing_actions
                 name: Missing Actions
+          # Daily means from long-term statistics, which outlast the recorder's
+          # 7-day purge. Life remaining should stay flat for years; a slow climb
+          # in temperature points at the enclosure or the room, not the drive.
+          - type: custom:apexcharts-card
+            header:
+              show: true
+              title: SSD Trend (90 days)
+              show_states: true
+              colorize_states: true
+            graph_span: 90d
+            span:
+              end: day
+            yaxis:
+              - id: life
+                min: 0
+                max: 100
+                decimals: 0
+                apex_config:
+                  title:
+                    text: Life %
+              - id: temp
+                opposite: true
+                decimals: 0
+                apex_config:
+                  title:
+                    text: °F
+            series:
+              - entity: sensor.ssd_life_remaining
+                name: Life Remaining
+                yaxis_id: life
+                color: "#4caf50"
+                stroke_width: 2
+                statistics:
+                  type: mean
+                  period: day
+              - entity: sensor.ssd_temperature
+                name: Temperature
+                yaxis_id: temp
+                color: "#ff9800"
+                stroke_width: 2
+                statistics:
+                  type: mean
+                  period: day
       - type: grid
         cards:
           - type: heading
