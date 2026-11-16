@@ -45,6 +45,7 @@ recorder:
       - image
     entity_globs:
       - sensor.system_monitor_*
+      - sensor.trakt_*   # big episode lists in attributes, no history needed
       - sensor.office_creality_printer_*
       - sensor.avr_*
       - sensor.*_linkquality

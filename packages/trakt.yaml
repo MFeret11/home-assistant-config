@@ -1,0 +1,18 @@
+# Trakt: upcoming episodes, what's next to watch, and watch stats.
+# The account link (client ID/secret) is set up in the UI, not here.
+# Changes to this file need an HA restart.
+trakt_tv:
+  language: en
+  timezone: America/New_York
+  sensors:
+    upcoming:
+      show:
+        days_to_fetch: 7
+        max_medias: 5
+    next_to_watch:
+      all:
+        max_medias: 5
+    stats:
+      - movies_watched
+      - episodes_watched
+      - episodes_minutes
