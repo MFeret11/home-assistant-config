@@ -21,6 +21,8 @@
 # shows), the screen is turned on and held on through the Companion app. When
 # they all end, keep-screen-on is cleared and Android's normal screen timeout
 # turns the screen off, so it is dark for the rest of the day and overnight.
+# It is also released while both of us are away (binary_sensor.anyone_home),
+# and held again if one of us gets home while a window is still open.
 
 PLUG = "switch.kitchen_tablet_mains"
 PLUG_COUNTDOWN = "number.kitchen_tablet_mains_countdown_to_turn_off"
@@ -38,8 +40,8 @@ WAKE_WINDOWS = [
     # The train-home card: on from when the commuter leaves work, even before 4 PM.
     "binary_sensor.kitchen_show_pm_commute",
 ]
-WAKE_ON = " or ".join([f"{e} == 'on'" for e in WAKE_WINDOWS])
-WAKE_OFF = " or ".join([f"{e} == 'off'" for e in WAKE_WINDOWS])
+# The screen is held only while a window is open and someone is home.
+ANYONE_HOME = "binary_sensor.anyone_home"
 MAX_CHARGE_S = 4 * 3600  # 30->80% takes about 2 h; 4 h leaves room for heavy use while charging
 
 
@@ -130,27 +132,37 @@ def _in_wake_window():
     return False
 
 
-@state_trigger(WAKE_ON)
-def kitchen_tablet_wake(var_name=None, value=None, old_value=None):
-    # Send once, when the first window opens. At 8 AM one window ends as the
-    # next begins; a second command then turned the screen off (2026-11-06).
-    if value != "on" or old_value == "on":
-        return
-    if any([state.get(e) == "on" for e in WAKE_WINDOWS if e != var_name]):
-        return
-    _screen_command(True)
+def _want_screen():
+    # Unknown or unavailable counts as home, so only a confirmed "off" darkens it.
+    return _in_wake_window() and state.get(ANYONE_HOME) != "off"
 
 
-@state_trigger(WAKE_OFF)
-def kitchen_tablet_release(var_name=None, old_value=None):
-    if old_value == "on" and not _in_wake_window():
-        _screen_command(False)
+_screen_held = None  # last command sent: True = held on, False = released
+
+
+def _sync_screen():
+    global _screen_held
+    want = _want_screen()
+    # Send only when the answer changes. At 8 AM one window ends as the next
+    # begins; a second keep-on command then turned the screen off (2026-11-06).
+    if want == _screen_held:
+        return
+    if want or _screen_held:
+        _screen_command(want)
+    _screen_held = want
+
+
+@state_trigger(WAKE_WINDOWS + [ANYONE_HOME])
+def kitchen_tablet_screen_inputs_changed():
+    # Debounce: let window handovers and GPS blips settle before deciding.
+    task.unique("kitchen_tablet_screen_sync")
+    task.sleep(5)
+    _sync_screen()
 
 
 @time_trigger("startup")
 def kitchen_tablet_startup():
     _apply_charge_window()
-    if _in_wake_window():
-        _screen_command(True)
+    _sync_screen()
     if state.get(PLUG) == "on":
         kitchen_tablet_arm_backstop()

@@ -105,6 +105,12 @@ template:
         unique_id: me_away
         icon: mdi:map-marker-account
         state: "{{ states('sensor.me_location') not in ['home', 'unknown', 'unavailable'] }}"
+      # Off only when both of us are confirmed away. An unknown location counts
+      # as home, so a GPS dropout never darkens the kitchen tablet by mistake.
+      - name: "Anyone Home"
+        unique_id: anyone_home
+        icon: mdi:home-account
+        state: "{{ not (is_state('binary_sensor.me_away', 'on') and is_state('binary_sensor.partner_away', 'on')) }}"
 
   # On from when the commuter leaves work until they're home: the kitchen's
   # train-home card and the tablet's screen follow it, and the transit service
