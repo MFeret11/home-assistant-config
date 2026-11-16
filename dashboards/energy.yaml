@@ -1,0 +1,119 @@
+# PECO electric and gas, from the Opower integration.
+# The graphs read Opower's long-term statistics. Their IDs contain the PECO
+# account number, so they live in the gitignored dashboards/private/ folder.
+# PECO data arrives a day or two late, so the newest bars trail today.
+title: Energy
+views:
+  - title: Energy
+    path: energy
+    icon: mdi:lightning-bolt
+    type: sections
+    max_columns: 2
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: Electric
+            icon: mdi:lightning-bolt
+          - type: tile
+            entity: sensor.whole_house_peco_electric_current_bill_electric_cost_to_date
+            name: Bill so far
+          - type: tile
+            entity: sensor.whole_house_peco_electric_current_bill_electric_forecasted_cost
+            name: Forecast
+          - type: tile
+            entity: sensor.whole_house_peco_electric_current_bill_electric_usage_to_date
+            name: Used so far
+          - type: tile
+            entity: sensor.whole_house_peco_electric_typical_monthly_electric_cost
+            name: Typical month
+          - type: statistics-graph
+            title: Daily use (kWh)
+            entities:
+              - entity: !include private/peco_elec_consumption.yaml
+                name: Electric
+            chart_type: bar
+            period: day
+            stat_types: [change]
+            days_to_show: 30
+            hide_legend: true
+            grid_options:
+              columns: full
+          - type: statistics-graph
+            title: Daily cost
+            entities:
+              - entity: !include private/peco_elec_cost.yaml
+                name: Cost
+            chart_type: bar
+            period: day
+            stat_types: [change]
+            days_to_show: 30
+            hide_legend: true
+            grid_options:
+              columns: full
+          - type: statistics-graph
+            title: Monthly cost
+            entities:
+              - entity: !include private/peco_elec_cost.yaml
+                name: Cost
+            chart_type: bar
+            period: month
+            stat_types: [change]
+            days_to_show: 365
+            hide_legend: true
+            grid_options:
+              columns: full
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Gas
+            icon: mdi:fire
+          - type: tile
+            entity: sensor.whole_house_peco_gas_current_bill_gas_cost_to_date
+            name: Bill so far
+          - type: tile
+            entity: sensor.whole_house_peco_gas_current_bill_gas_forecasted_cost
+            name: Forecast
+          - type: tile
+            entity: sensor.whole_house_peco_gas_current_bill_gas_usage_to_date
+            name: Used so far
+          - type: tile
+            entity: sensor.whole_house_peco_gas_typical_monthly_gas_cost
+            name: Typical month
+          - type: statistics-graph
+            title: Daily use (CCF)
+            entities:
+              - entity: !include private/peco_gas_consumption.yaml
+                name: Gas
+            chart_type: bar
+            period: day
+            stat_types: [change]
+            days_to_show: 30
+            hide_legend: true
+            grid_options:
+              columns: full
+          - type: statistics-graph
+            title: Daily cost
+            entities:
+              - entity: !include private/peco_gas_cost.yaml
+                name: Cost
+            chart_type: bar
+            period: day
+            stat_types: [change]
+            days_to_show: 30
+            hide_legend: true
+            grid_options:
+              columns: full
+          - type: statistics-graph
+            title: Monthly cost
+            entities:
+              - entity: !include private/peco_gas_cost.yaml
+                name: Cost
+            chart_type: bar
+            period: month
+            stat_types: [change]
+            days_to_show: 365
+            hide_legend: true
+            grid_options:
+              columns: full

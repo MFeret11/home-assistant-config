@@ -150,6 +150,12 @@ lovelace:
       icon: mdi:wrench-cog
       show_in_sidebar: true
       filename: dashboards/diagnostics.yaml
+    dashboard-energy:
+      mode: yaml
+      title: Energy
+      icon: mdi:lightning-bolt
+      show_in_sidebar: true
+      filename: dashboards/energy.yaml
 
 # -- ROG Gaming PC Configuration -- 
 # Enable Wake-on-LAN integration

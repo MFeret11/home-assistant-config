@@ -125,6 +125,12 @@ REGISTERED_ENTITIES = {
     "binary_sensor.transit_microservice", "binary_sensor.gaming_pc_online",
     "person.kitchen_display", "media_player.theater_onn_pro_adb",
 
+    # PECO bill sensors (Opower, Energy dashboard)
+    "sensor.whole_house_peco_electric_current_bill_electric_cost_to_date", "sensor.whole_house_peco_electric_current_bill_electric_forecasted_cost",
+    "sensor.whole_house_peco_electric_current_bill_electric_usage_to_date", "sensor.whole_house_peco_electric_typical_monthly_electric_cost",
+    "sensor.whole_house_peco_gas_current_bill_gas_cost_to_date", "sensor.whole_house_peco_gas_current_bill_gas_forecasted_cost",
+    "sensor.whole_house_peco_gas_current_bill_gas_usage_to_date", "sensor.whole_house_peco_gas_typical_monthly_gas_cost",
+
     # Camera controls (Home security pop-up)
     "switch.back_deck_cam_motion_detection", "switch.back_deck_cam_notifications", "switch.back_yard_cam_motion_detection",
     "switch.back_yard_cam_notifications", "switch.front_porch_cam_motion_detection", "switch.front_porch_cam_notifications",
