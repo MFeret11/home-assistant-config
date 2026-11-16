@@ -27,4 +27,5 @@ views:
         cards:
           - !include components/now_playing_marquee.yaml
           - !include components/theater_stage.yaml
+          - !include components/up_next_trakt.yaml
           - !include components/theater_remote_popup.yaml
