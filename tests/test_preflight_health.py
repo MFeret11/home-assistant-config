@@ -139,6 +139,8 @@ def setup_healthy_environment():
     mock_state.set("light.stairlights", "off")
     mock_state.set("binary_sensor.bottom_stairs", "off")
     mock_state.set("binary_sensor.basement_stairs_door_sensor", "off")
+    mock_state.set("binary_sensor.theater_mmwave_sensor", "off")
+    mock_state.set("binary_sensor.mmwave_sensor_bar", "off")
     mock_state.set("input_select.basement_theater_mode", "Off")
     mock_state.set("input_select.basement_lighting_mode", "Daily Driver")
 
@@ -177,6 +179,33 @@ def test_preflight_diagnostics_error_on_missing():
     assert "media_player.theater_receiver" in res["missing_items"][0]
     assert mock_state.get("sensor.basement_automation_health") == "error"
     print("  ✓ [Preflight] test_preflight_diagnostics_error_on_missing PASSED")
+
+
+def test_offline_alert_needs_two_runs_and_fires_once():
+    setup_healthy_environment()
+    health_check._problems_last_run = set()
+    health_check._problems_alerted = set()
+    mock_state.set("binary_sensor.mmwave_sensor_bar", "unavailable")
+
+    spy.clear()
+    health_check.scheduled_health_audit()
+    assert not spy.was_called("notify", "ntfy"), "one bad reading must not alert"
+
+    health_check.scheduled_health_audit()
+    sent = [c for c in spy.calls if c["domain"] == "notify" and c["service"] == "ntfy"]
+    assert len(sent) == 1 and "mmwave_sensor_bar" in sent[0]["kwargs"]["message"]
+
+    spy.clear()
+    health_check.scheduled_health_audit()
+    assert not spy.was_called("notify", "ntfy"), "still down: no repeat"
+
+    mock_state.set("binary_sensor.mmwave_sensor_bar", "off")
+    health_check.scheduled_health_audit()
+    mock_state.set("binary_sensor.mmwave_sensor_bar", "unavailable")
+    health_check.scheduled_health_audit()
+    health_check.scheduled_health_audit()
+    assert spy.was_called("notify", "ntfy"), "recovered then dropped again: alert again"
+    print("  ✓ [Preflight] test_offline_alert_needs_two_runs_and_fires_once PASSED")
 
 
 def test_theater_force_reconcile_when_active():
@@ -237,10 +266,11 @@ if __name__ == "__main__":
     test_preflight_diagnostics_all_healthy()
     test_preflight_diagnostics_degraded_on_unavailable()
     test_preflight_diagnostics_error_on_missing()
+    test_offline_alert_needs_two_runs_and_fires_once()
     test_theater_force_reconcile_when_active()
     test_theater_force_reconcile_when_off()
     test_edge_case_media_candidate_sanitization()
     test_database_maintenance_trigger()
     print("==================================================")
-    print("ALL 7 PREFLIGHT & RECONCILIATION TESTS PASSED")
+    print("ALL 8 PREFLIGHT & RECONCILIATION TESTS PASSED")
     print("==================================================\n")

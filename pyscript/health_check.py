@@ -16,6 +16,10 @@ CRITICAL_ENTITIES = [
     ("light.stairlights", "Stairway Illuminators"),
     ("binary_sensor.bottom_stairs", "Foot of Stairs Motion"),
     ("binary_sensor.basement_stairs_door_sensor", "Stair Door Contact Sensor"),
+    # basement.py reads an unavailable presence sensor as "nobody there", so a
+    # dead one silently weakens the vacancy and walk-out rules.
+    ("binary_sensor.theater_mmwave_sensor", "Theater mmWave Presence"),
+    ("binary_sensor.mmwave_sensor_bar", "Bar mmWave Presence"),
     ("input_select.basement_theater_mode", "Theater Mode Selector"),
     ("input_select.basement_lighting_mode", "Lighting Mode Selector"),
 ]
@@ -86,10 +90,42 @@ def run_preflight_diagnostics():
     return diagnostic_summary
 
 
+# Problems seen on the previous hourly run, and the ones already pushed.
+_problems_last_run = set()
+_problems_alerted = set()
+
+
+def alert_on_persistent_problems(summary):
+    """Pushes one ntfy alert per entity that is down on two hourly runs in a row.
+
+    Two runs, so a Zigbee blip or a restart doesn't page anyone. An entity that
+    recovers and drops again alerts again; a reload forgets what was pushed, so
+    a still-dead entity is repeated once after a restart.
+    """
+    global _problems_last_run, _problems_alerted
+    problems = set(summary["unavailable_items"]) | set(summary["missing_items"])
+    new = (problems & _problems_last_run) - _problems_alerted
+    _problems_alerted = (_problems_alerted & problems) | new
+    _problems_last_run = problems
+    if not new:
+        return
+    try:
+        notify.ntfy(
+            title="Basement health: device offline",
+            message="Unavailable for over an hour: " + "; ".join(sorted(new)),
+        )
+    except Exception:
+        pass
+
+
 @time_trigger("startup")
+def startup_health_audit():
+    run_preflight_diagnostics()
+
+
 @time_trigger("cron(0 * * * *)")
 def scheduled_health_audit():
-    run_preflight_diagnostics()
+    alert_on_persistent_problems(run_preflight_diagnostics())
 
 
 @service
