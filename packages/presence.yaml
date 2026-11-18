@@ -1,0 +1,78 @@
+# Who is home. Two signals per person:
+#   - Phone on the home WiFi: the phone answers ARP on its LAN address. Proof
+#     of being home, but a sleeping iPhone can stop answering, so a miss never
+#     means away by itself.
+#   - Google Maps location sharing (sensor.partner_location /
+#     sensor.me_location, neutral copies made in the gitignored private
+#     package): "home" counts only after it holds 5 minutes, since Maps can
+#     read "home" for a minute or two when someone just passes nearby.
+# Home = either signal. Away = both gone for 3 minutes. An unknown or
+# unavailable Maps location counts as home, so a dropout (e.g. expired Google
+# cookies) never darkens the kitchen tablet by mistake.
+#
+# The phone addresses are DHCP reservations on the router; if a phone gets a
+# new address, update it here and reload "Command line entities".
+
+command_line:
+  - binary_sensor:
+      name: "Partner Phone On WiFi"
+      unique_id: partner_phone_on_wifi
+      device_class: connectivity
+      command: "arping -c 3 -w 4 192.168.1.181 > /dev/null 2>&1 && echo on || echo off"
+      payload_on: "on"
+      payload_off: "off"
+      scan_interval: 30
+  - binary_sensor:
+      name: "Me Phone On WiFi"
+      unique_id: me_phone_on_wifi
+      device_class: connectivity
+      command: "arping -c 3 -w 4 192.168.1.174 > /dev/null 2>&1 && echo on || echo off"
+      payload_on: "on"
+      payload_off: "off"
+      scan_interval: 30
+
+template:
+  - binary_sensor:
+      - name: "Partner Maps Home"
+        unique_id: partner_maps_home
+        icon: mdi:google-maps
+        state: "{{ is_state('sensor.partner_location', 'home') }}"
+        delay_on: "00:05:00"
+      - name: "Me Maps Home"
+        unique_id: me_maps_home
+        icon: mdi:google-maps
+        state: "{{ is_state('sensor.me_location', 'home') }}"
+        delay_on: "00:05:00"
+
+      - name: "Partner Home"
+        unique_id: partner_home
+        device_class: presence
+        state: >-
+          {{ is_state('binary_sensor.partner_phone_on_wifi', 'on')
+             or is_state('binary_sensor.partner_maps_home', 'on')
+             or states('sensor.partner_location') in ['unknown', 'unavailable'] }}
+        delay_off: "00:03:00"
+      - name: "Me Home"
+        unique_id: me_home
+        device_class: presence
+        state: >-
+          {{ is_state('binary_sensor.me_phone_on_wifi', 'on')
+             or is_state('binary_sensor.me_maps_home', 'on')
+             or states('sensor.me_location') in ['unknown', 'unavailable'] }}
+        delay_off: "00:03:00"
+
+      # The kitchen map shows whoever is away, so the one at home can see
+      # where they are. Off while the home sensor is starting up.
+      - name: "Partner Away"
+        unique_id: partner_away
+        icon: mdi:map-marker-account
+        state: "{{ is_state('binary_sensor.partner_home', 'off') }}"
+      - name: "Me Away"
+        unique_id: me_away
+        icon: mdi:map-marker-account
+        state: "{{ is_state('binary_sensor.me_home', 'off') }}"
+      # Off only when both of us are confirmed away.
+      - name: "Anyone Home"
+        unique_id: anyone_home
+        icon: mdi:home-account
+        state: "{{ not (is_state('binary_sensor.me_away', 'on') and is_state('binary_sensor.partner_away', 'on')) }}"

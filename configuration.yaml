@@ -94,6 +94,10 @@ recorder:
       # coordinates are not kept in history.
       - sensor.partner_location
       - sensor.me_location
+      # Raw phone-on-WiFi pings (packages/presence.yaml); a sleeping iPhone
+      # flaps. partner_home / me_home keep the useful history.
+      - binary_sensor.partner_phone_on_wifi
+      - binary_sensor.me_phone_on_wifi
       # Chatty, nobody reads their history (~2k rows/week, 2026-11-14).
       - sensor.watchman_last_update
       - media_player.theater_onn_pro_adb

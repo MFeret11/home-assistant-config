@@ -103,3 +103,9 @@ Template sensors that hold logic the dashboards used to repeat inline. Cards rea
 - `sensor.cameras_online` (`packages/house_status.yaml`): number of reachable cameras; attributes `total` and `offline` (list of cameras that are unavailable or unknown). Feeds the Home Security tile.
 - `sensor.next_calendar_event` (`packages/house_status.yaml`): title of the soonest event across the household calendars; the `when` attribute is the formatted date and time.
 - The maintenance and calendar logic lives in `custom_templates/house_status.jinja`. After editing it, run `homeassistant.reload_custom_templates`, then `template.reload`.
+
+### Presence (`packages/presence.yaml`)
+- `binary_sensor.partner_home` / `binary_sensor.me_home`: on while the phone answers on the home WiFi, or Google Maps (`sensor.partner_location` / `sensor.me_location`) has said `home` for 5 minutes; off 3 minutes after both are gone. An unknown or unavailable Maps location counts as home. The 5-minute hold is there because Maps can read "home" briefly when someone just passes nearby. These keep the history of who was home; the `person.*` entities follow only the Companion apps and are not used for presence.
+- `binary_sensor.partner_phone_on_wifi` / `binary_sensor.me_phone_on_wifi`: command_line ARP checks of each phone's reserved LAN address every 30 s (recorder-excluded; a sleeping iPhone flaps). A miss alone never means away.
+- `binary_sensor.partner_maps_home` / `binary_sensor.me_maps_home`: Maps `home` held 5 minutes.
+- `binary_sensor.partner_away` / `binary_sensor.me_away`: the home sensor is off (drives the kitchen away map). `binary_sensor.anyone_home`: off only when both are away (kitchen tablet screen).
