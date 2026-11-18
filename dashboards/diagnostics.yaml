@@ -2,6 +2,7 @@ title: Diagnostics
 views:
   - title: Diagnostics
     path: diagnostics
+    theme: House Glass  # see scripts/build_house_theme.py
     icon: mdi:wrench-cog
     type: sections
     max_columns: 4
@@ -29,13 +30,8 @@ views:
                   navigation_path: /dashboard-home/home
                   haptic: light
                 card_mod:
-                  style: |
-                    ha-card {
-                      background: rgba(33, 150, 243, 0.12) !important;
-                      border: 1px solid rgba(33, 150, 243, 0.35) !important;
-                      border-radius: 20px !important;
-                    }
-                    ha-card:active { transform: scale(0.95); }
+                  class: glass-chip
+                  style: "ha-card { --tile-rgb: 33, 150, 243; }"
               - type: template
                 icon: mdi:home-floor-b
                 content: Basement
@@ -45,13 +41,8 @@ views:
                   navigation_path: /basement-yaml/basement
                   haptic: light
                 card_mod:
-                  style: |
-                    ha-card {
-                      background: rgba(255, 179, 0, 0.12) !important;
-                      border: 1px solid rgba(255, 179, 0, 0.35) !important;
-                      border-radius: 20px !important;
-                    }
-                    ha-card:active { transform: scale(0.95); }
+                  class: glass-chip
+                  style: "ha-card { --tile-rgb: 255, 179, 0; }"
               - type: template
                 icon: mdi:history
                 content: Activity Log
@@ -61,13 +52,8 @@ views:
                   navigation_path: /activity-log/activity-log
                   haptic: light
                 card_mod:
-                  style: |
-                    ha-card {
-                      background: rgba(156, 39, 176, 0.12) !important;
-                      border: 1px solid rgba(156, 39, 176, 0.35) !important;
-                      border-radius: 20px !important;
-                    }
-                    ha-card:active { transform: scale(0.95); }
+                  class: glass-chip
+                  style: "ha-card { --tile-rgb: 156, 39, 176; }"
               - type: template
                 icon: mdi:tools
                 content: Maintenance
@@ -77,13 +63,8 @@ views:
                   navigation_path: /dashboard-diagnostics/maintenance
                   haptic: light
                 card_mod:
-                  style: |
-                    ha-card {
-                      background: rgba(255, 152, 0, 0.12) !important;
-                      border: 1px solid rgba(255, 152, 0, 0.35) !important;
-                      border-radius: 20px !important;
-                    }
-                    ha-card:active { transform: scale(0.95); }
+                  class: glass-chip
+                  style: "ha-card { --tile-rgb: 255, 152, 0; }"
           # Executive Infrastructure KPI Bar
           - type: horizontal-stack
             cards:
@@ -494,6 +475,7 @@ views:
   # Consumables, batteries and updates: everything that wears out or needs a hand.
   - title: Maintenance
     path: maintenance
+    theme: House Glass  # see scripts/build_house_theme.py
     icon: mdi:tools
     type: sections
     max_columns: 4
@@ -520,13 +502,8 @@ views:
                   navigation_path: /dashboard-home/home
                   haptic: light
                 card_mod:
-                  style: |
-                    ha-card {
-                      background: rgba(33, 150, 243, 0.12) !important;
-                      border: 1px solid rgba(33, 150, 243, 0.35) !important;
-                      border-radius: 20px !important;
-                    }
-                    ha-card:active { transform: scale(0.95); }
+                  class: glass-chip
+                  style: "ha-card { --tile-rgb: 33, 150, 243; }"
               - type: template
                 icon: mdi:wrench-cog
                 content: Diagnostics
@@ -536,13 +513,8 @@ views:
                   navigation_path: /dashboard-diagnostics/diagnostics
                   haptic: light
                 card_mod:
-                  style: |
-                    ha-card {
-                      background: rgba(0, 150, 136, 0.12) !important;
-                      border: 1px solid rgba(0, 150, 136, 0.35) !important;
-                      border-radius: 20px !important;
-                    }
-                    ha-card:active { transform: scale(0.95); }
+                  class: glass-chip
+                  style: "ha-card { --tile-rgb: 0, 150, 136; }"
 
       - type: grid
         cards:

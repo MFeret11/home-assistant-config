@@ -2,6 +2,7 @@ title: Activity Log
 views:
   - title: Activity Log
     path: activity-log
+    theme: House Glass  # see scripts/build_house_theme.py
     icon: mdi:history
     type: sections
     max_columns: 4
@@ -29,13 +30,8 @@ views:
                   navigation_path: /dashboard-home/home
                   haptic: light
                 card_mod:
-                  style: |
-                    ha-card {
-                      background: rgba(33, 150, 243, 0.12) !important;
-                      border: 1px solid rgba(33, 150, 243, 0.35) !important;
-                      border-radius: 20px !important;
-                    }
-                    ha-card:active { transform: scale(0.95); }
+                  class: glass-chip
+                  style: "ha-card { --tile-rgb: 33, 150, 243; }"
               - type: template
                 icon: mdi:home-floor-b
                 content: Basement
@@ -45,13 +41,8 @@ views:
                   navigation_path: /basement-yaml/basement
                   haptic: light
                 card_mod:
-                  style: |
-                    ha-card {
-                      background: rgba(255, 179, 0, 0.12) !important;
-                      border: 1px solid rgba(255, 179, 0, 0.35) !important;
-                      border-radius: 20px !important;
-                    }
-                    ha-card:active { transform: scale(0.95); }
+                  class: glass-chip
+                  style: "ha-card { --tile-rgb: 255, 179, 0; }"
               - type: template
                 icon: mdi:wrench-cog
                 content: Diagnostics
@@ -61,13 +52,8 @@ views:
                   navigation_path: /dashboard-diagnostics
                   haptic: light
                 card_mod:
-                  style: |
-                    ha-card {
-                      background: rgba(0, 150, 136, 0.12) !important;
-                      border: 1px solid rgba(0, 150, 136, 0.35) !important;
-                      border-radius: 20px !important;
-                    }
-                    ha-card:active { transform: scale(0.95); }
+                  class: glass-chip
+                  style: "ha-card { --tile-rgb: 0, 150, 136; }"
 
       # Section 1: Whole House (48 Hours)
       # People come from a person.* filter so no names are written into this repo.

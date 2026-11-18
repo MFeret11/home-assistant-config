@@ -3,6 +3,7 @@ views:
   - title: Bedroom
     path: bedroom
     icon: mdi:bed
+    theme: House Glass  # see scripts/build_house_theme.py
     type: sections
     max_columns: 2
     sections:
@@ -27,13 +28,8 @@ views:
                   navigation_path: /dashboard-home/home
                   haptic: light
                 card_mod:
-                  style: |
-                    ha-card {
-                      background: rgba(33, 150, 243, 0.12) !important;
-                      border: 1px solid rgba(33, 150, 243, 0.35) !important;
-                      border-radius: 20px !important;
-                    }
-                    ha-card:active { transform: scale(0.95); }
+                  class: glass-chip
+                  style: "ha-card { --tile-rgb: 33, 150, 243; }"
               - type: template
                 icon: mdi:moon-waning-crescent
                 content: Goodnight
@@ -91,14 +87,9 @@ views:
                     transition: 2
                   haptic: light
                 card_mod:
+                  class: glass-tile tall
                   style: |
-                    ha-card {
-                      background: rgba(255, 179, 0, 0.08) !important;
-                      border: 1px solid rgba(255, 179, 0, 0.25) !important;
-                      border-radius: 18px !important;
-                      padding: 10px 4px !important;
-                    }
-                    ha-card:active { transform: scale(0.94); }
+                    ha-card { --tile-rgb: 255, 179, 0; --tile-on: 0.3; }
               - type: custom:mushroom-template-card
                 primary: Reading
                 secondary: 45% Warm
@@ -116,14 +107,9 @@ views:
                     transition: 2
                   haptic: light
                 card_mod:
+                  class: glass-tile tall
                   style: |
-                    ha-card {
-                      background: rgba(33, 150, 243, 0.08) !important;
-                      border: 1px solid rgba(33, 150, 243, 0.25) !important;
-                      border-radius: 18px !important;
-                      padding: 10px 4px !important;
-                    }
-                    ha-card:active { transform: scale(0.94); }
+                    ha-card { --tile-rgb: 33, 150, 243; --tile-on: 0.3; }
               - type: custom:mushroom-template-card
                 primary: Bright
                 secondary: 100% Day
@@ -141,14 +127,9 @@ views:
                     transition: 2
                   haptic: light
                 card_mod:
+                  class: glass-tile tall
                   style: |
-                    ha-card {
-                      background: rgba(76, 175, 80, 0.08) !important;
-                      border: 1px solid rgba(76, 175, 80, 0.25) !important;
-                      border-radius: 18px !important;
-                      padding: 10px 4px !important;
-                    }
-                    ha-card:active { transform: scale(0.94); }
+                    ha-card { --tile-rgb: 76, 175, 80; --tile-on: 0.3; }
               - type: custom:mushroom-template-card
                 primary: Red
                 secondary: 10% Red
@@ -167,14 +148,9 @@ views:
                     transition: 2
                   haptic: light
                 card_mod:
+                  class: glass-tile tall
                   style: |
-                    ha-card {
-                      background: rgba(244, 67, 54, 0.08) !important;
-                      border: 1px solid rgba(244, 67, 54, 0.25) !important;
-                      border-radius: 18px !important;
-                      padding: 10px 4px !important;
-                    }
-                    ha-card:active { transform: scale(0.94); }
+                    ha-card { --tile-rgb: 244, 67, 54; --tile-on: 0.3; }
           - type: horizontal-stack
             cards:
               - type: custom:mushroom-light-card

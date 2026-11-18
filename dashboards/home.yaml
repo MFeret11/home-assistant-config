@@ -3,6 +3,9 @@ views:
   - title: Home
     path: home
     icon: mdi:home
+    # Built by scripts/build_house_theme.py (Frosted Glass Dark Lite + the
+    # glass-tile styles these cards use).
+    theme: House Glass
     type: sections
     max_columns: 4
     sections:
@@ -89,17 +92,12 @@ views:
                   navigation_path: '#vaculina'
                   haptic: medium
                 card_mod:
+                  class: glass-tile tall
                   style: |
                     ha-card {
-                      {% set s = states('vacuum.vaculina') %}
-                      background: {{ 'linear-gradient(135deg, rgba(33, 150, 243, 0.3), rgba(13, 71, 161, 0.15))' if s in ['cleaning', 'returning'] else 'rgba(255, 255, 255, 0.04)' }} !important;
-                      border: 1px solid {{ 'rgba(33, 150, 243, 0.6)' if s in ['cleaning', 'returning'] else 'rgba(255, 255, 255, 0.08)' }} !important;
-                      border-radius: 20px !important;
-                      padding: 10px 4px !important;
-                      box-shadow: {{ '0 4px 18px rgba(33, 150, 243, 0.3)' if s in ['cleaning', 'returning'] else 'none' }};
-                      transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1) !important;
+                      --tile-rgb: 33, 150, 243;
+                      --tile-on: {{ 1 if states('vacuum.vaculina') in ['cleaning', 'returning'] else 0 }};
                     }
-                    ha-card:active { transform: scale(0.92); }
 
               - type: custom:mushroom-template-card
                 primary: Social
@@ -114,17 +112,12 @@ views:
                   perform_action: pyscript.toggle_lighting_mode
                   haptic: light
                 card_mod:
+                  class: glass-tile tall
                   style: |
                     ha-card {
-                      {% set on = is_state('input_select.basement_lighting_mode', 'Social Mode') %}
-                      background: {{ 'linear-gradient(135deg, rgba(156, 39, 176, 0.3), rgba(74, 20, 140, 0.15))' if on else 'rgba(255, 255, 255, 0.04)' }} !important;
-                      border: 1px solid {{ 'rgba(156, 39, 176, 0.65)' if on else 'rgba(255, 255, 255, 0.08)' }} !important;
-                      border-radius: 20px !important;
-                      padding: 10px 4px !important;
-                      box-shadow: {{ '0 4px 18px rgba(156, 39, 176, 0.3)' if on else 'none' }};
-                      transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1) !important;
+                      --tile-rgb: 156, 39, 176;
+                      --tile-on: {{ 1 if is_state('input_select.basement_lighting_mode', 'Social Mode') else 0 }};
                     }
-                    ha-card:active { transform: scale(0.92); }
 
               - type: conditional
                 conditions:
@@ -143,16 +136,12 @@ views:
                     perform_action: pyscript.basement_all_off
                     haptic: medium
                   card_mod:
+                    class: glass-tile tall
                     style: |
                       ha-card {
-                        background: linear-gradient(135deg, rgba(244, 67, 54, 0.35), rgba(183, 28, 28, 0.18)) !important;
-                        border: 1px solid rgba(244, 67, 54, 0.7) !important;
-                        border-radius: 20px !important;
-                        padding: 10px 4px !important;
-                        box-shadow: 0 4px 18px rgba(244, 67, 54, 0.35);
-                        transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1) !important;
+                        --tile-rgb: 244, 67, 54;
+                        --tile-on: 1;
                       }
-                      ha-card:active { transform: scale(0.92); }
 
           # --- VACULINA LIVE FLOORPLAN & CONTROLS POP-UP ---
           - type: custom:bubble-card
@@ -549,7 +538,6 @@ views:
               card_mod:
                 style: |
                   ha-card {
-                    border-radius: 20px !important;
                     margin-bottom: 6px !important;
                   }
           - type: conditional
@@ -571,7 +559,6 @@ views:
               card_mod:
                 style: |
                   ha-card {
-                    border-radius: 20px !important;
                     margin-bottom: 6px !important;
                   }
           - type: conditional
@@ -593,7 +580,6 @@ views:
               card_mod:
                 style: |
                   ha-card {
-                    border-radius: 20px !important;
                     margin-bottom: 6px !important;
                   }
           - type: conditional
@@ -615,7 +601,6 @@ views:
               card_mod:
                 style: |
                   ha-card {
-                    border-radius: 20px !important;
                     margin-bottom: 6px !important;
                   }
           # Featured Team: which game owns the basement lights when two overlap
@@ -657,7 +642,6 @@ views:
                   ha-card {
                     background: rgba(33, 150, 243, 0.1) !important;
                     border: 1px solid rgba(33, 150, 243, 0.3) !important;
-                    border-radius: 20px;
                     margin-bottom: 6px;
                   }
 
@@ -702,7 +686,6 @@ views:
                   ha-card {
                     background: rgba(33, 150, 243, 0.1) !important;
                     border: 1px solid rgba(33, 150, 243, 0.3) !important;
-                    border-radius: 20px;
                     margin-bottom: 6px;
                   }
 
@@ -732,7 +715,6 @@ views:
               card_mod:
                 style: |
                   ha-card {
-                    border-radius: 20px !important;
                     margin-bottom: 6px !important;
                   }
 
@@ -762,7 +744,6 @@ views:
               card_mod:
                 style: |
                   ha-card {
-                    border-radius: 20px !important;
                     margin-bottom: 6px !important;
                   }
 
@@ -822,7 +803,6 @@ views:
                   ha-card {
                     background: rgba(255, 255, 255, 0.02) !important;
                     border: 1px solid rgba(255, 255, 255, 0.05) !important;
-                    border-radius: 20px;
                     opacity: 0.85;
                   }
 
@@ -883,15 +863,14 @@ views:
                   navigation_path: /basement-yaml/basement
                   haptic: light
                 card_mod:
+                  class: glass-tile row
                   style: |
+                    {% set theater = is_state('binary_sensor.theater_in_use', 'on') %}
+                    {% set lights = is_state('binary_sensor.basement_lights_active', 'on') %}
                     ha-card {
-                      background: {{ 'linear-gradient(135deg, rgba(33, 150, 243, 0.2), rgba(13, 71, 161, 0.1))' if is_state('binary_sensor.theater_in_use', 'on') else ('rgba(255, 193, 7, 0.1)' if is_state('binary_sensor.basement_lights_active', 'on') else 'rgba(255, 255, 255, 0.04)') }} !important;
-                      border: 1px solid {{ 'rgba(33, 150, 243, 0.45)' if is_state('binary_sensor.theater_in_use', 'on') else ('rgba(255, 193, 7, 0.3)' if is_state('binary_sensor.basement_lights_active', 'on') else 'rgba(255, 255, 255, 0.08)') }} !important;
-                      border-radius: 20px !important;
-                      padding: 6px 8px !important;
-                      transition: all 0.25s ease !important;
+                      --tile-rgb: {{ '33, 150, 243' if theater else '255, 193, 7' }};
+                      --tile-on: {{ 0.7 if theater else (0.4 if lights else 0) }};
                     }
-                    ha-card:active { transform: scale(0.95); }
 
               - type: custom:mushroom-template-card
                 primary: Bedroom
@@ -906,11 +885,12 @@ views:
                   navigation_path: /dashboard-home2/bedroom
                   haptic: light
                 card_mod:
+                  class: glass-tile row
                   style: |
                     ha-card {
-                      padding: 6px 8px !important;
+                      --tile-rgb: 255, 193, 7;
+                      --tile-on: {{ 0.4 if is_state('light.zigbee_bedroom_lights', 'on') else 0 }};
                     }
-                    ha-card:active { transform: scale(0.95); }
 
           - type: horizontal-stack
             cards:
@@ -925,11 +905,7 @@ views:
                   navigation_path: /activity-log/activity-log
                   haptic: light
                 card_mod:
-                  style: |
-                    ha-card {
-                      padding: 6px 8px !important;
-                    }
-                    ha-card:active { transform: scale(0.95); }
+                  class: glass-tile row
 
               - type: custom:mushroom-template-card
                 primary: Telemetry
@@ -943,11 +919,7 @@ views:
                   navigation_path: /dashboard-diagnostics
                   haptic: light
                 card_mod:
-                  style: |
-                    ha-card {
-                      padding: 6px 8px !important;
-                    }
-                    ha-card:active { transform: scale(0.95); }
+                  class: glass-tile row
 
           - type: horizontal-stack
             cards:
@@ -964,15 +936,13 @@ views:
                   navigation_path: '#security-cams'
                   haptic: light
                 card_mod:
+                  class: glass-tile row
                   style: |
                     {% set down = state_attr('sensor.cameras_online', 'offline') %}
                     ha-card {
-                      background: {{ 'rgba(244, 67, 54, 0.12)' if down else 'rgba(0, 188, 212, 0.06)' }} !important;
-                      border: 1px solid {{ 'rgba(244, 67, 54, 0.5)' if down else 'rgba(0, 188, 212, 0.2)' }} !important;
-                      border-radius: 20px !important;
-                      padding: 6px 8px !important;
+                      --tile-rgb: {{ '244, 67, 54' if down else '0, 188, 212' }};
+                      --tile-on: {{ 0.5 if down else 0.25 }};
                     }
-                    ha-card:active { transform: scale(0.95); }
 
               - type: custom:mushroom-template-card
                 primary: Maintenance
@@ -989,11 +959,12 @@ views:
                   navigation_path: /dashboard-diagnostics/maintenance
                   haptic: light
                 card_mod:
+                  class: glass-tile row
                   style: |
                     ha-card {
-                      padding: 6px 8px !important;
+                      --tile-rgb: 255, 152, 0;
+                      --tile-on: {{ 0.4 if states('sensor.maintenance_attention') | int(0) > 0 else 0 }};
                     }
-                    ha-card:active { transform: scale(0.95); }
 
           # Where the commuter is (sensor.partner_location is a neutral copy of the
           # location tracker; the train comes from the transit service).
@@ -1019,11 +990,7 @@ views:
               action: navigate
               navigation_path: '#where'
             card_mod:
-              style: |
-                ha-card {
-                  padding: 6px 8px !important;
-                }
-                ha-card:active { transform: scale(0.95); }
+              class: glass-tile row
 
           # --- WHERE IS EVERYONE POP-UP (opened from the Partner tile) ---
           - type: custom:bubble-card
@@ -1076,7 +1043,6 @@ views:
                 card_mod:
                   style: |
                     ha-card {
-                      border-radius: 20px !important;
                       overflow: hidden;
                       border: 1px solid rgba(255, 255, 255, 0.08) !important;
                     }
@@ -1099,7 +1065,6 @@ views:
                 card_mod:
                   style: |
                     ha-card {
-                      border-radius: 20px !important;
                       margin-bottom: 8px !important;
                       background: rgba(255, 255, 255, 0.03) !important;
                     }
@@ -1117,7 +1082,6 @@ views:
                 card_mod:
                   style: |
                     ha-card {
-                      border-radius: 20px !important;
                       margin-bottom: 8px !important;
                     }
               - type: entities
@@ -1157,7 +1121,6 @@ views:
               style: |
                 ha-card {
                   overflow: hidden;
-                  border-radius: 20px !important;
                 }
           - type: weather-forecast
             # Same NWS source as the kitchen kiosk. NWS has no "daily" forecast, only day/night pairs.

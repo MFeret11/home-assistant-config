@@ -51,3 +51,4 @@ context.md
 dashboards/private/
 # Private packages: entity IDs that contain real names (see packages/private_*.yaml)
 packages/private_*.yaml
+themes/house_glass.yaml
