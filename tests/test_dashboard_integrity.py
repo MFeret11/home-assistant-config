@@ -141,7 +141,7 @@ REGISTERED_SERVICES = {
     # PyScript Services
     "pyscript.play_movie", "pyscript.play_game", "pyscript.play_pc_game", "pyscript.play_music", "pyscript.play_sports",
     "pyscript.theater_play_spotify_playlist",
-    "pyscript.session_end_house_lights", "pyscript.basement_all_off",
+    "pyscript.session_end_house_lights", "pyscript.basement_all_off", "pyscript.bedroom_goodnight",
     "pyscript.toggle_all_basement_lights", "pyscript.mood_reset_normal",
     "pyscript.select_palette", "pyscript.select_effect_modifier",
     "pyscript.effect_bar_toast", "pyscript.effect_eagles_chant",

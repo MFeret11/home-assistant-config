@@ -68,6 +68,7 @@ _Moved verbatim from AGENTS.md. "§N" references point to the old AGENTS.md sect
 - `pyscript.effect_eagles_chant`: Manual Eagles Kelly Green chant effect (see §4).
 - `pyscript.team_lights_celebrate`: Plays a celebration (`kind: big|small`) in the featured team's color.
 - `pyscript.basement_all_off`: Master basement lights blackout (header chip, visible when `binary_sensor.basement_lights_active` is on).
+- `pyscript.bedroom_goodnight` (bedroom.py): Bedroom dashboard Goodnight chip. Fades the bedroom lamps off, then runs `basement_all_off` if basement lights are on and neither the theater nor Social Mode is in use.
 
 ### Sports, State Flags & Virtual Entities
 - `sensor.philadelphia_eagles`: ESPN Team Tracker (`PRE`, `IN`, `POST`; Attributes: `team_score`, `team_colors`, `opponent_name`).

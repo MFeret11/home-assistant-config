@@ -40,11 +40,9 @@ views:
                 icon_color: purple
                 tap_action:
                   action: perform-action
-                  perform_action: light.turn_off
-                  target:
-                    entity_id: light.zigbee_bedroom_lights
-                  data:
-                    transition: 3
+                  # Bedroom lamps off; basement lights too unless the theater or
+                  # Social Mode is in use (pyscript/bedroom.py).
+                  perform_action: pyscript.bedroom_goodnight
                   haptic: medium
                 card_mod:
                   style: |
@@ -200,7 +198,7 @@ views:
                     }
               - type: custom:mushroom-light-card
                 entity: light.bedroom_light_2
-                name: Matt's Light
+                name: Bedside Light
                 icon: mdi:lamp
                 show_brightness_control: true
                 show_color_temp_control: false

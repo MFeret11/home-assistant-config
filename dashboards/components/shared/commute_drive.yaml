@@ -2,7 +2,7 @@
 # the main thing on the morning page.
 type: markdown
 content: >-
-  🚗 Matt's drive **{{ state_attr('sensor.commute_drive_time',
+  🚗 Drive to work **{{ state_attr('sensor.commute_drive_time',
   'duration_in_traffic') | default('calculating…', true) }}** · normally {{
   state_attr('sensor.commute_drive_time', 'duration')
   | default('—', true) }} · {{ state_attr('sensor.commute_drive_time',

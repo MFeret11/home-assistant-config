@@ -35,27 +35,29 @@ views:
                   font-size: 0.95rem !important;
                   opacity: 0.75;
                 }
-          - type: custom:mushroom-chips-card
-            alignment: center
-            card_mod:
-              style: |
-                ha-card {
-                  --chip-height: 44px;
-                  --chip-icon-size: 22px;
-                  --chip-spacing: 8px;
-                  margin-bottom: 6px !important;
-                }
-            chips:
-              # High Host CPU Alert
-              - type: conditional
-                conditions:
-                  - condition: numeric_state
-                    entity: sensor.system_monitor_processor_use
-                    above: 75
-                chip:
-                  type: template
+          # High CPU alert. The whole row is conditional, so it leaves no gap
+          # when the Pi is fine.
+          - type: conditional
+            conditions:
+              - condition: numeric_state
+                entity: sensor.system_monitor_processor_use
+                above: 75
+            card:
+              type: custom:mushroom-chips-card
+              alignment: center
+              card_mod:
+                style: |
+                  ha-card {
+                    --chip-height: 44px;
+                    --chip-icon-size: 22px;
+                    --chip-spacing: 8px;
+                    margin-bottom: 6px !important;
+                  }
+              chips:
+                - type: template
                   icon: mdi:cpu-64-bit
                   icon_color: red
+                  content: "{{ states('sensor.system_monitor_processor_use') | round(0) }}% CPU"
                   tap_action:
                     action: navigate
                     navigation_path: /dashboard-diagnostics
@@ -63,10 +65,6 @@ views:
                   card_mod:
                     style: |
                       ha-card {
-                        width: 44px !important;
-                        height: 44px !important;
-                        padding: 0 !important;
-                        border-radius: 50% !important;
                         background: rgba(244, 67, 54, 0.2) !important;
                         border: 1px solid rgba(244, 67, 54, 0.5) !important;
                       }
@@ -663,6 +661,51 @@ views:
                     margin-bottom: 6px;
                   }
 
+          # 2b. Evening commute: the train home, until the commuter is home.
+          # The full card is on the kitchen kiosk (components/shared/commute_pm.yaml).
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: binary_sensor.septa_pm_window
+                state: "on"
+              - condition: state
+                entity: sensor.partner_location
+                state_not: home
+            card:
+              type: custom:mushroom-template-card
+              primary: >-
+                {%- set c = states.sensor.septa_commute.attributes if states.sensor.septa_commute is not none else {} -%}
+                {%- if c.get('is_cancelled') or c.get('connection_cancelled') -%}❌ Train cancelled
+                {%- elif c.get('missed_connection') -%}🚨 Missed connection
+                {%- elif c.get('rider_on_train') -%}On train {{ c.get('rider_on_train') }}
+                {%- elif c.get('origin_train') -%}Train {{ c.get('origin_train') }} at {{ c.get('origin_actual_departure_time') or '—' }}
+                {%- else -%}Train times unavailable
+                {%- endif -%}
+              secondary: >-
+                {%- set c = states.sensor.septa_commute.attributes if states.sensor.septa_commute is not none else {} -%}
+                {%- set delay = c.get('total_delay_minutes', 0) or 0 -%}
+                {%- if c.get('is_cancelled') or c.get('connection_cancelled') -%}Next train {{ c.get('backup_train_departure') or '— check SEPTA' }}
+                {%- elif c.get('actual_arrival_time') -%}Home by {{ c.get('actual_arrival_time') }}{{ ' · ' ~ delay ~ ' min late' if delay > 0 else '' }}
+                {%- else -%}Evening commute
+                {%- endif -%}
+              icon: mdi:train-car
+              icon_color: >-
+                {%- set c = states.sensor.septa_commute.attributes if states.sensor.septa_commute is not none else {} -%}
+                {{ 'red' if c.get('is_cancelled') or c.get('connection_cancelled') or c.get('missed_connection')
+                   else ('amber' if (c.get('total_delay_minutes', 0) or 0) > 0 else 'blue') }}
+              layout: horizontal
+              tap_action:
+                action: navigate
+                navigation_path: /kitchen-kiosk
+              card_mod:
+                style: |
+                  ha-card {
+                    background: rgba(33, 150, 243, 0.1) !important;
+                    border: 1px solid rgba(33, 150, 243, 0.3) !important;
+                    border-radius: 20px;
+                    margin-bottom: 6px;
+                  }
+
           # 3. Cinema / Theater In Use
           - type: conditional
             conditions:
@@ -726,20 +769,24 @@ views:
           # 5. Nominal Resting State
           - type: conditional
             conditions:
+              # Same sensors as the game cards above, so the two never show together.
               - condition: state
-                entity: sensor.philadelphia_eagles
-                state_not: IN
+                entity: binary_sensor.eagles_game_soon
+                state: "off"
               - condition: state
-                entity: sensor.nba_philadelphia_76ers
-                state_not: IN
+                entity: binary_sensor.sixers_game_soon
+                state: "off"
               - condition: state
-                entity: sensor.mlb_philadelphia_phillies
-                state_not: IN
+                entity: binary_sensor.phillies_game_soon
+                state: "off"
               - condition: state
-                entity: sensor.nhl_philadelphia_flyers
-                state_not: IN
+                entity: binary_sensor.flyers_game_soon
+                state: "off"
               - condition: state
                 entity: binary_sensor.septa_am_window
+                state: "off"
+              - condition: state
+                entity: binary_sensor.septa_pm_window
                 state: "off"
               - condition: state
                 entity: binary_sensor.theater_in_use
@@ -1034,7 +1081,7 @@ views:
                       border: 1px solid rgba(255, 255, 255, 0.08) !important;
                     }
 
-          # --- 3D PRINTER POP-UP (opened from the print chip and progress card) ---
+          # --- 3D PRINTER POP-UP (opened from the progress card) ---
           - type: custom:bubble-card
             card_type: pop-up
             hash: '#printer-3d'
