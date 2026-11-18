@@ -176,7 +176,6 @@ KNOWN_NAVIGATION_PREFIXES = {
     "/dashboard-testing",
     "/kitchen-kiosk",
     "/onn-remote",
-    "/activity-log",
     "/calendar"
 }
 

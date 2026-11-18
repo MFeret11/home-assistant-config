@@ -902,7 +902,7 @@ views:
                 layout: horizontal
                 tap_action:
                   action: navigate
-                  navigation_path: /activity-log/activity-log
+                  navigation_path: /dashboard-diagnostics/activity-log
                   haptic: light
                 card_mod:
                   class: glass-tile row

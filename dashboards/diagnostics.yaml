@@ -49,7 +49,7 @@ views:
                 icon_color: purple
                 tap_action:
                   action: navigate
-                  navigation_path: /activity-log/activity-log
+                  navigation_path: /dashboard-diagnostics/activity-log
                   haptic: light
                 card_mod:
                   class: glass-chip
@@ -721,3 +721,136 @@ views:
             sort:
               method: state
               numeric: true
+
+  # Recent activity across the house (was its own dashboard until 2026-11-18).
+  - title: Activity Log
+    path: activity-log
+    theme: House Glass  # see scripts/build_house_theme.py
+    icon: mdi:history
+    type: sections
+    max_columns: 4
+    sections:
+      # Top navigation header row
+      - type: grid
+        column_span: 4
+        cards:
+          - type: custom:mushroom-chips-card
+            alignment: start
+            card_mod:
+              style: |
+                ha-card {
+                  --chip-height: 42px;
+                  --chip-icon-size: 20px;
+                  margin-bottom: 4px !important;
+                }
+            chips:
+              - type: template
+                icon: mdi:arrow-left
+                content: Home
+                icon_color: blue
+                tap_action:
+                  action: navigate
+                  navigation_path: /dashboard-home/home
+                  haptic: light
+                card_mod:
+                  class: glass-chip
+                  style: "ha-card { --tile-rgb: 33, 150, 243; }"
+              - type: template
+                icon: mdi:home-floor-b
+                content: Basement
+                icon_color: amber
+                tap_action:
+                  action: navigate
+                  navigation_path: /basement-yaml/basement
+                  haptic: light
+                card_mod:
+                  class: glass-chip
+                  style: "ha-card { --tile-rgb: 255, 179, 0; }"
+              - type: template
+                icon: mdi:wrench-cog
+                content: Diagnostics
+                icon_color: teal
+                tap_action:
+                  action: navigate
+                  navigation_path: /dashboard-diagnostics
+                  haptic: light
+                card_mod:
+                  class: glass-chip
+                  style: "ha-card { --tile-rgb: 0, 150, 136; }"
+
+      # Section 1: Whole House (48 Hours)
+      # People come from a person.* filter so no names are written into this repo.
+      # Camera motion and 3D prints can't appear: cameras have no motion sensors
+      # in HA, and camera/printer entities are excluded from the recorder.
+      - type: grid
+        cards:
+          - type: heading
+            heading: Whole House (48h)
+            icon: mdi:home-clock-outline
+          - type: custom:auto-entities
+            card:
+              type: logbook
+              title: ""
+              hours_to_show: 48
+              grid_options:
+                columns: full
+                rows: auto
+            filter:
+              include:
+                - domain: person
+                - entity_id: vacuum.vaculina
+                - entity_id: event.home_keeper_events
+                - entity_id: event.backup_automatic_backup
+                - entity_id: binary_sensor.verizon_router_wan_status
+                - entity_id: binary_sensor.ssd_health_problem
+                - entity_id: binary_sensor.transit_microservice
+                - entity_id: binary_sensor.gaming_pc_online
+                - entity_id: "switch.*_cam_motion_detection"
+                - entity_id: "switch.*_cam_power"
+                - entity_id: switch.wyze_notifications
+              exclude:
+                - entity_id: person.kitchen_display
+
+      # Section 2: Theater History (48 Hours)
+      - type: grid
+        cards:
+          - type: heading
+            heading: Theater History (48h)
+            icon: mdi:theater
+          - type: logbook
+            title: ""
+            entities:
+              - sensor.theater_mode
+              - binary_sensor.theater_in_use
+              - sensor.projector_power_state
+              - media_player.theater_receiver
+              - media_player.onn_pro
+              - switch.batocera_console
+              - switch.batocera
+              - sensor.philadelphia_eagles
+            hours_to_show: 48
+            grid_options:
+              columns: full
+              rows: auto
+
+      # Section 3: Lighting & Presence (48 Hours)
+      - type: grid
+        cards:
+          - type: heading
+            heading: Lighting & Presence (48h)
+            icon: mdi:lightbulb-multiple
+          - type: logbook
+            title: ""
+            entities:
+              - input_select.basement_lighting_mode
+              - binary_sensor.basement_lights_active
+              - sensor.basement_palette
+              - sensor.basement_effect
+              - binary_sensor.basement_stairs_door_sensor
+              - binary_sensor.bottom_stairs
+              - light.theater_dimmer
+              - light.stairlights
+            hours_to_show: 48
+            grid_options:
+              columns: full
+              rows: auto

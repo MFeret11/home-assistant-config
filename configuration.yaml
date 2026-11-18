@@ -142,12 +142,6 @@ lovelace:
       icon: mdi:silverware-fork-knife
       show_in_sidebar: true
       filename: dashboards/kitchen.yaml
-    activity-log:
-      mode: yaml
-      title: Activity Log
-      icon: mdi:history
-      show_in_sidebar: true
-      filename: dashboards/activitylog.yaml
     dashboard-diagnostics:
       mode: yaml
       title: Diagnostics
