@@ -19,7 +19,9 @@ CRITICAL_ENTITIES = [
     # basement.py reads an unavailable presence sensor as "nobody there", so a
     # dead one silently weakens the vacancy and walk-out rules.
     ("binary_sensor.theater_mmwave_sensor", "Theater mmWave Presence"),
-    ("binary_sensor.mmwave_sensor_bar", "Bar mmWave Presence"),
+    # Bar mmWave left out while it is unplugged (since 2026-11-16); add it back
+    # when it is plugged in again.
+    # ("binary_sensor.mmwave_sensor_bar", "Bar mmWave Presence"),
     ("input_select.basement_theater_mode", "Theater Mode Selector"),
     ("input_select.basement_lighting_mode", "Lighting Mode Selector"),
 ]

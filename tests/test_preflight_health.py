@@ -140,7 +140,6 @@ def setup_healthy_environment():
     mock_state.set("binary_sensor.bottom_stairs", "off")
     mock_state.set("binary_sensor.basement_stairs_door_sensor", "off")
     mock_state.set("binary_sensor.theater_mmwave_sensor", "off")
-    mock_state.set("binary_sensor.mmwave_sensor_bar", "off")
     mock_state.set("input_select.basement_theater_mode", "Off")
     mock_state.set("input_select.basement_lighting_mode", "Daily Driver")
 
@@ -185,7 +184,7 @@ def test_offline_alert_needs_two_runs_and_fires_once():
     setup_healthy_environment()
     health_check._problems_last_run = set()
     health_check._problems_alerted = set()
-    mock_state.set("binary_sensor.mmwave_sensor_bar", "unavailable")
+    mock_state.set("binary_sensor.theater_mmwave_sensor", "unavailable")
 
     spy.clear()
     health_check.scheduled_health_audit()
@@ -193,15 +192,15 @@ def test_offline_alert_needs_two_runs_and_fires_once():
 
     health_check.scheduled_health_audit()
     sent = [c for c in spy.calls if c["domain"] == "notify" and c["service"] == "ntfy"]
-    assert len(sent) == 1 and "mmwave_sensor_bar" in sent[0]["kwargs"]["message"]
+    assert len(sent) == 1 and "theater_mmwave_sensor" in sent[0]["kwargs"]["message"]
 
     spy.clear()
     health_check.scheduled_health_audit()
     assert not spy.was_called("notify", "ntfy"), "still down: no repeat"
 
-    mock_state.set("binary_sensor.mmwave_sensor_bar", "off")
+    mock_state.set("binary_sensor.theater_mmwave_sensor", "off")
     health_check.scheduled_health_audit()
-    mock_state.set("binary_sensor.mmwave_sensor_bar", "unavailable")
+    mock_state.set("binary_sensor.theater_mmwave_sensor", "unavailable")
     health_check.scheduled_health_audit()
     health_check.scheduled_health_audit()
     assert spy.was_called("notify", "ntfy"), "recovered then dropped again: alert again"
