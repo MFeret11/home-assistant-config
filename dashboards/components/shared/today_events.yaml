@@ -1,9 +1,13 @@
-# Today's events, morning only. Always shown: an empty day says so.
+# Today's events, morning only. Always shown (an empty day says so), except on
+# Fridays, when weekend_events.yaml shows today along with the weekend.
 type: markdown
 content: >-
   {% from 'kitchen.jinja' import today_events %}### Today
 
   {{ today_events(6) }}
+visibility:
+  - condition: time
+    weekdays: [mon, tue, wed, thu, sat, sun]
 grid_options:
   columns: full
   rows: auto

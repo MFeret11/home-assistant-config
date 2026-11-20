@@ -102,6 +102,23 @@
   {%- if not evs %}Nothing on the calendar{% endif -%}
 {%- endmacro -%}
 
+{#- Fridays: today, Saturday and Sunday in one list (the weekend attribute
+    is only filled on Fridays). Each day shows up to `limit` events. -#}
+{%- macro weekend_events(limit=4) -%}
+  {%- set dots = {'matt': '🔵', 'partner': '🩷', 'family': '🟢', 'birthday': '🎂'} -%}
+  {%- set today = {'day': 'Today', 'events': state_attr('sensor.kitchen_today_events', 'events') or []} -%}
+  {%- for d in [today] + (state_attr('sensor.kitchen_today_events', 'weekend') or []) -%}
+**{{ d.day }}**
+{% for e in d.events[:limit] -%}
+{{ dots.get(e.who, '📅') }} {% if e.time %}**{{ e.time }}** {% endif %}{{ e.title }}
+{% endfor -%}
+{%- if d.events | length > limit %}…and {{ d.events | length - limit }} more
+{% endif -%}
+{%- if not d.events %}Nothing planned yet
+{% endif %}
+{% endfor -%}
+{%- endmacro -%}
+
 {#- One line for chores, or empty when nothing is due. -#}
 {%- macro chores_line() -%}
   {%- set a = states.sensor.home_keeper_tasks.attributes if states.sensor.home_keeper_tasks is not none else {} -%}

@@ -10,7 +10,8 @@ url: /local/weathertunes/kitchen.html?kitchen&widget&v=4
 allow: autoplay
 # Hidden while Spotify is playing or the train-home card is up: those take
 # this slot so the page never needs scrolling. In the morning layout today's
-# events come first, so with 3 or more of them the song is hidden too. In the
+# events come first, so with 3 or more of them the song is hidden too (not on
+# Fridays, when today's events move to the left column). In the
 # day layout the away map (away_map_*.yaml) takes this slot while someone is out.
 visibility:
   - condition: or
@@ -34,6 +35,8 @@ visibility:
       - condition: numeric_state
         entity: sensor.kitchen_today_events
         below: 3
+      - condition: time
+        weekdays: [fri]
   - condition: state
     entity: media_player.whole_house_spotify
     state_not: playing

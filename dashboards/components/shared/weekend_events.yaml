@@ -1,0 +1,25 @@
+# Fridays, morning layout: today, Saturday and Sunday in one card under the
+# commute, where the left column is otherwise empty. It replaces
+# today_events.yaml, which is hidden on Fridays.
+type: markdown
+content: >-
+  {% from 'kitchen.jinja' import weekend_events %}### This weekend
+
+  {{ weekend_events(4) }}
+visibility:
+  - condition: time
+    weekdays: [fri]
+grid_options:
+  columns: full
+  rows: auto
+card_mod:
+  style:
+    .: |
+      ha-card {
+        padding: 14px 20px;
+        font-size: 22px;
+        line-height: 1.5;
+      }
+    ha-markdown $: |
+      h3 { font-size: 18px !important; margin: 0 0 4px 0 !important; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.08em; }
+      p { margin: 0 0 10px 0 !important; }

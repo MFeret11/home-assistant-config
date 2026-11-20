@@ -35,12 +35,15 @@ template:
           {{ not home and (is_state('binary_sensor.partner_heading_home', 'on')
              or (not live and fixed_hours)) }}
 
-      # Weekend mornings, 8-11 AM: the tablet's screen stays on
-      # (pyscript/kitchen_tablet.py; weekdays follow the commute windows).
-      - name: Kitchen Weekend Wake
-        unique_id: kitchen_weekend_wake
+      # Mornings: the tablet's screen stays on (pyscript/kitchen_tablet.py)
+      # through the weekday morning layout, 6-9 AM, whether or not anyone
+      # commutes that day, and 8-11 AM on weekends.
+      - name: Kitchen Morning Wake
+        unique_id: kitchen_morning_wake
         icon: mdi:tablet
-        state: "{{ now().weekday() >= 5 and 8 <= now().hour < 11 }}"
+        state: >-
+          {{ is_state('sensor.kitchen_display_mode', 'morning')
+             or (now().weekday() >= 5 and 8 <= now().hour < 11) }}
 
       # Evenings, 4-8 PM every day: the screen stays on again (the train-home
       # card, then dinner). Between the morning and evening windows it is off.
@@ -115,7 +118,9 @@ template:
             {% set night = fc[:2] | rejectattr('is_daytime') | list %}
             {{ (night[0].temperature | round(0) | int) if night else none }}
 
-  # Today's events from the household calendars, for the morning line.
+  # Today's events from the household calendars, for the morning line. On
+  # Fridays it also fetches Saturday and Sunday for the weekend card
+  # (dashboards/components/shared/weekend_events.yaml).
   - trigger:
       - trigger: time_pattern
         minutes: "/15"
@@ -133,33 +138,56 @@ template:
             - calendar.birthdays
         data:
           start_date_time: "{{ today_at('00:00').isoformat() }}"
-          end_date_time: "{{ (today_at('00:00') + timedelta(days=1)).isoformat() }}"
+          end_date_time: >-
+            {{ (today_at('00:00') + timedelta(days=3 if now().weekday() == 4 else 1)).isoformat() }}
         response_variable: cal
+      # One list per day: [today, Saturday, Sunday] on Fridays, [today] otherwise.
+      # A timed event goes on the day it starts (or today, if it started
+      # earlier); an all-day event goes on every day it covers. Sorted by start,
+      # all-day events first. 'who' is the calendar's key.
+      - variables:
+          days: >-
+            {% set who = {'calendar.matt': 'matt', 'calendar.partner': 'partner',
+                          'calendar.family': 'family', 'calendar.birthdays': 'birthday'} %}
+            {% set n = 3 if now().weekday() == 4 else 1 %}
+            {% set ns = namespace(out=[]) %}
+            {% for i in range(n) %}
+              {% set d = (today_at('00:00') + timedelta(days=i)).date() | string %}
+              {% set first = i == 0 %}
+              {% set nd = namespace(evs=[]) %}
+              {% for k, v in cal.items() %}
+                {% for e in v.events %}
+                  {% set all_day = 'T' not in e.start %}
+                  {% if all_day %}
+                    {% set hit = e.start[:10] <= d < e.end[:10] %}
+                  {% else %}
+                    {% set sd = (as_datetime(e.start) | as_local).date() | string %}
+                    {% set hit = sd == d or (first and sd < d) %}
+                  {% endif %}
+                  {% if hit %}
+                    {% set nd.evs = nd.evs + [{
+                      'title': e.summary | truncate(60, true, '…', 0),
+                      'time': '' if all_day else (as_datetime(e.start) | as_local).strftime('%-I:%M %p'),
+                      'sort': '00:00' if all_day else (as_datetime(e.start) | as_local).strftime('%H:%M'),
+                      'who': who.get(k, '') }] %}
+                  {% endif %}
+                {% endfor %}
+              {% endfor %}
+              {% set ns.out = ns.out + [nd.evs | sort(attribute='sort') | list] %}
+            {% endfor %}
+            {{ ns.out }}
     sensor:
       - name: Kitchen Today Events
         unique_id: kitchen_today_events
         icon: mdi:calendar-today
-        state: >-
-          {% set ns = namespace(n=0) %}
-          {% for k, v in cal.items() %}{% set ns.n = ns.n + v.events | length %}{% endfor %}
-          {{ ns.n }}
+        state: "{{ days[0] | length }}"
         attributes:
-          # Sorted by start; all-day events first. 'who' is the calendar's key.
-          events: >-
-            {% set who = {'calendar.matt': 'matt', 'calendar.partner': 'partner',
-                          'calendar.family': 'family', 'calendar.birthdays': 'birthday'} %}
-            {% set ns = namespace(out=[]) %}
-            {% for k, v in cal.items() %}
-              {% for e in v.events %}
-                {% set all_day = 'T' not in e.start %}
-                {% set ns.out = ns.out + [{
-                  'title': e.summary | truncate(60, true, '…', 0),
-                  'time': '' if all_day else (as_datetime(e.start) | as_local).strftime('%-I:%M %p'),
-                  'sort': '00:00' if all_day else (as_datetime(e.start) | as_local).strftime('%H:%M'),
-                  'who': who.get(k, '') }] %}
-              {% endfor %}
-            {% endfor %}
-            {{ ns.out | sort(attribute='sort') | list }}
+          events: "{{ days[0] }}"
+          # Fridays only: [{'day': 'Saturday', 'events': [...]}, {'day': 'Sunday', ...}].
+          weekend: >-
+            {% set names = ['Saturday', 'Sunday'] %}
+            {{ [{'day': names[0], 'events': days[1]}, {'day': names[1], 'events': days[2]}]
+               if days | length == 3 else [] }}
 
   # On while the work remote desktop has been seen on the PC today (weekdays).
   # Matches only the generic viewer window name. Clears at midnight.

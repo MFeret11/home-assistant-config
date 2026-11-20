@@ -1,7 +1,8 @@
 # /config/pyscript/commute_location.py
 #
 # Sends the commuter's position to the transit service (:8000) during the
-# weekday commute hours, and at any hour while they're on the way home
+# commute hours on their office days (packages/private_work_schedule.yaml),
+# and at any hour while they're on the way home
 # (binary_sensor.partner_heading_home, packages/commute.yaml), so it can tell
 # which train they are actually on and follow that train instead of the one
 # nearest the usual time. Each post says whether they're heading home, so the
@@ -13,6 +14,7 @@
 
 LOCATION = "sensor.partner_location"
 HEADING_HOME = "binary_sensor.partner_heading_home"  # left work, not home yet
+OFFICE_DAYS = "schedule.partner_office_days"  # on all day on office days
 ENDPOINT = "http://127.0.0.1:8000/api/location"
 
 
@@ -33,10 +35,11 @@ def _post_json(url, body, timeout=5):
 
 
 def _in_commute_hours():
-    """Same hours as the transit service's own windows (5-9 AM, 2-7 PM, weekdays)."""
+    """The transit service's own windows (5-9 AM, 2-7 PM), on the commuter's
+    office days only (schedule.partner_office_days, packages/private_work_schedule.yaml)."""
     from datetime import datetime
     now = datetime.now()
-    return now.weekday() < 5 and (5 <= now.hour < 9 or 14 <= now.hour < 19)
+    return state.get(OFFICE_DAYS) == "on" and (5 <= now.hour < 9 or 14 <= now.hour < 19)
 
 
 def _send_location():
@@ -74,8 +77,9 @@ def commute_heading_home_changed(value=None, old_value=None):
         _send_location()
 
 
-@time_trigger("cron(0 5,14 * * 1-5)")
+@time_trigger("cron(0 5,14 * * *)")
 def commute_location_window_opened():
     """Send the current position as each window opens, so the service isn't
     waiting for the next move."""
-    _send_location()
+    if _in_commute_hours():
+        _send_location()

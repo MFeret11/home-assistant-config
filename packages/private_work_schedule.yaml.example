@@ -1,0 +1,36 @@
+# ==============================================================================
+# PACKAGE: WORK SCHEDULE (template)
+# Copy to packages/private_work_schedule.yaml (gitignored, since the days say
+# when the house is empty) and set your own days. Without it the commute
+# cards, the drive card and location sharing stay off.
+# Which days each of us goes in to the office. This is the one place to change
+# when a schedule changes; everything else reads these two entities:
+#   schedule.partner_office_days  the train commute (kitchen and home cards,
+#                                  location sharing with the transit service)
+#   schedule.me_office_days       the drive to work card
+# Each is on for the whole of an office day and off otherwise. To change the
+# days, add or remove a day below (or delete this file and make the same two
+# Schedule helpers in Settings > Helpers if you'd rather edit them in the UI).
+# Reload: Developer tools > YAML > Schedules.
+# ==============================================================================
+
+schedule:
+  partner_office_days:
+    name: Partner Office Days
+    icon: mdi:train
+    monday: &all_day
+      - from: "00:00:00"
+        to: "24:00:00"
+    tuesday: *all_day
+    wednesday: *all_day
+    thursday: *all_day
+    friday: *all_day
+
+  me_office_days:
+    name: Me Office Days
+    icon: mdi:car
+    monday: *all_day
+    tuesday: *all_day
+    wednesday: *all_day
+    thursday: *all_day
+    friday: *all_day

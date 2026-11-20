@@ -15,8 +15,8 @@
 # 4. Alerts: battery <= LOW_ALERT_PCT (charging isn't working) or the battery
 #    sensor unavailable for an hour.
 #
-# Screen: while any WAKE_WINDOWS sensor is on (mornings: the commute cards' own
-# display windows on weekdays, 8-11 AM on weekends; evenings: 4-8 PM every
+# Screen: while any WAKE_WINDOWS sensor is on (mornings: 6-9 AM on weekdays,
+# 8-11 AM on weekends; evenings: 4-8 PM every
 # day, or earlier once the commuter leaves work and the train-home card
 # shows), the screen is turned on and held on through the Companion app. When
 # they all end, keep-screen-on is cleared and Android's normal screen timeout
@@ -33,9 +33,7 @@ CHARGE_OFF_PCT = 80
 LOW_ALERT_PCT = 15
 TABLET_NOTIFY = "mobile_app_big_tablet"
 WAKE_WINDOWS = [
-    "binary_sensor.septa_am_window",
-    "binary_sensor.drive_display_window",
-    "binary_sensor.kitchen_weekend_wake",
+    "binary_sensor.kitchen_morning_wake",
     "binary_sensor.kitchen_evening_wake",
     # The train-home card: on from when the commuter leaves work, even before 4 PM.
     "binary_sensor.kitchen_show_pm_commute",
@@ -126,8 +124,9 @@ def _screen_command(keep_on):
 
 
 def _in_wake_window():
+    # A window entity that doesn't exist (yet) counts as closed.
     for e in WAKE_WINDOWS:
-        if state.get(e) == "on":
+        if state.exist(e) and state.get(e) == "on":
             return True
     return False
 

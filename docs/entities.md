@@ -104,6 +104,10 @@ Template sensors that hold logic the dashboards used to repeat inline. Cards rea
 - `sensor.next_calendar_event` (`packages/house_status.yaml`): title of the soonest event across the household calendars; the `when` attribute is the formatted date and time.
 - The maintenance and calendar logic lives in `custom_templates/house_status.jinja`. After editing it, run `homeassistant.reload_custom_templates`, then `template.reload`.
 
+### Work schedule (`packages/private_work_schedule.yaml`)
+- `schedule.partner_office_days` / `schedule.me_office_days`: on all day on each person's office days. The only place the days are set. The train windows (`binary_sensor.septa_display_window`, `septa_am_window`, `septa_pm_window`) and location sharing with the transit service follow the partner's; `binary_sensor.drive_display_window` follows mine. Reload with `schedule.reload`.
+- `binary_sensor.kitchen_morning_wake` (`packages/kitchen_display.yaml`): kitchen tablet screen in the morning, 6-9 AM on weekdays whether or not anyone commutes, 8-11 AM on weekends.
+
 ### Presence (`packages/presence.yaml`)
 - `binary_sensor.partner_home` / `binary_sensor.me_home`: on while the phone answers on the home WiFi, or Google Maps (`sensor.partner_location` / `sensor.me_location`) has said `home` for 5 minutes; off 3 minutes after both are gone. An unknown or unavailable Maps location counts as home. The 5-minute hold is there because Maps can read "home" briefly when someone just passes nearby. These keep the history of who was home; the `person.*` entities follow only the Companion apps and are not used for presence.
 - `binary_sensor.partner_phone_on_wifi` / `binary_sensor.me_phone_on_wifi`: command_line ARP checks of each phone's reserved LAN address every 30 s (recorder-excluded; a sleeping iPhone flaps). A miss alone never means away.
