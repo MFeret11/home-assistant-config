@@ -214,7 +214,8 @@ template:
                 'windows shell experience host', 'program manager', 'home assistant',
                 'hass.agent', 'settings', 'calculator', 'task manager', 'device manager',
                 'command prompt', 'powershell', 'terminal', 'notepad', 'discord',
-                'spotify', 'spotify free', 'spotify premium'] %}
+                'spotify', 'spotify free', 'spotify premium', 'visual studio code',
+                'voice access', 'search', 'quick settings', 'system tray overflow window.'] %}
             Idle / Desktop
           {% elif 'steam big picture' in low or low == 'steam' %}
             Steam Big Picture

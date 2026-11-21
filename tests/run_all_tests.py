@@ -61,6 +61,11 @@ TEST_SUITES = [
         "name": "Pyscript Trigger Suite",
         "file": "test_pyscript_triggers.py",
         "desc": "Every pyscript file loads; every trigger is valid and watches an entity listed in docs/entities.md"
+    },
+    {
+        "name": "PC Window Suite",
+        "file": "test_pc_window.py",
+        "desc": "configuration.yaml and pyscript/modules/pc_window.py agree on which PC windows aren't games"
     }
 ]
 

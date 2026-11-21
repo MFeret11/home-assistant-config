@@ -25,6 +25,7 @@ BOOT_TIMESTAMP = time.time()
 # ------------------------------------------------------------------------------
 # ENTITY IDS AND SETTINGS
 # ------------------------------------------------------------------------------
+from pc_window import parse_pc_active_window  # pyscript/modules/pc_window.py: is the PC in a game?
 from shared_entities import (  # pyscript/modules/shared_entities.py
     ADAPTIVE_SWITCH,
     RECEIVER,
@@ -126,19 +127,6 @@ PALETTES = {
 # Stair brightness when they show a palette color (hue/saturation, or white in Kelvin)
 STAIR_ACCENT_HS_PCT = 40
 STAIR_ACCENT_K_PCT = 35
-
-# PC foreground windows that mean "not in a game" (theater.py has a fuller parser)
-PC_IDLE_WINDOWS = {
-    "desktop", "task switching", "taskbar", "explorer", "start",
-    "windows shell experience host", "program manager", "none",
-    "unknown", "unavailable", "null", "undefined", "", "steam big picture mode", "steam",
-    "idle / desktop", "steam big picture",
-    # Non-game apps, same as PC_NON_GAME_APPS in theater.py
-    "hass.agent", "settings", "calculator", "task manager",
-    "device manager", "command prompt", "powershell", "terminal",
-    "notepad", "discord", "spotify", "spotify free", "spotify premium",
-}
-PC_BROWSER_SUFFIXES = ["- google chrome", "- microsoft edge", "- mozilla firefox", "- brave"]
 
 # Runtime tracking state
 CURRENT_PALETTE = "synthwave"
@@ -880,11 +868,8 @@ def theater_lighting_sync(var_name=None, value=None, old_value=None):
 
     # Is a movie/game actively playing right now?
     pc_boxart_state = safe_state_getattr(THEATER_BOXART, "state")
-    pc_win = str(safe_state_get(PC_ACTIVE_WINDOW) or "").strip().lower()
     pc_playing = (pc_boxart_state == "playing") or (
-        bool(pc_win)
-        and pc_win not in PC_IDLE_WINDOWS
-        and not any([pc_win.endswith(b) for b in PC_BROWSER_SUFFIXES])
+        parse_pc_active_window(safe_state_get(PC_ACTIVE_WINDOW))[1] == "playing"
     )
     actively_playing = (
         (mode == "movie" and media == "playing")

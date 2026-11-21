@@ -219,8 +219,9 @@ def _title_words(text):
 
 
 def _title_resembles(candidate, item):
-    """True when a TMDB result's name plausibly is the title searched for:
-    one contains the other, or they share most of the shorter one's words."""
+    """True when a search result's name plausibly is the title searched for: one
+    contains the other as whole words, or they share most of the shorter one's words.
+    Whole words, so "Her" doesn't match "The Other Side"."""
     want = _title_words(candidate)
     if not want:
         return False
@@ -228,7 +229,7 @@ def _title_resembles(candidate, item):
         have = _title_words(item.get(key))
         if not have:
             continue
-        a, b = " ".join(want), " ".join(have)
+        a, b = f" {' '.join(want)} ", f" {' '.join(have)} "
         if a in b or b in a:
             return True
         shorter = want if len(want) <= len(have) else have
@@ -281,8 +282,9 @@ def _tmdb_art(candidates):
 
 def _cinemeta_art(candidates):
     """Look each search term up on Cinemeta (Stremio's catalog; no API key), first
-    for an exact name match, then for a name that contains the term or the reverse.
+    for an exact name match, then for a close one (_title_resembles).
     Returns the art dict for the first match, or None."""
+    searched = {}  # (search term, catalog) -> results, so the second pass doesn't download again
     for pass_mode in ("exact", "fuzzy"):
         for candidate in candidates:
             if _is_circuit_open("cinemeta"):
@@ -290,17 +292,19 @@ def _cinemeta_art(candidates):
             encoded = urllib.parse.quote(candidate)
             match_found = None
             for cat in ["series", "movie"]:
-                data = _fetch_json(
-                    "cinemeta",
-                    f"https://v3-cinemeta.strem.io/catalog/{cat}/top/search={encoded}.json",
-                    timeout=3,
-                )
-                for m in (data or {}).get("metas", [])[:4]:
+                if (candidate, cat) not in searched:
+                    data = _fetch_json(
+                        "cinemeta",
+                        f"https://v3-cinemeta.strem.io/catalog/{cat}/top/search={encoded}.json",
+                        timeout=3,
+                    )
+                    searched[(candidate, cat)] = (data or {}).get("metas", [])[:4]
+                for m in searched[(candidate, cat)]:
                     m_name = m.get("name", "").strip()
                     if pass_mode == "exact" and m_name.lower() == candidate.lower():
                         match_found = (m, cat)
                         break
-                    elif pass_mode == "fuzzy" and (candidate.lower() in m_name.lower() or m_name.lower() in candidate.lower()):
+                    elif pass_mode == "fuzzy" and _title_resembles(candidate, m):
                         match_found = (m, cat)
                         break
                 if match_found:

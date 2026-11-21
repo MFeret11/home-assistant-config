@@ -28,6 +28,7 @@ import urllib.parse
 
 BOOT_TIMESTAMP = time.time()
 
+from pc_window import parse_pc_active_window  # pyscript/modules/pc_window.py: is the PC in a game?
 from theater_art import (  # pyscript/modules/theater_art.py: online poster and box art lookups
     RE_ROM_EXT,
     RE_ROM_TAGS,
@@ -861,62 +862,9 @@ def on_theater_media_changed():
 # ------------------------------------------------------------------------------
 # GAMING PC WINDOW AND THE GAME POSTER
 # HASS.Agent on the PC reports the foreground window; the "Gaming PC Active
-# Game" template in configuration.yaml filters it into sensor.gaming_pc_active_game.
+# Game" template in configuration.yaml filters it into sensor.gaming_pc_active_game,
+# and pyscript/modules/pc_window.py reads it.
 # ------------------------------------------------------------------------------
-PC_SYSTEM_WINDOWS = {
-    "desktop", "idle / desktop", "task switching", "taskbar", "explorer", "start",
-    "windows shell experience host", "program manager", "none",
-    "unknown", "unavailable", "null", "undefined", ""
-}
-
-PC_NON_GAME_APPS = {
-    "hass.agent", "settings", "calculator", "task manager",
-    "device manager", "command prompt", "powershell", "terminal",
-    "notepad", "discord", "spotify", "spotify free", "spotify premium"
-}
-
-RE_PC_CLEANUP = re.compile(
-    r"\s*(?:\(x(?:64|86)\)|\[DirectX\s*\d*\]|\(DX\d+\)|v\d+(?:\.\d+)+|build\s*\d+|™|®|\(C\).*?$)",
-    re.IGNORECASE
-)
-
-
-def parse_pc_active_window(raw_window):
-    """
-    Parses sensor.gaming_pc_active_game into (game_title, state, is_steam).
-    States: 'playing' (in-game), 'idle' (Steam BPM / launcher / ready), 'desktop' / 'off'
-    """
-    if not raw_window or str(raw_window).strip() in ["", "none", "None", "unknown", "unavailable"]:
-        return ("", "off", False)
-
-    w = str(raw_window).strip()
-    w_lower = w.lower()
-
-    if w_lower in PC_SYSTEM_WINDOWS:
-        return ("", "desktop", False)
-
-    # Check for browser windows
-    if any([w_lower.endswith(b) for b in ["- google chrome", "- microsoft edge", "- mozilla firefox", "- brave"]]):
-        return ("", "desktop", False)
-
-    if w_lower in PC_NON_GAME_APPS:
-        return ("", "desktop", False)
-
-    # Steam Big Picture Mode / Steam client
-    if "steam big picture" in w_lower or w_lower == "steam":
-        return ("Steam Big Picture Mode", "idle", True)
-
-    # Clean game window title
-    clean = RE_ROM_EXT.sub("", w)
-    clean = RE_ROM_TAGS.sub("", clean)
-    clean = RE_PC_CLEANUP.sub("", clean).strip()
-
-    if not clean or clean.lower() in PC_SYSTEM_WINDOWS:
-        return ("", "desktop", False)
-
-    return (clean, "playing", False)
-
-
 RE_CAMEL_GAP = re.compile(r"(?<=[a-z])(?=[A-Z])")
 
 
