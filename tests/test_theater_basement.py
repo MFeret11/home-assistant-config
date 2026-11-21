@@ -1335,7 +1335,8 @@ def test_tmdb_fetcher_missing_key_graceful_fail():
         res = theater_art._fetch_movie_or_tv_art("Interstellar 2014")
         assert res is None or "error" in res, "FAIL: TMDB fetcher did not handle missing secret safely!"
 
-    # 2. Verify that if a key is present (user's environment), it returns either results or error safely without unhandled exception
+    # 2. With the real _read_secret: the fake task.executor refuses network and file access,
+    #    so this checks that a failed lookup returns None (or a dict) instead of raising.
     res_actual = theater_art._fetch_movie_or_tv_art("Interstellar 2014")
     assert res_actual is None or isinstance(res_actual, dict), "FAIL: TMDB fetcher did not return dict or None!"
     print("  ✓ [Chaos] test_tmdb_fetcher_missing_key_graceful_fail PASSED")

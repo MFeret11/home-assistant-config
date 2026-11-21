@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 @AGENTS.md
 
-`AGENTS.md` (imported above) holds the safety interlocks and core rules; its "Where to look" list says which `docs/*.md` file to read before each kind of change. Keep both updated when behavior changes. `.clinerules` is a condensed version of the same rules.
+`AGENTS.md` (imported above) holds the safety interlocks and core rules; its "Where to look" list says which `docs/*.md` file to read before each kind of change. Keep both updated when behavior changes. Each rule should live in one place: `AGENTS.md` for the rules, `docs/` for the detail. `.clinerules` only points other tools at `AGENTS.md`; don't copy rules into it.
 
 ## This directory is the live Home Assistant config
 
@@ -38,9 +38,11 @@ Each suite is a standalone script (no pytest); it exits non-zero on failure. `ru
 **How the theater flows**: dashboard buttons / `input_select.basement_theater_mode` → `pyscript.play_*` services in `theater.py` → AVR input + DSP mode + app launch on the Onn → `sensor.theater_mode` resolver (driven by foreground `app_id` on HDMI1 and Batocera state on HDMI2) → `basement.py` `theater_lighting_sync()` reacts to `binary_sensor.theater_in_use` / `sensor.theater_mode`; Team Lights reacts to the Team Tracker sensors and publishes `pyscript.team_lights_featured`, which basement.py and the theater poster read for team color. Art sensors (`sensor.theater_current_poster`, `sensor.theater_current_boxart`) are written by `theater.py` with `state.set`.
 
 **Pyscript gotchas**
-- Art lookups (`pyscript/modules/theater_art.py`) are plain functions (no `async`/`await`); only the blocking HTTP call runs in a thread via `task.executor`. `@state_trigger` wrappers debounce with `task.unique` + short sleep and call plain functions that the `play_*` services also call directly.
+- `@state_trigger` wrappers debounce with `task.unique` + short sleep and call plain functions that the `play_*` services also call directly.
 - Pyscript globals (`state`, `task`, `log`, service domains like `light`, `switch`, `media_player`) are not importable in plain Python. Tests inject mocks into `builtins` (see the top of `tests/test_theater_basement.py`) before importing the module — any new HA domain you call from pyscript must also be mocked there.
-- Reload after editing: `pyscript.reload` service (or restart the container). A reload, or a save (auto-reload), only reloads the changed file and kills that file's running tasks. `task.unique` names are per file too, so one file can't cancel another's task; call a service instead.
+- Reload after editing: `pyscript.reload` service (or restart the container). A reload, or a save (auto-reload), reloads the changed file and kills that file's running tasks. Saving a file in `pyscript/modules/` also reloads every file that imports it (`theater_art.py` reloads theater.py; `shared_entities.py` reloads theater.py and basement.py). `task.unique` names are per file too, so one file can't cancel another's task; call a service instead.
+
+**Trigger check**: `tests/test_pyscript_triggers.py` loads every pyscript file and fails if a `@state_trigger` is invalid or watches an entity not listed in `docs/entities.md`. When a new trigger watches a new entity, confirm the ID in HA (`ha-api state <id>`) and add it to `docs/entities.md`.
 
 **Dashboard validation**: `tests/test_dashboard_integrity.py` holds `REGISTERED_ENTITIES` and `REGISTERED_SERVICES` and resolves `!include`s to check every binding. New entities or services referenced from a dashboard must be added to those sets, or the audit fails. `build_dashboard.py` reuses the same registry.
 

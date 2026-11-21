@@ -98,6 +98,7 @@ If the entity ID itself has to change (for example, a replaced device came back 
 - `binary_sensor.eagles_game_soon`, `binary_sensor.sixers_game_soon`, `binary_sensor.phillies_game_soon`, `binary_sensor.flyers_game_soon`: Template (`packages/sports.yaml`, macro in `custom_templates/sports.jinja`). On while that team's game is live, starts within 24 hours, or started less than 12 hours ago. Each one gates its team's card on the home dashboard.
 - `binary_sensor.basement_automation_allowed`: Master safety gate; if `off`, suppresses automated sports flashes and macros.
 - `binary_sensor.theater_in_use`: High when `media_player.theater_receiver == 'on'`.
+- `pyscript.curtain_call_active`: on while curtain call (`session_end_house_lights` in `theater.py`) runs and through the 10-minute house-lights window after it. While it is on, `basement.py` keeps the room lit for people leaving, and the basement door closing turns everything off.
 - `binary_sensor.theater_announcer_bar`: Set by `theater.py` `update_announcer_bar()`. On while the theater is in use and in sports mode, or in movie mode with a sports app or Prime Video in the foreground. Shows the booth announcer bar.
 - `binary_sensor.basement_lights_active`: High when dimmer, lounge, or bias strip are ON.
 - `binary_sensor.theater_media_playing`: Template (`packages/theater.yaml`). On while theater media is playing: `media_player.whole_house_spotify` in music mode, otherwise `media_player.theater_onn_pro_adb`. Drives the header play/pause chip.
@@ -118,6 +119,8 @@ If the entity ID itself has to change (for example, a replaced device came back 
 ### Dashboard Summary Sensors
 Template sensors that hold logic the dashboards used to repeat inline. Cards read these instead of recomputing.
 - `sensor.commute_am_severity` / `sensor.commute_pm_severity` (`packages/commute.yaml`): `ok`, `warn` or `alert`, from `sensor.septa_commute`. Sets the colour of the kitchen commute cards.
+- `binary_sensor.partner_heading_home` (`packages/commute.yaml`): on 3 minutes after the commuter leaves work on a weekday; off at home, back at work, at midnight, or 3 hours after leaving.
+- `binary_sensor.transit_microservice` (REST sensor in `configuration.yaml`): whether the commute service on `127.0.0.1:8000` answers. `pyscript/watchdog.py` alerts after it has been off for 2 minutes.
 - `sensor.maintenance_attention` (`packages/house_status.yaml`): number of things needing attention (worn parts, batteries at or below 20%, device problem flags, due or overdue chores, each chore counted once). The `items` attribute holds the display lines for the Maintenance page's "Needs Attention" card; the Home tile shows the count.
 - `sensor.cameras_online` (`packages/house_status.yaml`): number of reachable cameras; attributes `total` and `offline` (list of cameras that are unavailable or unknown). Feeds the Home Security tile.
 - `sensor.next_calendar_event` (`packages/house_status.yaml`): title of the soonest event across the household calendars; the `when` attribute is the formatted date and time.
@@ -126,6 +129,10 @@ Template sensors that hold logic the dashboards used to repeat inline. Cards rea
 ### Work schedule (`packages/private_work_schedule.yaml`)
 - `schedule.partner_office_days` / `schedule.me_office_days`: on all day on each person's office days. The only place the days are set. The train windows (`binary_sensor.septa_display_window`, `septa_am_window`, `septa_pm_window`) and location sharing with the transit service follow the partner's; `binary_sensor.drive_display_window` follows mine. Reload with `schedule.reload`.
 - `binary_sensor.kitchen_morning_wake` (`packages/kitchen_display.yaml`): kitchen tablet screen in the morning, 6-9 AM on weekdays whether or not anyone commutes, 8-11 AM on weekends.
+- `binary_sensor.kitchen_evening_wake` (`packages/kitchen_display.yaml`): kitchen tablet screen on, 4-8 PM every day.
+- `binary_sensor.kitchen_show_pm_commute` (`packages/kitchen_display.yaml`): shows the train-home card once the commuter has left work (`binary_sensor.partner_heading_home`) until they're home. Without a live location it falls back to fixed hours.
+- `switch.kitchen_tablet_mains`: the kitchen tablet's charger plug. `pyscript/kitchen_tablet.py` switches it to hold the battery around 70-80%.
+- `sensor.big_tablet_battery_level`: the kitchen tablet's battery level (Companion app).
 
 ### Presence (`packages/presence.yaml`)
 - `binary_sensor.partner_home` / `binary_sensor.me_home`: on while the phone answers on the home WiFi, or Google Maps (`sensor.partner_location` / `sensor.me_location`) has said `home` for 5 minutes; off 3 minutes after both are gone. An unknown or unavailable Maps location counts as home. The 5-minute hold is there because Maps can read "home" briefly when someone just passes nearby. These keep the history of who was home; the `person.*` entities follow only the Companion apps and are not used for presence.

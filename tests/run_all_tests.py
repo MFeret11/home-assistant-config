@@ -56,6 +56,11 @@ TEST_SUITES = [
         "name": "Shared Entity ID Suite",
         "file": "test_shared_entities.py",
         "desc": "interlocks.py copies match pyscript/modules/shared_entities.py; no shadowed or drifted IDs"
+    },
+    {
+        "name": "Pyscript Trigger Suite",
+        "file": "test_pyscript_triggers.py",
+        "desc": "Every pyscript file loads; every trigger is valid and watches an entity listed in docs/entities.md"
     }
 ]
 
