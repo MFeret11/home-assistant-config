@@ -1,7 +1,9 @@
+import os
 import sqlite3
 from datetime import datetime
 
-DB_PATH = "/var/lib/docker/volumes/septa-project_ha_config/_data/home-assistant_v2.db"
+REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+DB_PATH = os.path.join(REPO, "home-assistant_v2.db")
 
 KNOWN_CLIENTS = {
     "192.168.1.216": "Basement Theater (Onn Pro)",

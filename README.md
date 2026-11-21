@@ -43,7 +43,8 @@ flowchart LR
 | [`pyscript/`](pyscript/) | All automation logic in Python (pyscript): `theater.py`, `interlocks.py` (projector stray-wake guard and cooldown, Batocera power-off, isolated from theater.py reloads), `basement.py`, `apps/team_lights.py` (reusable Team Tracker lighting app), `watchdog.py`, `health_check.py` |
 | [`packages/`](packages/) | Helpers, template sensors and REST commands per subsystem |
 | [`dashboards/`](dashboards/) | Lovelace dashboards; `basement.yaml` is assembled from `components/` |
-| [`tests/`](tests/) | Standalone test suites, plus telemetry tools that query the recorder DB |
+| [`tests/`](tests/) | Standalone test suites (`python3 tests/run_all_tests.py`) |
+| [`scripts/telemetry/`](scripts/telemetry/) | Read-only tools that query the recorder DB, used to tune timings from real events |
 | [`docs/`](docs/) | Subsystem references: entities, interlocks, lighting, audio, network |
 
 ## Hardware

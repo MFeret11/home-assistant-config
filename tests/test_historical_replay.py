@@ -10,8 +10,9 @@ import builtins
 import time
 
 pyscript_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "pyscript"))
-if pyscript_dir not in sys.path:
-    sys.path.insert(0, pyscript_dir)
+for _d in (pyscript_dir, os.path.join(pyscript_dir, "modules")):
+    if _d not in sys.path:
+        sys.path.insert(0, _d)
 
 # --- Setup Mock Environment ---
 class MockState:

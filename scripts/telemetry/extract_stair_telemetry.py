@@ -1,11 +1,12 @@
 """
 Extracts actual historical walking speeds between the top door and bottom stairs.
-Run: python3 ~/ha_config/tests/extract_stair_telemetry.py
+Run: python3 scripts/telemetry/extract_stair_telemetry.py
 """
 import sqlite3
 import os
 
-DB_PATH = os.path.expanduser("~/ha_config/home-assistant_v2.db")
+REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+DB_PATH = os.path.join(REPO, "home-assistant_v2.db")
 conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
 cursor = conn.cursor()
 

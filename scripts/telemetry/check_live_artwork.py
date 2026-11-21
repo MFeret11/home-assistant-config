@@ -1,6 +1,6 @@
 """
 Smart Multi-Candidate Scraper for Movies, TV Shows, and YouTube.
-Run: python3 ~/ha_config/tests/test_live_artwork_scraper.py
+Run: python3 scripts/telemetry/check_live_artwork.py
 """
 import sqlite3
 import os
@@ -9,9 +9,10 @@ import json
 import urllib.parse
 import urllib.request
 
-DB_PATH = os.path.expanduser("~/ha_config/home-assistant_v2.db")
-SECRETS_PATH = os.path.expanduser("~/ha_config/secrets.yaml")
-JSON_PATH = os.path.join(os.path.dirname(__file__), "telemetry_48h.json")
+REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+DB_PATH = os.path.join(REPO, "home-assistant_v2.db")
+SECRETS_PATH = os.path.join(REPO, "secrets.yaml")
+JSON_PATH = os.path.join(REPO, "tests", "telemetry_48h.json")
 
 # 1. Fetch TMDB API Key
 api_key = None

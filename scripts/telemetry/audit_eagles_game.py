@@ -1,8 +1,10 @@
+import os
 import sqlite3
 import json
 from datetime import datetime
 
-DB_PATH = "/var/lib/docker/volumes/septa-project_ha_config/_data/home-assistant_v2.db"
+REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+DB_PATH = os.path.join(REPO, "home-assistant_v2.db")
 
 conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
 cursor = conn.cursor()

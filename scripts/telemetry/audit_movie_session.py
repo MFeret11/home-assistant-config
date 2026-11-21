@@ -1,12 +1,13 @@
 """
 Audits the exact sequence of events during Stremio/Onn movie sessions.
-Run: python3 ~/ha_config/tests/audit_movie_session.py
+Run: python3 scripts/telemetry/audit_movie_session.py
 """
 import sqlite3
 import os
 import json
 
-DB_PATH = os.path.expanduser("~/ha_config/home-assistant_v2.db")
+REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+DB_PATH = os.path.join(REPO, "home-assistant_v2.db")
 conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
 cursor = conn.cursor()
 

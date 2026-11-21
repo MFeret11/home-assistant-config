@@ -1,12 +1,13 @@
 """
 Extracts actual historical current telemetry from Home Assistant's SQLite DB.
-Run: python3 ~/ha_config/tests/extract_real_telemetry.py
+Run: python3 scripts/telemetry/extract_real_telemetry.py
 """
 import sqlite3
 import os
 import sys
 
-DB_PATH = os.path.expanduser("~/ha_config/home-assistant_v2.db")
+REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+DB_PATH = os.path.join(REPO, "home-assistant_v2.db")
 
 if not os.path.exists(DB_PATH):
     print(f"❌ Could not find database at {DB_PATH}")

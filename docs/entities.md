@@ -2,6 +2,25 @@
 
 _Moved verbatim from AGENTS.md. "§N" references point to the old AGENTS.md sections (§4 lighting/sports now live in docs/lighting.md)._
 
+## Renaming an entity
+
+**Change the display name, not the entity ID, whenever you can.** In HA: Settings → Devices & services → Entities → pick the entity → change *Name*. Nothing in this repo refers to display names, so nothing else needs editing.
+
+If the entity ID itself has to change (for example, a replaced device came back with a new one):
+
+1. Change it in HA (same dialog, *Entity ID*).
+2. List every copy of the old ID, from `~/ha_config`: `git grep -nw <old_id>`
+3. Edit each place it shows up:
+   - `pyscript/modules/shared_entities.py`: IDs used by both `theater.py` and `basement.py`. Saving it reloads both files, so do it with the theater idle.
+   - `pyscript/interlocks.py`: keeps its own copies on purpose (see the note at the top of `shared_entities.py`). `tests/test_shared_entities.py` fails until they match again. Edit with the theater idle.
+   - Other pyscript files: their IDs are at the top of each file. `health_check.py` lists the entities it checks.
+   - `packages/*.yaml`, `custom_templates/`, `configuration.yaml`.
+   - `dashboards/`: dashboard YAML always types IDs out. After editing a file pulled in with `!include`, `touch` the main dashboard file so HA picks it up. Also update `REGISTERED_ENTITIES` in `tests/test_dashboard_integrity.py`.
+   - `tests/` (the fake HA states) and `scripts/telemetry/`.
+   - This file.
+   - Don't hand-edit `tests/telemetry_48h.json`: it is recorded history under the old ID. If the replay suites fail after the rename, regenerate it with `scripts/telemetry/extract_48h.py` once the new ID has a couple of days of history.
+4. Run `python3 tests/run_all_tests.py`, then `git grep -nw <old_id>` again; only `telemetry_48h.json` should still match. Check `home-assistant.log` for pyscript errors.
+
 ## 2. Verified Entity Dictionary
 
 ### Theater AV & Hardware

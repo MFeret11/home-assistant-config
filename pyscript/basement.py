@@ -1,13 +1,52 @@
 # ==============================================================================
-# PYSCRIPT MODULE: 5-ZONE BASEMENT LIGHTING, STAIRS & ATMOSPHERIC ENGINE
+# BASEMENT LIGHTING: modes, stairs, vacancy, theater lighting, palettes
+# ==============================================================================
+# Sections, in order (search for the capitalised heading):
+#   ENTITY IDS AND SETTINGS
+#   SMALL HELPERS, AND HELPER ENTITIES CREATED AT LOAD
+#   LIGHTING MODE (Daily Driver or Social Mode)
+#   PALETTES AND THE DRIFT EFFECT, AND THE 4 AM RESET
+#   STAIRS: DOOR, MOTION AND WALK-OUT DETECTION
+#   VACANCY: LIGHTS OFF WHEN NOBODY IS DOWNSTAIRS
+#   THEATER LIGHTING (Daily Driver) AND CURTAIN CALL
+#   ALL-OFF, THE LIGHTS-ON CHIP, AND THE POWER-CUT SWEEP
+#   PALETTE AND PARTY SERVICES (dashboard buttons)
+#   DASHBOARD MODE DRAWER
+#   DASHBOARD DRAWERS AND THEATER MEDIA BUTTONS
+#
+# Daily Driver is the normal mode: automations run the lights. Social Mode is for
+# guests and game day: no timeouts or automatic shutoffs (game-day stairs aside).
+# Timings and the reasons for them: docs/lighting.md.
 # ==============================================================================
 import time
 
 BOOT_TIMESTAMP = time.time()
 
 # ------------------------------------------------------------------------------
-# CORE CONSTANTS & ENTITY IDS
+# ENTITY IDS AND SETTINGS
 # ------------------------------------------------------------------------------
+from shared_entities import (  # pyscript/modules/shared_entities.py
+    ADAPTIVE_SWITCH,
+    RECEIVER,
+    RECEIVER_ZONE_2,
+    MMWAVE_PRESENCE,
+    LIGHTING_MODE_SELECT,
+    SOCIAL_SOURCE,
+    CURTAIN_CALL,
+    THEATER_IN_USE,
+    THEATER_MODE,
+    BATOCERA_STATE,
+    ONN_ADB,
+    ONN_PRO,
+    ONN_REMOTE,
+    PC_ACTIVE_WINDOW,
+    THEATER_BOXART,
+    SPOTIFY_PLAYER,
+    MODE_DAILY,
+    MODE_SOCIAL,
+    FEATURED_TEAM,
+)
+
 THEATER_DIMMER = "light.theater_dimmer"
 BIAS_LIGHTS = "switch.bias_lights"
 STAIRLIGHTS = "light.stairlights"
@@ -18,39 +57,17 @@ BEDROOM_LAMP_2 = "light.bedroom_light_2"
 
 DOOR_SENSOR = "binary_sensor.basement_stairs_door_sensor"
 BOTTOM_STAIRS_MOTION = "binary_sensor.bottom_stairs"
-# mmWave presence sensor (Sonoff SNZB-06P) covering the basement. Unlike the PIR at
-# the foot of the stairs, it sees people sitting still. Its own clear delay is set
-# on the device (number.theater_mmwave_sensor_presence_detection_timeout).
-MMWAVE_PRESENCE = "binary_sensor.theater_mmwave_sensor"
 # Second mmWave (SNZB-06P) at the bar, so someone sitting there counts too.
 MMWAVE_BAR = "binary_sensor.mmwave_sensor_bar"
 LIGHTS_ACTIVE_SENSOR = "binary_sensor.basement_lights_active"
 
-LIGHTING_MODE_SELECT = "input_select.basement_lighting_mode"
 DRAWER_SELECT = "input_select.basement_drawer"
-# Who engaged Social Mode: "manual" (user) or "sports" (game day). Only sports-engaged
-# Social drops back to Daily when the theater switches to a movie or game.
-SOCIAL_SOURCE = "pyscript.basement_social_source"
-CURTAIN_CALL = "pyscript.curtain_call_active"
 MODE_EXPANDED = "pyscript.mode_selector_expanded"
-ADAPTIVE_SWITCH = "switch.basement_adaptive_lighting_adaptive_lighting_basement_adaptive_lighting"
 
-THEATER_IN_USE = "binary_sensor.theater_in_use"
-THEATER_MODE = "sensor.theater_mode"
-BATOCERA_STATE = "sensor.batocera_state"
-# The ADB player reports the Onn's playing/paused state.
-ONN_ADB = "media_player.theater_onn_pro_adb"
-ONN_PRO = "media_player.onn_pro"
-ONN_REMOTE = "remote.onn_pro"
-PC_ACTIVE_WINDOW = "sensor.gaming_pc_active_game"  # pre-filtered; see theater.py
-THEATER_BOXART = "sensor.theater_current_boxart"
-SPOTIFY_PLAYER = "media_player.whole_house_spotify"
 
 SENSOR_PALETTE = "sensor.basement_palette"
 SENSOR_EFFECT = "sensor.basement_effect"
 
-MODE_DAILY = "Daily Driver"
-MODE_SOCIAL = "Social Mode"
 VALID_MODES = {MODE_DAILY, MODE_SOCIAL}
 DRIFT_EFFECTS = {"wave", "breathe", "cycle", "drift"}
 
@@ -106,6 +123,10 @@ PALETTES = {
     ],
 }
 
+# Stair brightness when they show a palette color (hue/saturation, or white in Kelvin)
+STAIR_ACCENT_HS_PCT = 40
+STAIR_ACCENT_K_PCT = 35
+
 # PC foreground windows that mean "not in a game" (theater.py has a fuller parser)
 PC_IDLE_WINDOWS = {
     "desktop", "task switching", "taskbar", "explorer", "start",
@@ -149,15 +170,13 @@ BLACKOUT_IN_PROGRESS = False
 # off by hand or a palette pick are left alone. An entity, not a global, so a pyscript
 # reload mid-game doesn't forget and repaint.
 SPORTS_PAINTED = "pyscript.basement_sports_painted"
-# Featured team from the Team Lights app (state = team name; attributes rgb, light_colors).
-FEATURED_TEAM = "pyscript.team_lights_featured"
 # Eagles Kelly green: the manual chant, and the fallback before Team Lights publishes.
 # The stair bulbs' green LED is bluer, so 125° is the closest match by eye (2026-11-01).
 EAGLES_RGB = [0, 170, 35]
 EAGLES_STAIR_HS = [125, 100]
 
 # ------------------------------------------------------------------------------
-# HELPERS & INITIALIZATION
+# SMALL HELPERS, AND HELPER ENTITIES CREATED AT LOAD
 # ------------------------------------------------------------------------------
 def safe_state_get(entity_id: str, default=None):
     """Safely retrieves entity state without throwing PyScript errors."""
@@ -218,10 +237,13 @@ def ensure_entity(entity_id: str, default_val="off", attrs=None):
 
 
 def is_booting(grace_seconds=30) -> bool:
+    """True for the first grace_seconds after this file loaded (HA start or a pyscript
+    reload), so triggers firing on restored states are ignored."""
     return (time.time() - BOOT_TIMESTAMP) < grace_seconds
 
 
 def _theater_active() -> bool:
+    """True while a theater session is running (in-use flag, or an active theater mode)."""
     return safe_state_get(THEATER_IN_USE) == "on" or safe_state_get(THEATER_MODE) in ["movie", "game", "music", "sports"]
 
 
@@ -239,7 +261,8 @@ except Exception:
 
 
 # ------------------------------------------------------------------------------
-# 2-WAY LIGHTING MODE RESOLVER & PRESENCE INTEGRATION
+# LIGHTING MODE (Daily Driver or Social Mode)
+# input_select.basement_lighting_mode holds the mode.
 # ------------------------------------------------------------------------------
 def is_presence_locked() -> bool:
     """Social Mode is the presence lock: no automated timeouts or shutoffs."""
@@ -255,6 +278,9 @@ def get_lighting_mode() -> str:
 
 
 def set_lighting_mode(new_mode: str, source: str = "manual"):
+    """Switch between Daily Driver and Social Mode. source ('manual' or 'sports')
+    records who turned Social on; automation never downgrades a manual Social. Social
+    also turns Adaptive Lighting off. 'Movie Mode' is an old name for Daily Driver."""
     if new_mode == "Movie Mode":
         new_mode = MODE_DAILY
     if new_mode not in VALID_MODES:
@@ -283,6 +309,9 @@ def set_lighting_mode(new_mode: str, source: str = "manual"):
 
 @state_trigger(LIGHTING_MODE_SELECT)
 def on_lighting_mode_changed(value=None, old_value=None):
+    """The lighting mode picker changed. Social: count it as manual if nothing else
+    claimed it, Adaptive Lighting off. Daily Driver: stop any palette effect, then
+    hand the lights to the theater (if in use) or back to normal."""
     if is_booting() or value == old_value or BLACKOUT_IN_PROGRESS:
         return
 
@@ -304,18 +333,27 @@ def on_lighting_mode_changed(value=None, old_value=None):
 
 
 # ------------------------------------------------------------------------------
-# ATMOSPHERIC ENGINE HELPERS & LOOP RUNNER
+# PALETTES AND THE DRIFT EFFECT, AND THE 4 AM RESET
+# A palette has four room colors (ROOM_ZONES, in order) and a fifth entry for
+# the stairs. "Drift" slowly rotates the four colors around the room.
 # ------------------------------------------------------------------------------
+def _stair_accent_on(stair_conf, transition):
+    """Light the stairs in a palette's stair color (its fifth entry). False if it has none."""
+    if "stair_hs" in stair_conf:
+        light.turn_on(entity_id=STAIRLIGHTS, hs_color=stair_conf["stair_hs"], brightness_pct=STAIR_ACCENT_HS_PCT, transition=transition)
+        return True
+    if "stair_k" in stair_conf:
+        light.turn_on(entity_id=STAIRLIGHTS, color_temp_kelvin=stair_conf["stair_k"], brightness_pct=STAIR_ACCENT_K_PCT, transition=transition)
+        return True
+    return False
+
+
 def apply_static_palette(palette_name: str, transition: int = 2):
     """Applies a static palette cleanly across stairs and 4 room zones."""
     slots = PALETTES.get(palette_name, PALETTES["synthwave"])
 
     # 1. Stairs accent
-    stair_conf = slots[4]
-    if "stair_hs" in stair_conf:
-        light.turn_on(entity_id=STAIRLIGHTS, hs_color=stair_conf["stair_hs"], brightness_pct=40, transition=transition)
-    elif "stair_k" in stair_conf:
-        light.turn_on(entity_id=STAIRLIGHTS, color_temp_kelvin=stair_conf["stair_k"], brightness_pct=35, transition=transition)
+    _stair_accent_on(slots[4], transition)
 
     task.sleep(0.2)
 
@@ -341,11 +379,7 @@ def _ambient_loop_runner():
     step = 0
 
     slots = PALETTES.get(CURRENT_PALETTE, PALETTES["synthwave"])
-    stair_conf = slots[4]
-    if "stair_hs" in stair_conf:
-        light.turn_on(entity_id=STAIRLIGHTS, hs_color=stair_conf["stair_hs"], brightness_pct=40, transition=2)
-    elif "stair_k" in stair_conf:
-        light.turn_on(entity_id=STAIRLIGHTS, color_temp_kelvin=stair_conf["stair_k"], brightness_pct=35, transition=2)
+    _stair_accent_on(slots[4], 2)
 
     while get_lighting_mode() == MODE_SOCIAL and CURRENT_EFFECT in DRIFT_EFFECTS:
         active_slots = PALETTES.get(CURRENT_PALETTE, PALETTES["synthwave"])
@@ -373,6 +407,7 @@ def _ambient_loop_runner():
 
 
 def apply_ambient_lighting():
+    """Social Mode with the current palette and effect, run in the background."""
     set_lighting_mode(MODE_SOCIAL)
     task.create(_ambient_loop_runner)
 
@@ -411,7 +446,9 @@ def safe_nightly_social_reset():
 
 
 # ------------------------------------------------------------------------------
-# STAIRS & DIRECTIONAL VACANCY ENGINE
+# STAIRS: DOOR, MOTION AND WALK-OUT DETECTION
+# Direction of travel: bottom-stairs motion shortly before the door opens means
+# someone is walking up and out; the door opening first means someone coming down.
 # ------------------------------------------------------------------------------
 def _trigger_stealth_red_stairs():
     """Fades stairs up to subtle 2% warm candlelight (2000K) for 60s during active theater sessions."""
@@ -478,6 +515,10 @@ def _turn_on_circadian_direct(entity_id, transition=1):
 
 @state_trigger(f"{DOOR_SENSOR} == 'on'")
 def stair_door_opened(old_value=None):
+    """The basement door opened. Notes the direction of travel, then lights the stairs
+    to suit the mode: a dim warm glow during a theater session, circadian white for 3
+    min in Daily Driver, a team-color path light on game day, or the palette's stair
+    color in Social Mode."""
     global LAST_DOOR_OPEN_TS, DIRECTION_OF_TRAVEL
     if is_booting() or old_value != "off":
         return
@@ -511,20 +552,19 @@ def stair_door_opened(old_value=None):
     elif mode == MODE_SOCIAL:
         # In Social Mode: door opening turns on stair lights (if not already on) and leaves them on permanently
         current_pal = safe_state_get(SENSOR_PALETTE, CURRENT_PALETTE)
+        lit = False
         if current_pal in PALETTES and current_pal != "normal":
-            stair_conf = PALETTES[current_pal][4]
-            if "stair_hs" in stair_conf:
-                light.turn_on(entity_id=STAIRLIGHTS, hs_color=stair_conf["stair_hs"], brightness_pct=40, transition=1)
-            elif "stair_k" in stair_conf:
-                light.turn_on(entity_id=STAIRLIGHTS, color_temp_kelvin=stair_conf["stair_k"], brightness_pct=35, transition=1)
-            else:
-                _turn_on_circadian_direct(STAIRLIGHTS, transition=1)
-        else:
+            lit = _stair_accent_on(PALETTES[current_pal][4], 1)
+        if not lit:
             _turn_on_circadian_direct(STAIRLIGHTS, transition=1)
 
 
 @state_trigger(f"{BOTTOM_STAIRS_MOTION} == 'on'")
 def motion_at_foot_of_stairs(old_value=None):
+    """Motion at the foot of the stairs. Theater in use: dim warm stairs only. Daily
+    Driver: if the stairs are lit (someone came down), the room lights come on and
+    the stairs go off after 30 s; if not, the stairs come on for 45 s. Social Mode:
+    nothing, except the game-day stairs."""
     global LAST_MOTION_BOTTOM_TS, LAST_MOTION_SEEN_TS
     LAST_MOTION_SEEN_TS = time.time()
     if is_booting() or old_value != "off":
@@ -542,7 +582,7 @@ def motion_at_foot_of_stairs(old_value=None):
     mode = get_lighting_mode()
     theater_active = _theater_active()
 
-    # 1. THEATER ACTIVE (in Daily Driver): Stealth 2% candlelight stairs only. Hard-block room cans (Cinema Shield).
+    # 1. Theater in use (Daily Driver): dim warm stairs only. The room lights stay off.
     if theater_active:
         task.create(_trigger_stealth_red_stairs)
         return
@@ -587,6 +627,7 @@ def motion_at_foot_of_stairs(old_value=None):
 
 @state_trigger(f"{BOTTOM_STAIRS_MOTION} == 'off'")
 def motion_cleared_at_foot_of_stairs(old_value=None):
+    """Note when the bottom-stairs sensor cleared, for direction of travel and vacancy."""
     global LAST_MOTION_CLEAR_TS, LAST_MOTION_SEEN_TS
     if old_value == "on":
         LAST_MOTION_CLEAR_TS = time.time()
@@ -598,6 +639,13 @@ def _seconds_since_bottom_stairs_activity() -> float:
     if safe_state_get(BOTTOM_STAIRS_MOTION) == "on":
         return 0.0
     return max(0.0, time.time() - LAST_MOTION_SEEN_TS)
+
+
+def _room_lights_off(transition):
+    """Theater dimmer, room lights and stairs off, and the bias lights if they're on."""
+    light.turn_off(entity_id=[THEATER_DIMMER, MASTER_ZIGBEE_GROUP, STAIRLIGHTS], transition=transition)
+    if safe_state_get(BIAS_LIGHTS) == "on":
+        switch.turn_off(entity_id=BIAS_LIGHTS)
 
 
 def _mmwave_occupied() -> bool:
@@ -616,6 +664,10 @@ def _recent_bottom_stairs_motion() -> bool:
 
 @state_trigger(f"{DOOR_SENSOR} == 'off'")
 def stair_door_closed(old_value=None):
+    """The basement door closed. During curtain call: everything off (people walked
+    out). In Daily Driver, a close right after someone walked up is a walk-out: wait
+    WALKOUT_CONFIRM_S, then turn the lights off unless motion, the door or the mmWave
+    shows someone is still downstairs."""
     global DIRECTION_OF_TRAVEL
     if is_booting() or old_value != "on" or is_presence_locked():
         return
@@ -671,16 +723,16 @@ def stair_door_closed(old_value=None):
         and get_lighting_mode() == MODE_DAILY
         and safe_state_get(THEATER_IN_USE) == "off"
     ):
-        light.turn_off(entity_id=[THEATER_DIMMER, MASTER_ZIGBEE_GROUP, STAIRLIGHTS], transition=2)
-        if safe_state_get(BIAS_LIGHTS) == "on":
-            switch.turn_off(entity_id=BIAS_LIGHTS)
+        _room_lights_off(2)
 
 
 # ------------------------------------------------------------------------------
-# VACANCY GUARD
+# VACANCY: LIGHTS OFF WHEN NOBODY IS DOWNSTAIRS
 # ------------------------------------------------------------------------------
 @state_trigger(f"{BOTTOM_STAIRS_MOTION} == 'off'", state_hold=14400)
 def basement_door_open_vacancy_guard():
+    """Daily Driver backstop: no bottom-stairs motion for 4 hours and neither mmWave
+    sees anyone, so the lights go off."""
     if (
         get_lighting_mode() == MODE_DAILY
         and safe_state_get(THEATER_IN_USE) == "off"
@@ -688,9 +740,7 @@ def basement_door_open_vacancy_guard():
         and safe_state_get(CURTAIN_CALL) == "off"
         and not _mmwave_occupied()
     ):
-        light.turn_off(entity_id=[THEATER_DIMMER, MASTER_ZIGBEE_GROUP, STAIRLIGHTS], transition=4)
-        if safe_state_get(BIAS_LIGHTS) == "on":
-            switch.turn_off(entity_id=BIAS_LIGHTS)
+        _room_lights_off(4)
 
 
 # != 'on' so an unavailable sensor doesn't block vacancy forever.
@@ -711,23 +761,25 @@ def basement_mmwave_vacancy():
         and _seconds_since_bottom_stairs_activity() >= MMWAVE_VACANCY_S
     ):
         log.info("[Basement] Vacancy: no one seen for 15 min, turning lights off")
-        light.turn_off(entity_id=[THEATER_DIMMER, MASTER_ZIGBEE_GROUP, STAIRLIGHTS], transition=4)
-        if safe_state_get(BIAS_LIGHTS) == "on":
-            switch.turn_off(entity_id=BIAS_LIGHTS)
+        _room_lights_off(4)
 
 
 # ------------------------------------------------------------------------------
-# THEATER LIGHTING ENGINE
+# THEATER LIGHTING (Daily Driver) AND CURTAIN CALL
 # ------------------------------------------------------------------------------
 def on_movie_screen() -> bool:
+    """True when the Onn is on and showing an app rather than the home screen."""
     if safe_state_get(ONN_PRO) != "on":
         return False
     try:
         activity = safe_state_getattr(ONN_REMOTE, "current_activity")
-        return activity != "com.google.android.apps.tv.launcherx"
+        return activity != ONN_HOME_SCREEN
     except Exception:
         return True
 
+
+# The Google TV home screen's package name
+ONN_HOME_SCREEN = "com.google.android.apps.tv.launcherx"
 
 # Last ADB state that wasn't a blip (see _adb_blip).
 LAST_ADB_STATE = None
@@ -754,6 +806,7 @@ ADAPTIVE_PAUSED_BY_THEATER = False
 
 
 def _pause_adaptive_for_theater():
+    """Turn Adaptive Lighting off for a theater session, and remember that this did it."""
     global ADAPTIVE_PAUSED_BY_THEATER
     if safe_state_get(ADAPTIVE_SWITCH) == "on":
         switch.turn_off(entity_id=ADAPTIVE_SWITCH)
@@ -772,11 +825,14 @@ def _resume_adaptive_after_theater():
 
 @state_trigger(
     f"{THEATER_MODE}, {ONN_ADB}, {BATOCERA_STATE}, {THEATER_IN_USE}, "
-    "remote.onn_pro.current_activity, media_player.onn_pro, pyscript.curtain_call_active, "
-    "sensor.gaming_pc_active_game"
+    f"{ONN_REMOTE}.current_activity, {ONN_PRO}, {CURTAIN_CALL}, "
+    f"{PC_ACTIVE_WINDOW}"
 )
 def theater_lighting_sync(var_name=None, value=None, old_value=None):
-    """Single master synchronizer for theater sessions."""
+    """Set the basement lights to match the theater. Social Mode is left alone, except that
+    sports paints team color once per session. Music, or a movie or game playing: lights off,
+    bias lights on. A movie paused for 4 s, menus and pre-show: 3% glow on the dimmer, the
+    rest off, bias on."""
     # ADB blip, or back from one to the same state: nothing changed, so don't touch the
     # lights (each blip used to flash the 3% glow mid-movie).
     if var_name == ONN_ADB and (_adb_blip(value) or (_adb_blip(old_value) and value == LAST_ADB_STATE)):
@@ -885,10 +941,13 @@ def handle_curtain_call_lighting():
 
 
 # ------------------------------------------------------------------------------
-# ALL LIGHTS MASTER TOGGLE & BLACKOUT SERVICES
+# ALL-OFF, THE LIGHTS-ON CHIP, AND THE POWER-CUT SWEEP
 # ------------------------------------------------------------------------------
 @service
 def basement_all_off():
+    """Every basement light and the bias lights off at once, all timers and effects
+    stopped, mode back to Daily Driver. Sends the off twice to catch Zigbee drop-
+    outs."""
     global BLACKOUT_IN_PROGRESS
     BLACKOUT_IN_PROGRESS = True
 
@@ -948,6 +1007,8 @@ def basement_all_off():
 
 @service
 def toggle_all_basement_lights():
+    """Dashboard toggle: anything on turns everything off; everything off turns the room
+    lights on in Daily Driver."""
     monitored = [LIGHTS_ACTIVE_SENSOR, THEATER_DIMMER, STAIRLIGHTS, MASTER_ZIGBEE_GROUP, BIAS_LIGHTS]
     if any([safe_state_get(e) == "on" for e in monitored]):
         basement_all_off()
@@ -960,6 +1021,8 @@ def toggle_all_basement_lights():
 @state_trigger(f"{THEATER_DIMMER}, {STAIRLIGHTS}, {MASTER_ZIGBEE_GROUP}, {BIAS_LIGHTS}")
 @service
 def update_basement_lights_active(**kwargs):
+    """Keep binary_sensor.basement_lights_active, and its list of lights that are on, up
+    to date for the dashboard chip."""
     # Only initialize if the telemetry entities don't already exist
     if safe_state_get(SENSOR_PALETTE) is None or safe_state_get(SENSOR_EFFECT) is None:
         initialize_basement_telemetry()
@@ -997,6 +1060,8 @@ def _host_uptime_s():
 
 @time_trigger("startup")
 def power_restoration_on_boot():
+    """At startup, run the power-cut sweep only if the Pi itself just booted (interlock
+    4)."""
     uptime = _host_uptime_s()
     if uptime is not None and uptime > POWER_RESTORE_BOOT_WINDOW_S:
         log.info(f"[PowerRestore] Host up {int(uptime)}s; HA restart or reload, not a power cut. Skipping sweep.")
@@ -1017,7 +1082,7 @@ def post_power_restoration_sweep():
     theater_active = (
         safe_state_get(THEATER_IN_USE) == "on"
         or safe_state_get(THEATER_MODE) in ["movie", "game", "music", "sports"]
-        or safe_state_get("media_player.theater_receiver") == "on"
+        or safe_state_get(RECEIVER) == "on"
     )
     motion_active = safe_state_get(BOTTOM_STAIRS_MOTION) == "on"
     door_open = safe_state_get(DOOR_SENSOR) == "on"
@@ -1032,12 +1097,10 @@ def post_power_restoration_sweep():
 
         if active_basement or safe_state_get(BIAS_LIGHTS) == "on":
             log.warning(f"[PowerRestore] Active basement loads detected after reboot with vacant room: {active_basement}. Executing safety sweep.")
-            light.turn_off(entity_id=[THEATER_DIMMER, MASTER_ZIGBEE_GROUP, STAIRLIGHTS], transition=2)
-            if safe_state_get(BIAS_LIGHTS) == "on":
-                switch.turn_off(entity_id=BIAS_LIGHTS)
+            _room_lights_off(2)
 
-            if safe_state_get("media_player.theater_receiver_zone_2") == "on":
-                media_player.turn_off(entity_id="media_player.theater_receiver_zone_2")
+            if safe_state_get(RECEIVER_ZONE_2) == "on":
+                media_player.turn_off(entity_id=RECEIVER_ZONE_2)
 
             swept_areas.append("Basement")
 
@@ -1060,6 +1123,7 @@ def post_power_restoration_sweep():
 
 @service
 def initialize_basement_telemetry(**kwargs):
+    """Create the palette and effect sensors the dashboard reads."""
     state.set(
         SENSOR_PALETTE,
         value=CURRENT_PALETTE or "synthwave",
@@ -1081,10 +1145,12 @@ def initialize_basement_telemetry(**kwargs):
 
 
 # ------------------------------------------------------------------------------
-# ATMOSPHERIC & PARTY SERVICES
+# PALETTE AND PARTY SERVICES (dashboard buttons)
 # ------------------------------------------------------------------------------
 @service
 def select_palette(palette: str):
+    """Pick a color palette: Social Mode, then paint it (static or drifting, per the
+    current effect)."""
     global CURRENT_PALETTE
     if palette not in PALETTES:
         return
@@ -1101,6 +1167,7 @@ def select_palette(palette: str):
 
 @service
 def select_effect_modifier(effect: str):
+    """Pick static or a drift effect for the palette, and restart it."""
     global CURRENT_EFFECT
     if effect in {"static", *DRIFT_EFFECTS}:
         CURRENT_EFFECT = effect
@@ -1111,6 +1178,8 @@ def select_effect_modifier(effect: str):
 
 @service
 def mood_reset_normal():
+    """Back to normal: no palette or effect, Daily Driver, Adaptive Lighting on and
+    applied, stairs off."""
     global CURRENT_EFFECT
     CURRENT_EFFECT = "static"
     state.set(SENSOR_EFFECT, value="static")
@@ -1132,6 +1201,8 @@ def mood_reset_normal():
 
 @service
 def effect_bar_toast():
+    """Flash the bar and stairs amber three times for a toast, then go back to the
+    palette."""
     task.unique("basement_ambient_loop")
     running_effect = CURRENT_EFFECT
     toast_amber = [255, 170, 0]
@@ -1187,6 +1258,7 @@ def effect_eagles_chant():
 
 @service
 def toggle_ambient_drift():
+    """Dashboard button: switch the palette between static and drift."""
     cur_eff = safe_state_get(SENSOR_EFFECT, "static")
     new_eff = "static" if cur_eff in DRIFT_EFFECTS else "drift"
     select_effect_modifier(new_eff)
@@ -1203,10 +1275,11 @@ def toggle_lighting_mode():
         set_lighting_mode(MODE_SOCIAL)
 
 # ------------------------------------------------------------------------------
-# INLINE DASHBOARD MODE DRAWER SERVICES
+# DASHBOARD MODE DRAWER
 # ------------------------------------------------------------------------------
 @service
 def toggle_mode_drawer():
+    """Open or close the dashboard's mode drawer. It closes itself after 10 s."""
     task.unique("mode_drawer_timer")
     cur = safe_state_get(MODE_EXPANDED, "off")
     new_val = "off" if cur == "on" else "on"
@@ -1220,17 +1293,18 @@ def toggle_mode_drawer():
 
 @service
 def select_lighting_mode_ui(mode: str):
+    """Mode drawer button: set the lighting mode and close the drawer."""
     task.unique("mode_drawer_timer")
     set_lighting_mode(mode)
     state.set(MODE_EXPANDED, value="off")
 
 
 # ------------------------------------------------------------------------------
-# 3-BUTTON ACCORDION STAGE DRAWER CONTROLLER
+# DASHBOARD DRAWERS AND THEATER MEDIA BUTTONS
 # ------------------------------------------------------------------------------
 @service
 def toggle_basement_drawer(drawer: str = "theater"):
-    """Toggles basement accordion drawer; collapses to 'none', else sets to drawer."""
+    """Dashboard drawer buttons: open the chosen drawer, or close it ('none') if it's open."""
     cur = safe_state_get(DRAWER_SELECT, "theater")
     target = "none" if cur == drawer else drawer
     try:
@@ -1241,19 +1315,24 @@ def toggle_basement_drawer(drawer: str = "theater"):
     state.set(DRAWER_SELECT, value=target)
 
 def _get_active_media_player():
+    """The player the theater media buttons control: Spotify in music mode, otherwise
+    the Onn."""
     return SPOTIFY_PLAYER if safe_state_get(THEATER_MODE) == "music" else ONN_PRO
 
 
 @service
 def theater_media_play_pause():
+    """Play or pause the active player."""
     safe_service(media_player.media_play_pause, entity_id=_get_active_media_player())
 
 
 @service
 def theater_media_next():
+    """Next track on the active player."""
     safe_service(media_player.media_next_track, entity_id=_get_active_media_player())
 
 
 @service
 def theater_media_previous():
+    """Previous track on the active player."""
     safe_service(media_player.media_previous_track, entity_id=_get_active_media_player())

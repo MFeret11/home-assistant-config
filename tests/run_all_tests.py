@@ -20,7 +20,7 @@ TEST_SUITES = [
     {
         "name": "State Machine, Safety Locks & Story Suite",
         "file": "test_theater_basement.py",
-        "desc": "Unit tests, 3x3 state matrix, Cinema Shield, and 5-hour evening story"
+        "desc": "Unit tests, the 3x3 mode/state matrix, theater blackout, and a 5-hour evening story"
     },
     {
         "name": "Real Hardware Telemetry Replay Suite",
@@ -45,18 +45,23 @@ TEST_SUITES = [
     {
         "name": "Dashboard Physical State & View Verification Suite",
         "file": "test_dashboard_automation.py",
-        "desc": "Automated verification of dashboard sports scoreboard, Cinema Shield blackout, and hardware states"
+        "desc": "Dashboard sports scoreboard, theater blackout, and hardware states"
     },
     {
         "name": "Preflight Health & Resilience Audit Suite",
         "file": "test_preflight_health.py",
         "desc": "Validates continuous integrity checks, critical entity health, and hardware state reconciliation"
+    },
+    {
+        "name": "Shared Entity ID Suite",
+        "file": "test_shared_entities.py",
+        "desc": "interlocks.py copies match pyscript/modules/shared_entities.py; no shadowed or drifted IDs"
     }
 ]
 
 def run_suite():
     env = os.environ.copy()
-    env["PYTHONPATH"] = f"{PYSCRIPT_DIR}:{env.get('PYTHONPATH', '')}"
+    env["PYTHONPATH"] = f"{PYSCRIPT_DIR}:{os.path.join(PYSCRIPT_DIR, 'modules')}:{env.get('PYTHONPATH', '')}"
 
     print("\n" + "=" * 75)
     print("       BASEMENT & THEATER AUTOMATED TEST HARNESS: FULL SUITE")
@@ -105,9 +110,9 @@ def run_suite():
 
     total_duration = (time.time() - total_start_time) * 1000
 
-    # Executive Summary Card
+    # Summary
     print("\n" + "=" * 75)
-    print("                          EXECUTIVE TEST SCORECARD")
+    print("                              TEST RESULTS")
     print("=" * 75)
     for name, passed, dur, _ in suite_results:
         status_str = "✓ PASS" if passed else "❌ FAIL"

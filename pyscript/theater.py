@@ -1,5 +1,26 @@
 # ==============================================================================
-# PYSCRIPT MODULE: THEATER AV CONDUCTION, ART & HARDWARE ENGINE
+# THEATER: modes, receiver and sound, posters, sessions, live TV tuners
+# ==============================================================================
+# Sections, in order (search for the capitalised heading):
+#   ENTITY IDS, APP LISTS AND FALLBACK ART
+#   SMALL HELPERS        safe state reads and service calls, Onn apps, projector state
+#   POSTER AND BOX ART SENSORS, WHAT'S PLAYING
+#   SPORTS SCOREBOARD AND THE MOVIE/MUSIC POSTER
+#   GAMING PC WINDOW AND THE GAME POSTER
+#   DASHBOARD MODE PICKER, AND POSTERS AT STARTUP
+#   WORKING OUT THE THEATER MODE; RECEIVER AND ONN POWER BUTTONS
+#   SOUND MODES, VOLUME AND THE ANNOUNCER LEVEL
+#   HARDWARE INTERLOCK CALLS (the interlocks themselves live in interlocks.py)
+#   STARTING SESSIONS: movie, game, PC game, music
+#   HDHOMERUN TUNER CONTROL
+#   SPORTS, CURTAIN CALL AND MANUAL SERVICES
+#   MOVIE SEARCH (Stremio deep link)
+#
+# The online art lookups (movie and TV posters, game box art, their cache and the
+# outage backoff) are in pyscript/modules/theater_art.py. This file decides which
+# poster to show; that one fetches the pictures.
+#
+# Background and rules: AGENTS.md and docs/theater-audio.md.
 # ==============================================================================
 import re
 import time
@@ -7,61 +28,77 @@ import urllib.parse
 
 BOOT_TIMESTAMP = time.time()
 
+from theater_art import (  # pyscript/modules/theater_art.py: online poster and box art lookups
+    RE_ROM_EXT,
+    RE_ROM_TAGS,
+    _ART_CACHE,
+    _CIRCUIT_STATE,
+    _fetch_game_art_from_secrets,
+    _fetch_json,
+    _fetch_movie_or_tv_art,
+    _is_circuit_open,
+    get_search_candidates,
+)
+
 try:
     pyscript_compile
 except NameError:
     def pyscript_compile(func):
         return func
 
-# Pre-compiled Regex Patterns
-RE_ROM_EXT = re.compile(r"\.[a-zA-Z0-9]{2,4}$")
-RE_ROM_TAGS = re.compile(r"\(.*?\)|\{.*?\}|\[.*?\]")
-RESOLUTION_TAGS = {"4k", "1080p", "720p", "hdr", "uhd", "1080hd", "4kuhd", "60fps", "hd"}
-
-# In-Memory Secrets Cache
-_SECRETS_CACHE = {}
-
 # ------------------------------------------------------------------------------
-# CORE ENTITIES & CONSTANTS
+# ENTITY IDS, APP LISTS AND FALLBACK ART
 # ------------------------------------------------------------------------------
-RECEIVER = "media_player.theater_receiver"
-RECEIVER_ZONE_2 = "media_player.theater_receiver_zone_2"
-ONN_PRO = "media_player.onn_pro"
+from shared_entities import (  # pyscript/modules/shared_entities.py
+    ADAPTIVE_SWITCH,
+    RECEIVER,
+    RECEIVER_ZONE_2,
+    ONN_PRO,
+    ONN_ADB,
+    ONN_REMOTE,
+    PROJECTOR_SWITCH,
+    PROJECTOR_CURRENT,
+    BATOCERA_SWITCH,
+    BATOCERA_CURRENT,
+    BATOCERA_STATE,
+    PC_ACTIVE_WINDOW,
+    THEATER_MODE,
+    THEATER_IN_USE,
+    THEATER_BOXART,
+    SOCIAL_SOURCE,
+    MODE_SOCIAL,
+    MODE_DAILY,
+    LIGHTING_MODE_SELECT,
+    CURTAIN_CALL,
+    SPOTIFY_PLAYER,
+    FEATURED_TEAM,
+    MMWAVE_PRESENCE,
+)
+
 ONN_PRO_2 = "media_player.onn_pro_2"
-ONN_ADB = "media_player.theater_onn_pro_adb"
-ONN_REMOTE = "remote.onn_pro"
 
-PROJECTOR_SWITCH = "switch.projector"
-PROJECTOR_CURRENT = "sensor.projector_current"
-BATOCERA_SWITCH = "switch.batocera"
-BATOCERA_CURRENT = "sensor.batocera_current"
-BATOCERA_STATE = "sensor.batocera_state"
 BATOCERA_SYSTEM = "sensor.batocera_system"
 BATOCERA_GAME = "sensor.batocera_current_game"
 
 # ASUS ROG Gaming PC (HASS.Agent & Moonlight)
 PC_SWITCH = "switch.gaming_pc"
 PC_ONLINE = "binary_sensor.gaming_pc_online"
-# Pre-filtered by the "Gaming PC Active Game" template (configuration.yaml):
-# a game title, "Steam Big Picture" or "Idle / Desktop".
-PC_ACTIVE_WINDOW = "sensor.gaming_pc_active_game"
 PC_GPU_TEMP = "sensor.desktop_rspn8nu_gputemperature"
 
-THEATER_MODE = "sensor.theater_mode"
 THEATER_SELECT = "input_select.basement_theater_mode"
-THEATER_IN_USE = "binary_sensor.theater_in_use"
 THEATER_POSTER = "sensor.theater_current_poster"
-THEATER_BOXART = "sensor.theater_current_boxart"
 
 ANNOUNCER_VOLUME = "input_number.theater_announcer_volume"
 ANNOUNCER_PRESET = "input_select.theater_announcer_preset"
-SOCIAL_SOURCE = "pyscript.basement_social_source"
-MODE_SOCIAL = "Social Mode"
-MODE_DAILY = "Daily Driver"
-LIGHTING_MODE_SELECT = "input_select.basement_lighting_mode"
-CURTAIN_CALL = "pyscript.curtain_call_active"
-SPOTIFY_PLAYER = "media_player.whole_house_spotify"
 
+# Onn apps, by Android package name
+STREMIO_APP = "com.stremio.one"
+NETFLIX_APP = "com.netflix.ninja"
+YOUTUBE_TV_APP = "com.google.android.youtube.tv"
+YOUTUBE_APPS = {YOUTUBE_TV_APP, "com.google.android.youtube"}
+SPOTIFY_TV_APP = "com.spotify.tv.android"
+HDHOMERUN_APP = "com.silicondust.view"
+MOONLIGHT_APP = "com.limelight"
 PRIME_VIDEO_PACKAGE = "com.amazon.amazonvideo.livingroom"
 
 PRIME_VIDEO_APPS = {
@@ -72,21 +109,21 @@ PRIME_VIDEO_APPS = {
     "com.amazon.video",
 }
 
+# Which theater mode an app on the Onn means (see update_theater_mode)
 MOVIE_APPS = {
-    "com.stremio.one",
-    "com.google.android.youtube.tv",
-    "com.google.android.youtube",
-    "com.netflix.ninja",
+    STREMIO_APP,
+    *YOUTUBE_APPS,
+    NETFLIX_APP,
     *PRIME_VIDEO_APPS,
 }
 
 MUSIC_APPS = {
-    "com.spotify.tv.android",
+    SPOTIFY_TV_APP,
     "com.spotify.music",
 }
 
 SPORTS_APPS = {
-    "com.silicondust.view",     # HDHomeRun
+    HDHOMERUN_APP,              # HDHomeRun
     "com.armata.televizio",     # Televizio
     "ar.tvplayer.tv",           # TiviMate
     "com.espn.score_center",    # ESPN
@@ -99,7 +136,7 @@ ANNOUNCER_BAR_APPS = SPORTS_APPS | PRIME_VIDEO_APPS
 ANNOUNCER_BAR = "binary_sensor.theater_announcer_bar"
 
 GAME_APPS = {
-    "com.limelight",            # Moonlight Game Streaming
+    MOONLIGHT_APP,              # Moonlight Game Streaming
     "com.limelight.android",    # Moonlight Variant
     "com.valvesoftware.steamlink", # Steam Link
 }
@@ -109,6 +146,8 @@ RETRO_2CH_SYSTEMS = {
     "mastersystem", "gamegear", "atari2600", "atari7800", "pce",
 }
 
+# Receiver sound program per app (route_app_audio_mode). Sports apps get the sports
+# program instead, and an app missing here gets Standard.
 APP_AUDIO_MODES = {
     "com.google.android.youtube.tv": "Surround Decoder",
     "com.google.android.youtube": "Surround Decoder",
@@ -129,6 +168,7 @@ APP_AUDIO_MODES = {
 # Fallback art used when no lookup succeeds
 MOVIE_FALLBACK_POSTER = "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=800&q=80"
 MOVIE_FALLBACK_BACKDROP = "https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=1200&q=80"
+MUSIC_FALLBACK_ART = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&q=80"
 SPORTS_BACKDROP = "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=1200&q=80"
 EAGLES_LOGO_FALLBACK = "https://a.espncdn.com/i/teamlogos/nfl/500/phi.png"
 
@@ -166,6 +206,15 @@ APP_BRAND_ART = {
         "badge_icon": "mdi:youtube",
         "badge_color": "red",
     },
+}
+
+# Poster label and badge for each video app: (label, badge icon, badge color).
+# _stream_app() says which key an app id belongs to.
+STREAM_APP_BADGES = {
+    "prime_video": ("Prime Video", "mdi:video", "teal"),
+    "netflix": ("Netflix", "mdi:netflix", "red"),
+    "stremio": ("Stremio", "mdi:movie-open", "blue"),
+    "theatrical_stream": ("Theatrical Stream", "mdi:movie-open", "blue"),
 }
 
 IDLE_BOXART = {
@@ -239,9 +288,12 @@ SYSTEM_ART_MAP = {
 }
 
 # ------------------------------------------------------------------------------
-# SAFE STATE / SERVICE / NUMERIC HELPERS
+# SMALL HELPERS: safe state reads and service calls, Onn apps, projector state
+# The safe_* helpers return a default or log a warning instead of raising,
+# so one offline device can't stop a whole sequence.
 # ------------------------------------------------------------------------------
 def safe_state_get(entity_id, default=None):
+    """An entity's state, or default if it's missing or the read fails."""
     try:
         val = state.get(entity_id)
         return val if val is not None else default
@@ -250,6 +302,7 @@ def safe_state_get(entity_id, default=None):
 
 
 def safe_state_getattr(entity_id, attr, default=None):
+    """One attribute of an entity, or default if it's missing or the read fails."""
     try:
         attrs = state.getattr(entity_id) or {}
         return attrs.get(attr, default)
@@ -258,6 +311,8 @@ def safe_state_getattr(entity_id, attr, default=None):
 
 
 def safe_service(service_func, **kwargs):
+    """Call a service, logging a warning instead of raising if it fails (for example, an
+    offline device)."""
     try:
         service_func(**kwargs)
     except Exception as e:
@@ -266,6 +321,7 @@ def safe_service(service_func, **kwargs):
 
 
 def safe_float(value, default=0.0):
+    """value as a float, or default if it isn't a number."""
     try:
         return float(value) if value is not None else default
     except (ValueError, TypeError):
@@ -301,6 +357,7 @@ def pause_spotify_if_playing():
 
 
 def normalize_app_id(app_id):
+    """Drop an activity suffix: 'com.app/.MainActivity' becomes 'com.app'."""
     if app_id and "/" in app_id:
         return app_id.split("/")[0]
     return app_id
@@ -310,6 +367,7 @@ LAUNCHER_APPS = {"com.google.android.apps.tv.launcherx", "com.google.android.tvl
 
 
 def _is_launcher(app_id):
+    """True for the Google TV home screen, or when no app is reported."""
     return not app_id or app_id in LAUNCHER_APPS
 
 
@@ -326,6 +384,8 @@ def get_active_app_id():
 
 
 def launch_onn_app(package_name):
+    """Open an app on the Onn by package name. Uses the Android TV Remote integration
+    (deep link first where the app has one), or ADB if that integration is offline."""
     if not package_name:
         return
     # Map deep links / URI schemes (per Google TV Remote protocol recommendation)
@@ -349,6 +409,7 @@ def launch_onn_app(package_name):
 
 
 def _onn_remote_down() -> bool:
+    """True when the Onn's Android TV Remote integration is offline."""
     return safe_state_get(ONN_REMOTE) == "unavailable"
 
 
@@ -363,10 +424,14 @@ def _onn_adb_command(command):
 
 
 def is_booting(grace_seconds=30) -> bool:
+    """True for the first grace_seconds after this file loaded (HA start or a pyscript
+    reload), so triggers firing on restored states are ignored."""
     return (time.time() - BOOT_TIMESTAMP) < grace_seconds
 
 
 def is_projector_cold() -> bool:
+    """True when the projector lamp is off and cool (current at or under 0.06 A). If the
+    current sensor has no reading, falls back to the mains switch being off."""
     current = safe_float(safe_state_get(PROJECTOR_CURRENT), default=None)
     if current is not None:
         return current <= 0.06
@@ -374,11 +439,15 @@ def is_projector_cold() -> bool:
 
 
 # ------------------------------------------------------------------------------
-# THEATER POSTER & BOX ART ENGINE
+# POSTER AND BOX ART SENSORS, WHAT'S PLAYING
+# sensor.theater_current_poster and sensor.theater_current_boxart are written
+# here with state.set and read by the dashboard's Now Playing cards.
 # ------------------------------------------------------------------------------
 def set_theater_poster(value, title, subtitle, backdrop_url="", media_type="movie",
                        source="unknown", badge_icon="mdi:movie-open", badge_color="blue",
                        raw_title="", **extra_attrs):
+    """Write sensor.theater_current_poster, which the Now Playing card shows. Extra
+    keyword arguments become extra attributes (the sports scoreboard uses these)."""
     attrs = {
         "friendly_name": "Theater Poster",
         "title": title,
@@ -395,6 +464,7 @@ def set_theater_poster(value, title, subtitle, backdrop_url="", media_type="movi
 
 
 def reset_boxart_idle(source="idle", boxart_state="idle"):
+    """Put the game box art sensor back to the idle EmulationStation picture."""
     state.set(
         THEATER_BOXART,
         value=IDLE_BOXART["value"],
@@ -412,6 +482,7 @@ def reset_boxart_idle(source="idle", boxart_state="idle"):
 
 
 def reset_poster_idle(source="idle"):
+    """Clear the theater poster (nothing playing)."""
     state.set(
         THEATER_POSTER,
         value="none",
@@ -426,44 +497,25 @@ def reset_poster_idle(source="idle"):
     )
 
 
+def _stream_app(app_id):
+    """Which video app is on screen, as a key of STREAM_APP_BADGES. No app id counts as Stremio."""
+    if app_id in PRIME_VIDEO_APPS:
+        return "prime_video"
+    if app_id == NETFLIX_APP:
+        return "netflix"
+    if app_id == STREMIO_APP or not app_id:
+        return "stremio"
+    return "theatrical_stream"
+
+
 def _stream_status_label(play_state, app_label):
+    """Poster subtitle such as '▶ Streaming on Netflix', '⏸ Paused on Netflix' or
+    'Netflix Idle'."""
     if play_state in ["playing", "on"]:
         return f"▶ Streaming on {app_label}"
     elif play_state == "paused":
         return f"⏸ Paused on {app_label}"
     return f"{app_label} Idle"
-
-
-SECRET_PATHS = [
-    "/config/secrets.yaml",
-    "/ha_config/secrets.yaml",
-    "secrets.yaml",
-]
-
-
-@pyscript_compile
-def _scan_secrets_file(paths, key_name):
-    """Blocking file read; runs in an executor thread via task.executor."""
-    import os
-    for sp in paths:
-        if os.path.exists(sp):
-            try:
-                with open(sp, "r", encoding="utf-8") as f:
-                    for line in f:
-                        l = line.strip()
-                        if l.startswith(key_name + ":"):
-                            return l.split(":", 1)[1].strip().strip("\"'")
-            except Exception:
-                pass
-    return None
-
-
-def _read_secret(key_name):
-    if key_name in _SECRETS_CACHE:
-        return _SECRETS_CACHE[key_name] or None
-    val = task.executor(_scan_secrets_file, SECRET_PATHS, key_name)
-    _SECRETS_CACHE[key_name] = val or ""
-    return val or None
 
 
 def _is_stale_music_session(mp):
@@ -479,6 +531,9 @@ def _is_stale_music_session(mp):
 
 
 def get_active_media_info():
+    """What the Onn is showing: {title, artist, app_id, play_state}. Generic titles such
+    as 'Netflix' come back as None, and a Spotify session left open in the background
+    is ignored while another app is on screen."""
     title = None
     artist = None
     play_state = None
@@ -538,106 +593,9 @@ def get_active_media_info():
     }
 
 
-RE_GENERIC_SEASON = re.compile(r"^(?:season|series|episode|ep|s)\s*\d+$", re.IGNORECASE)
-
-
-def get_search_candidates(raw_title, artist=None):
-    candidates = []
-    if artist and len(artist) > 1 and artist.lower() not in ["unknown", "none", "stremio", "prime video", "netflix", "youtube"]:
-        candidates.append(artist.strip())
-
-    if not raw_title:
-        return candidates
-
-    clean = re.sub(r"\.(mkv|mp4|avi|mov|wmv|iso|ts)$", "", raw_title, flags=re.IGNORECASE)
-    if "." in clean and " " not in clean:
-        clean = clean.replace(".", " ")
-    clean = clean.replace("_", " ")
-    clean = re.sub(
-        r"\b(2160p|1080p|720p|480p|uhd|hdr|hdr10|bluray|bdrip|webrip|web-dl|web|x264|x265|hevc|aac|dts|ac3|remux|h264|h265|proper|repack)\b.*$",
-        "",
-        clean,
-        flags=re.IGNORECASE,
-    ).strip()
-
-    # Season/Episode split e.g. "Futurama S01E01 Space Pilot 3000"
-    m = re.split(r"\b(?:s\d{1,2}e\d{1,2}|\d{1,2}x\d{1,2})\b", clean, flags=re.IGNORECASE)
-    if len(m) > 1:
-        show_part = m[0].strip().strip("-–— ")
-        ep_part = m[1].strip().strip("-–— ")
-        if show_part and show_part not in candidates and not RE_GENERIC_SEASON.match(show_part):
-            candidates.append(show_part)
-        if ep_part and ep_part not in candidates and not RE_GENERIC_SEASON.match(ep_part):
-            candidates.append(ep_part)
-
-    # Hyphen split e.g. Stremio "Episode - Show" or standard "Show - Episode"
-    if " - " in clean:
-        parts = [p.strip() for p in clean.split(" - ") if p.strip()]
-        for p in reversed(parts):
-            if p not in candidates and p.lower() not in RESOLUTION_TAGS and not RE_GENERIC_SEASON.match(p):
-                candidates.append(p)
-        for p in parts:
-            if p not in candidates and p.lower() not in RESOLUTION_TAGS and not RE_GENERIC_SEASON.match(p):
-                candidates.append(p)
-
-    # Strip year e.g. "Inception 2010" -> "Inception"
-    year_clean = re.sub(r"[\(\[]?\b(19\d\d|20\d\d)\b[\)\]]?", "", clean).strip()
-    if year_clean and year_clean not in candidates and len(year_clean) > 1:
-        candidates.append(year_clean)
-
-    if clean and clean not in candidates:
-        candidates.append(clean)
-    if raw_title not in candidates:
-        candidates.append(raw_title)
-
-    return [c for c in candidates if len(c) > 1 and c.lower() not in ["stremio", "stremio theatrical", "ready to stream", "prime video", "netflix"]]
-
-
-# ------------------------------------------------------------------------------
-# RESILIENT NETWORK LAYER: IN-MEMORY CACHE & CIRCUIT BREAKER
-# ------------------------------------------------------------------------------
-_ART_CACHE = {}          # key -> (timestamp, data)
-_CIRCUIT_STATE = {}      # service_name -> {"failures": int, "tripped_until": float}
-
-CACHE_TTL_HIT = 3600     # 1 hour for successful art lookup
-CACHE_TTL_MISS = 300     # 5 minutes negative cache for non-matches
-CIRCUIT_MAX_FAILURES = 3 # Trip after 3 consecutive network failures
-CIRCUIT_COOLDOWN = 300   # 5-minute recovery backoff
-
-
-def _is_circuit_open(service_name: str) -> bool:
-    cs = _CIRCUIT_STATE.get(service_name)
-    if not cs:
-        return False
-    if time.time() < cs.get("tripped_until", 0):
-        return True
-    if cs.get("tripped_until", 0) > 0:
-        cs["failures"] = 0
-        cs["tripped_until"] = 0
-    return False
-
-
-def _record_service_failure(service_name: str):
-    cs = _CIRCUIT_STATE.setdefault(service_name, {"failures": 0, "tripped_until": 0})
-    cs["failures"] += 1
-    if cs["failures"] >= CIRCUIT_MAX_FAILURES:
-        cs["tripped_until"] = time.time() + CIRCUIT_COOLDOWN
-        try:
-            log.warning(f"[Theater Resilience] Circuit breaker tripped for {service_name}! Backing off for {CIRCUIT_COOLDOWN}s.")
-        except Exception:
-            pass
-
-
-def _record_service_success(service_name: str):
-    cs = _CIRCUIT_STATE.get(service_name)
-    if cs:
-        cs["failures"] = 0
-        cs["tripped_until"] = 0
-
-
 @service
 def theater_resilience_status():
-    """Returns current status of network cache and circuit breakers."""
+    """Debug: how many art lookups are cached, and which services are being skipped after failures."""
     open_circuits = [s for s, state_dict in _CIRCUIT_STATE.items() if time.time() < state_dict.get("tripped_until", 0)]
     return {
         "cache_entries": len(_ART_CACHE),
@@ -647,349 +605,9 @@ def theater_resilience_status():
 
 
 # ------------------------------------------------------------------------------
-# ART LOOKUPS
-# Normal pyscript functions. Only the blocking HTTP call runs in an executor thread
-# (task.executor + a native @pyscript_compile helper that receives everything as arguments).
+# SPORTS SCOREBOARD AND THE MOVIE/MUSIC POSTER
 # ------------------------------------------------------------------------------
-@pyscript_compile
-def _http_get(url, headers=None, timeout=5, parse_json=True):
-    """Blocking GET. Returns (status, data): status is the HTTP code, or -1 on a network error."""
-    import json
-    import urllib.error
-    import urllib.request
-    req = urllib.request.Request(url, headers=headers or {})
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            if not parse_json:
-                return resp.status, None
-            return resp.status, json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        return e.code, None
-    except Exception:
-        return -1, None
-
-
-def _fetch_json(service_name, url, headers=None, timeout=5):
-    """GET JSON with circuit-breaker bookkeeping. A 404 is a miss, not a service failure."""
-    hdrs = {"User-Agent": "HomeAssistant-Pyscript/1.0"}
-    if headers:
-        hdrs.update(headers)
-    status, data = task.executor(_http_get, url, hdrs, timeout, True)
-    if status == 200:
-        _record_service_success(service_name)
-        return data
-    if status == -1 or status >= 500 or status in (401, 403, 429):
-        _record_service_failure(service_name)
-    return None
-
-
-def _title_words(text):
-    return [w for w in re.sub(r"[^a-z0-9]+", " ", str(text or "").lower()).split() if w]
-
-
-def _title_resembles(candidate, item):
-    """True when a TMDB result's name plausibly is the title searched for:
-    one contains the other, or they share most of the shorter one's words."""
-    want = _title_words(candidate)
-    if not want:
-        return False
-    for key in ("title", "name", "original_title", "original_name"):
-        have = _title_words(item.get(key))
-        if not have:
-            continue
-        a, b = " ".join(want), " ".join(have)
-        if a in b or b in a:
-            return True
-        shorter = want if len(want) <= len(have) else have
-        shared = len(set(want) & set(have))
-        if shared / len(set(shorter)) >= 0.6:
-            return True
-    return False
-
-
-def _movie_or_tv_art_lookup(raw_title, artist=None):
-    if not raw_title and not artist:
-        return None
-
-    cache_key = f"movie_tv:{raw_title}:{artist}"
-    if cache_key in _ART_CACHE:
-        cached_ts, cached_data = _ART_CACHE[cache_key]
-        ttl = CACHE_TTL_HIT if cached_data else CACHE_TTL_MISS
-        if time.time() - cached_ts < ttl:
-            return cached_data
-
-    candidates = get_search_candidates(raw_title, artist=artist)
-    if not candidates and raw_title:
-        candidates = [raw_title]
-
-    # 1. TMDB (needs tmdb_api_key in secrets.yaml)
-    api_key = _read_secret("tmdb_api_key")
-    if api_key:
-        for candidate in candidates:
-            if _is_circuit_open("tmdb"):
-                break
-            encoded = urllib.parse.quote(candidate)
-            data = _fetch_json(
-                "tmdb",
-                f"https://api.themoviedb.org/3/search/multi?api_key={api_key}&query={encoded}",
-                timeout=4,
-            )
-            results = (data or {}).get("results", [])
-            if not results:
-                continue
-            # Take the first top result that has a poster and whose name resembles
-            # what was searched; TMDB pads thin searches with unrelated titles.
-            best = None
-            for item in results[:5]:
-                if (item.get("media_type") in ["movie", "tv"] and item.get("poster_path")
-                        and _title_resembles(candidate, item)):
-                    best = item
-                    break
-            if not best:
-                continue
-            poster_path = best.get("poster_path")
-            backdrop_path = best.get("backdrop_path")
-            if poster_path:
-                res = {
-                    "poster": f"https://image.tmdb.org/t/p/w500{poster_path}",
-                    "backdrop": f"https://image.tmdb.org/t/p/w780{backdrop_path}" if backdrop_path else "",
-                    "title": best.get("title") or best.get("name") or candidate,
-                    "media_type": best.get("media_type", "movie"),
-                    "source": "tmdb",
-                }
-                _ART_CACHE[cache_key] = (time.time(), res)
-                return res
-
-    # 2. Cinemeta (Stremio's catalog backend; no API key)
-    for pass_mode in ("exact", "fuzzy"):
-        for candidate in candidates:
-            if _is_circuit_open("cinemeta"):
-                break
-            encoded = urllib.parse.quote(candidate)
-            match_found = None
-            for cat in ["series", "movie"]:
-                data = _fetch_json(
-                    "cinemeta",
-                    f"https://v3-cinemeta.strem.io/catalog/{cat}/top/search={encoded}.json",
-                    timeout=3,
-                )
-                for m in (data or {}).get("metas", [])[:4]:
-                    m_name = m.get("name", "").strip()
-                    if pass_mode == "exact" and m_name.lower() == candidate.lower():
-                        match_found = (m, cat)
-                        break
-                    elif pass_mode == "fuzzy" and (candidate.lower() in m_name.lower() or m_name.lower() in candidate.lower()):
-                        match_found = (m, cat)
-                        break
-                if match_found:
-                    break
-
-            if match_found:
-                meta, cat = match_found
-                poster_url = meta.get("poster")
-                bg_url = meta.get("background") or poster_url
-                if poster_url:
-                    if "_V1_SX250.jpg" in poster_url:
-                        poster_url = poster_url.replace("_V1_SX250.jpg", "_V1_SX700.jpg")
-                    elif "/small/" in poster_url:
-                        poster_url = poster_url.replace("/small/", "/medium/")
-                    res = {
-                        "poster": poster_url,
-                        "backdrop": bg_url,
-                        "title": meta.get("name") or candidate,
-                        "media_type": meta.get("type", cat),
-                        "source": "cinemeta",
-                    }
-                    _ART_CACHE[cache_key] = (time.time(), res)
-                    return res
-
-    # 3. TVMaze (no API key)
-    for candidate in candidates:
-        if _is_circuit_open("tvmaze"):
-            break
-        encoded = urllib.parse.quote(candidate)
-        data = _fetch_json("tvmaze", f"https://api.tvmaze.com/singlesearch/shows?q={encoded}", timeout=3)
-        if data and data.get("image"):
-            img = data["image"].get("original") or data["image"].get("medium")
-            if img:
-                res = {
-                    "poster": img,
-                    "backdrop": img,
-                    "title": data.get("name") or candidate,
-                    "media_type": "tv",
-                    "source": "tvmaze",
-                }
-                _ART_CACHE[cache_key] = (time.time(), res)
-                return res
-
-    # Don't negative-cache when a service was down: a brief outage would pin the fallback poster.
-    had_outage = any([_is_circuit_open(s) for s in ("tmdb", "cinemeta", "tvmaze")])
-    if not had_outage:
-        _ART_CACHE[cache_key] = (time.time(), None)
-    return None
-
-
-def _fetch_movie_or_tv_art(raw_title, artist=None):
-    try:
-        return _movie_or_tv_art_lookup(raw_title, artist)
-    except Exception as e:
-        log.warning(f"[Theater] Movie/TV art lookup failed for {raw_title!r}: {e}")
-        return None
-
-
-def _fetch_sgdb_asset(url, api_key):
-    data = _fetch_json("steamgriddb", url, {"Authorization": f"Bearer {api_key}"}, 5)
-    items = (data or {}).get("data") or []
-    return items[0].get("url") if items else None
-
-
-LIBRETRO_SYSTEM_REPOS = {
-    "n64": "Nintendo_-_Nintendo_64",
-    "psx": "Sony_-_PlayStation",
-    "ps1": "Sony_-_PlayStation",
-    "playstation": "Sony_-_PlayStation",
-    "ps2": "Sony_-_PlayStation_2",
-    "dreamcast": "Sega_-_Dreamcast",
-    "genesis": "Sega_-_Mega_Drive_-_Genesis",
-    "megadrive": "Sega_-_Mega_Drive_-_Genesis",
-    "snes": "Nintendo_-_Super_Nintendo_Entertainment_System",
-    "nes": "Nintendo_-_Nintendo_Entertainment_System",
-    "gba": "Nintendo_-_Game_Boy_Advance",
-    "gbc": "Nintendo_-_Game_Boy_Color",
-    "gb": "Nintendo_-_Game_Boy",
-    "gamecube": "Nintendo_-_GameCube",
-    "gc": "Nintendo_-_GameCube",
-    "wii": "Nintendo_-_Wii",
-    "saturn": "Sega_-_Saturn",
-    "psp": "Sony_-_PlayStation_Portable",
-    "arcade": "FBNeo_-_Arcade_Games",
-    "mame": "MAME",
-}
-
-
-def _fetch_libretro_game_art(clean_title, system_id=None):
-    if not clean_title or not system_id:
-        return None
-    repo = LIBRETRO_SYSTEM_REPOS.get(str(system_id).lower())
-    if not repo:
-        return None
-
-    variations = [
-        clean_title,
-        f"{clean_title} (USA)",
-        f"{clean_title} (USA, Europe)",
-        f"{clean_title} (Europe)",
-        f"{clean_title} (World)",
-    ]
-    for v in variations:
-        if _is_circuit_open("libretro"):
-            return None
-        encoded = urllib.parse.quote(v)
-        box_url = f"https://raw.githubusercontent.com/libretro-thumbnails/{repo}/master/Named_Boxarts/{encoded}.png"
-        snap_url = f"https://raw.githubusercontent.com/libretro-thumbnails/{repo}/master/Named_Snaps/{encoded}.png"
-        status, _ = task.executor(_http_get, box_url, {"User-Agent": "HomeAssistant-Pyscript/1.0"}, 3, False)
-        if status == 200:
-            _record_service_success("libretro")
-            return {
-                "poster": box_url,
-                "backdrop": snap_url,
-                "title": clean_title,
-                "source": "libretro",
-            }
-        # 404 = this naming variant doesn't exist (a miss); only real network/server errors count as failures
-        if status == -1 or status >= 500:
-            _record_service_failure("libretro")
-    return None
-
-
-def _game_art_lookup(game_title, system_id=None):
-    clean_title = RE_ROM_EXT.sub("", game_title)
-    clean_title = RE_ROM_TAGS.sub("", clean_title).strip()
-    # Steam shortcuts arrive as "1794680_Vampire_Survivors": drop the app id, underscores -> spaces
-    clean_title = re.sub(r"^\d+_", "", clean_title).replace("_", " ").strip()
-    if not clean_title:
-        return None
-
-    cache_key = f"game:{clean_title}:{system_id}"
-    if cache_key in _ART_CACHE:
-        cached_ts, cached_data = _ART_CACHE[cache_key]
-        ttl = CACHE_TTL_HIT if cached_data else CACHE_TTL_MISS
-        if time.time() - cached_ts < ttl:
-            return cached_data
-
-    steamgriddb_key = _read_secret("steamgriddb_api_key")
-    rawg_key = _read_secret("rawg_api_key")
-
-    if steamgriddb_key and not _is_circuit_open("steamgriddb"):
-        encoded = urllib.parse.quote(clean_title)
-        data = _fetch_json(
-            "steamgriddb",
-            f"https://www.steamgriddb.com/api/v2/search/autocomplete/{encoded}",
-            {"Authorization": f"Bearer {steamgriddb_key}"},
-            5,
-        )
-        results = (data or {}).get("data") or []
-        if results:
-            game_id = results[0].get("id")
-            game_name = results[0].get("name") or clean_title
-            grid_url = _fetch_sgdb_asset(
-                f"https://www.steamgriddb.com/api/v2/grids/game/{game_id}?dimensions=600x900",
-                steamgriddb_key,
-            )
-            hero_url = _fetch_sgdb_asset(
-                f"https://www.steamgriddb.com/api/v2/heroes/game/{game_id}",
-                steamgriddb_key,
-            )
-            if grid_url or hero_url:
-                res = {
-                    "poster": grid_url or hero_url,
-                    "backdrop": hero_url or grid_url,
-                    "title": game_name,
-                    "source": "steamgriddb",
-                }
-                _ART_CACHE[cache_key] = (time.time(), res)
-                return res
-
-    if rawg_key and not _is_circuit_open("rawg"):
-        encoded = urllib.parse.quote(clean_title)
-        data = _fetch_json(
-            "rawg",
-            f"https://api.rawg.io/api/games?key={rawg_key}&search={encoded}&page_size=1",
-            timeout=5,
-        )
-        results = (data or {}).get("results") or []
-        if results and results[0].get("background_image"):
-            img = results[0].get("background_image")
-            res = {
-                "poster": img,
-                "backdrop": img,
-                "title": results[0].get("name") or clean_title,
-                "source": "rawg",
-            }
-            _ART_CACHE[cache_key] = (time.time(), res)
-            return res
-
-    # Libretro boxart fallback (no API key)
-    libretro_match = _fetch_libretro_game_art(clean_title, system_id)
-    if libretro_match:
-        _ART_CACHE[cache_key] = (time.time(), libretro_match)
-        return libretro_match
-
-    _ART_CACHE[cache_key] = (time.time(), None)
-    return None
-
-
-def _fetch_game_art_from_secrets(game_title, system_id=None):
-    try:
-        return _game_art_lookup(game_title, system_id)
-    except Exception as e:
-        log.warning(f"[Theater] Game art lookup failed for {game_title!r} ({system_id}): {e}")
-        return None
-
-
 EAGLES_SENSOR = "sensor.philadelphia_eagles"
-# Featured team from the Team Lights app; its `sensor` attribute is the Team Tracker sensor.
-FEATURED_TEAM = "pyscript.team_lights_featured"
 SPORT_BADGES = {
     "football": "mdi:football",
     "basketball": "mdi:basketball",
@@ -1072,6 +690,10 @@ def _set_sports_poster(source_label=None):
 # Plain function (no trigger): called directly by the play_* services and by the
 # debounced trigger wrapper below.
 def update_theater_media_art():
+    """Set the theater poster in movie, music and sports modes. In order: the sports
+    scoreboard; Spotify album art; YouTube; then for other video apps an art lookup
+    by title, the Onn's own cover art, a generic poster with the title, and finally
+    the app's brand card."""
     mode = safe_state_get(THEATER_MODE)
     if mode not in ["movie", "music", "sports"]:
         return
@@ -1096,25 +718,25 @@ def update_theater_media_art():
 
     # In movie mode, ignore any lingering background Spotify sessions
     if mode == "movie":
-        if app_id in ["com.spotify.tv.android", "com.spotify.music"]:
-            app_id = "com.stremio.one"
+        if app_id in MUSIC_APPS:
+            app_id = STREMIO_APP
             raw_title = None
             artist = None
             onn_art = None
 
-    if mode == "music" or app_id in ["com.spotify.tv.android", "com.spotify.music"]:
+    if mode == "music" or app_id in MUSIC_APPS:
         album_art = (
             onn_art
-            or safe_state_getattr("media_player.whole_house_spotify", "entity_picture")
-            or "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&q=80"
+            or safe_state_getattr(SPOTIFY_PLAYER, "entity_picture")
+            or MUSIC_FALLBACK_ART
         )
         music_title = (
             raw_title
-            or safe_state_getattr("media_player.whole_house_spotify", "media_title")
+            or safe_state_getattr(SPOTIFY_PLAYER, "media_title")
             or "Spotify Music"
         )
-        artist_val = artist or safe_state_getattr("media_player.whole_house_spotify", "media_artist") or "Spotify"
-        album = safe_state_getattr("media_player.whole_house_spotify", "media_album_name") or "Hi-Fi Audio"
+        artist_val = artist or safe_state_getattr(SPOTIFY_PLAYER, "media_artist") or "Spotify"
+        album = safe_state_getattr(SPOTIFY_PLAYER, "media_album_name") or "Hi-Fi Audio"
         set_theater_poster(
             album_art, music_title, f"{artist_val} • {album}",
             backdrop_url=album_art, media_type="music",
@@ -1122,8 +744,8 @@ def update_theater_media_art():
         )
         return
 
-    if app_id in ["com.google.android.youtube.tv", "com.google.android.youtube"]:
-        yt_art = onn_art or "https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=800&q=80"
+    if app_id in YOUTUBE_APPS:
+        yt_art = onn_art or APP_BRAND_ART["youtube"]["poster"]
         set_theater_poster(
             yt_art, raw_title or "YouTube", _stream_status_label(play_state, "YouTube"),
             backdrop_url=yt_art, media_type="youtube",
@@ -1131,30 +753,12 @@ def update_theater_media_art():
         )
         return
 
-    if app_id in PRIME_VIDEO_APPS:
-        app_label = "Prime Video"
-        badge_icon = "mdi:video"
-        badge_color = "teal"
-        stream_src = "prime_video"
-    elif app_id == "com.netflix.ninja":
-        app_label = "Netflix"
-        badge_icon = "mdi:netflix"
-        badge_color = "red"
-        stream_src = "netflix"
-    elif app_id == "com.stremio.one" or not app_id:
-        app_label = "Stremio"
-        badge_icon = "mdi:movie-open"
-        badge_color = "blue"
-        stream_src = "stremio"
-    else:
-        app_label = "Theatrical Stream"
-        badge_icon = "mdi:movie-open"
-        badge_color = "blue"
-        stream_src = "theatrical_stream"
+    stream_src = _stream_app(app_id)
+    app_label, badge_icon, badge_color = STREAM_APP_BADGES[stream_src]
 
     subtitle_val = _stream_status_label(play_state, app_label)
 
-    # 1. Multi-source art resolution (Cinemeta, TMDB, TVMaze)
+    # 1. Art lookup by title (TMDB, then Cinemeta, then TVMaze)
     data = _fetch_movie_or_tv_art(raw_title, artist=artist) if (raw_title or artist) else None
     if data and isinstance(data, dict) and data.get("poster"):
         set_theater_poster(
@@ -1165,7 +769,7 @@ def update_theater_media_art():
         )
         return
 
-    # 2. Direct Android TV / Onn Cover Art Passthrough
+    # 2. The Onn's own cover art
     if onn_art and onn_art not in ["unknown", "unavailable", "None", ""]:
         set_theater_poster(
             onn_art, raw_title or artist or "Now Playing", subtitle_val,
@@ -1175,7 +779,7 @@ def update_theater_media_art():
         )
         return
 
-    # 3. If art search didn't yield an image, but we detected a title/artist:
+    # 3. No image found, but there is a title: generic poster with the title
     if raw_title or artist:
         candidates = get_search_candidates(raw_title, artist=artist)
         best_title = artist if (artist and artist not in ["Stremio", "Prime Video", "Netflix", "None"]) else (candidates[0] if candidates else raw_title)
@@ -1190,7 +794,7 @@ def update_theater_media_art():
         )
         return
 
-    # 4. Brand & Streaming App fallback (Prime Video, Stremio, Netflix, YouTube)
+    # 4. Nothing at all: the app's brand card (APP_BRAND_ART)
     brand = APP_BRAND_ART.get(stream_src)
     if brand:
         fallback_poster = brand["poster"]
@@ -1219,32 +823,35 @@ def update_theater_media_art():
 
 
 @state_trigger(
-    "media_player.onn_pro, "
-    "media_player.theater_onn_pro_adb, "
-    "media_player.onn_pro.media_title, "
-    "media_player.onn_pro.media_series_title, "
-    "media_player.onn_pro.entity_picture, "
-    "media_player.onn_pro.app_id, "
-    "media_player.onn_pro.app_name, "
-    "media_player.onn_pro_2.media_title, "
-    "media_player.onn_pro_2.entity_picture, "
-    "remote.onn_pro, "
-    "remote.onn_pro.current_activity, "
-    "input_number.theater_announcer_volume, "
-    "pyscript.team_lights_featured, "
-    "sensor.philadelphia_eagles, "
-    "sensor.philadelphia_eagles.team_score, "
-    "sensor.philadelphia_eagles.opponent_score, "
+    f"{ONN_PRO}, "
+    f"{ONN_ADB}, "
+    f"{ONN_PRO}.media_title, "
+    f"{ONN_PRO}.media_series_title, "
+    f"{ONN_PRO}.entity_picture, "
+    f"{ONN_PRO}.app_id, "
+    f"{ONN_PRO}.app_name, "
+    f"{ONN_PRO_2}.media_title, "
+    f"{ONN_PRO_2}.entity_picture, "
+    f"{ONN_REMOTE}, "
+    f"{ONN_REMOTE}.current_activity, "
+    f"{ANNOUNCER_VOLUME}, "
+    f"{FEATURED_TEAM}, "
+    # Team Tracker sensors: a score change redraws the scoreboard
+    f"{EAGLES_SENSOR}, "
+    f"{EAGLES_SENSOR}.team_score, "
+    f"{EAGLES_SENSOR}.opponent_score, "
     "sensor.nhl_philadelphia_flyers.team_score, "
     "sensor.nhl_philadelphia_flyers.opponent_score, "
     "sensor.nba_philadelphia_76ers.team_score, "
     "sensor.nba_philadelphia_76ers.opponent_score, "
     "sensor.mlb_philadelphia_phillies.team_score, "
     "sensor.mlb_philadelphia_phillies.opponent_score, "
-    "sensor.theater_mode, "
-    "binary_sensor.theater_in_use"
+    f"{THEATER_MODE}, "
+    f"{THEATER_IN_USE}"
 )
 def on_theater_media_changed():
+    """Redraw the poster when what's playing changes. Waits 0.5 s so a burst of changes
+    draws once."""
     # Debounce: a newer trigger cancels this run, so only the last burst event renders.
     task.unique("theater_media_art")
     task.sleep(0.5)
@@ -1252,7 +859,9 @@ def on_theater_media_changed():
 
 
 # ------------------------------------------------------------------------------
-# PC GAMING & ACTIVE WINDOW CONDUCTION (HASS.AGENT & MOONLIGHT)
+# GAMING PC WINDOW AND THE GAME POSTER
+# HASS.Agent on the PC reports the foreground window; the "Gaming PC Active
+# Game" template in configuration.yaml filters it into sensor.gaming_pc_active_game.
 # ------------------------------------------------------------------------------
 PC_SYSTEM_WINDOWS = {
     "desktop", "idle / desktop", "task switching", "taskbar", "explorer", "start",
@@ -1327,6 +936,8 @@ def is_pc_game_playing():
 # Plain function (no trigger): called directly by play_pc_game and by the
 # debounced trigger wrapper below.
 def update_game_poster():
+    """Set the box art and theater poster in game mode, from Batocera or the gaming PC.
+    Which one wins is listed in the comment below."""
     if safe_state_get(THEATER_MODE) != "game":
         return
 
@@ -1341,7 +952,7 @@ def update_game_poster():
     gpu_temp = safe_state_get(PC_GPU_TEMP)
     gpu_temp_str = f"{round(float(gpu_temp))}°C" if (gpu_temp and str(gpu_temp).replace('.', '', 1).isdigit()) else ""
 
-    # Conduction Priority:
+    # Which poster wins, in order:
     # 1. Batocera actively playing a ROM
     # 2. PC actively playing a game
     # 3. Steam Big Picture Mode active
@@ -1462,22 +1073,29 @@ def update_game_poster():
 
 
 @state_trigger(
-    "sensor.batocera_current_game, "
-    "sensor.batocera_state, "
-    "sensor.batocera_system, "
-    "sensor.gaming_pc_active_game, "
-    "sensor.desktop_rspn8nu_gputemperature, "
-    "switch.gaming_pc, "
-    "binary_sensor.gaming_pc_online, "
-    "sensor.theater_mode"
+    f"{BATOCERA_GAME}, "
+    f"{BATOCERA_STATE}, "
+    f"{BATOCERA_SYSTEM}, "
+    f"{PC_ACTIVE_WINDOW}, "
+    f"{PC_GPU_TEMP}, "
+    f"{PC_SWITCH}, "
+    f"{PC_ONLINE}, "
+    f"{THEATER_MODE}"
 )
 def on_theater_game_changed():
+    """Redraw the game poster when the game, system or PC window changes. Waits 0.5 s so
+    a burst of changes draws once."""
     # Debounce: a newer trigger cancels this run, so only the last burst event renders.
     task.unique("theater_game_art")
     task.sleep(0.5)
     update_game_poster()
 
 
+# ------------------------------------------------------------------------------
+# DASHBOARD MODE PICKER, AND POSTERS AT STARTUP
+# input_select.basement_theater_mode mirrors sensor.theater_mode, and picking a
+# mode on it starts that mode.
+# ------------------------------------------------------------------------------
 THEATER_MODE_TO_SELECT = {
     "movie": "Movie",
     "game": "Game",
@@ -1499,7 +1117,8 @@ def sync_theater_select(mode_str: str):
 
 @state_trigger(THEATER_SELECT)
 def on_theater_select_changed(value=None, old_value=None):
-    """Two-way sync: user/UI changes input_select -> triggers respective mode orchestrator."""
+    """Someone picked a mode on the dashboard picker: start that mode (Off runs curtain call).
+    Changes made by sync_theater_select itself are ignored."""
     if is_booting() or value == old_value or not value:
         return
     val_norm = str(value).strip().lower()
@@ -1524,6 +1143,8 @@ def on_theater_select_changed(value=None, old_value=None):
 
 @time_trigger("startup")
 def init_theater_poster_entity():
+    """At startup: create the poster, box art and mode picker states if they're missing,
+    then draw the current poster."""
     if not safe_state_get(THEATER_POSTER):
         reset_poster_idle(source="initialization")
     if not safe_state_get(THEATER_BOXART):
@@ -1540,15 +1161,18 @@ def init_theater_poster_entity():
 
 
 # ------------------------------------------------------------------------------
-# THEATER MODE TELEMETRY & HARDWARE CONDUCTION
+# WORKING OUT THE THEATER MODE; RECEIVER AND ONN POWER BUTTONS
 # ------------------------------------------------------------------------------
 @time_trigger("startup")
 @state_trigger(
-    "media_player.theater_receiver, media_player.onn_pro, remote.onn_pro, "
-    "sensor.batocera_state, switch.batocera, "
-    "sensor.gaming_pc_active_game, switch.gaming_pc, binary_sensor.gaming_pc_online"
+    f"{RECEIVER}, {ONN_PRO}, {ONN_REMOTE}, "
+    f"{BATOCERA_STATE}, {BATOCERA_SWITCH}, "
+    f"{PC_ACTIVE_WINDOW}, {PC_SWITCH}, {PC_ONLINE}"
 )
 def update_theater_mode():
+    """Work out sensor.theater_mode (off, movie, music, sports or game) and mirror it to
+    the dashboard picker. Receiver off means off. On HDMI1 the Onn's foreground app
+    decides; HDMI2/HDMI3 or a game running means game."""
     receiver_state = state.get(RECEIVER)
     rx_attrs = state.getattr(RECEIVER) or {}
     source = rx_attrs.get("source")
@@ -1591,8 +1215,10 @@ def update_theater_mode():
 
 
 @time_trigger("startup")
-@state_trigger("media_player.theater_receiver")
+@state_trigger(RECEIVER)
 def update_theater_in_use():
+    """binary_sensor.theater_in_use follows the receiver: on straight away, off once the
+    receiver has been off for 5 s."""
     task.unique("theater_in_use_debounce")
     receiver_on = state.get(RECEIVER) == "on"
 
@@ -1606,8 +1232,8 @@ def update_theater_in_use():
 
 @time_trigger("startup")
 @state_trigger(
-    "media_player.onn_pro.app_id, remote.onn_pro.current_activity, "
-    "sensor.theater_mode, binary_sensor.theater_in_use"
+    f"{ONN_PRO}.app_id, {ONN_REMOTE}.current_activity, "
+    f"{THEATER_MODE}, {THEATER_IN_USE}"
 )
 def update_announcer_bar():
     """Shows the booth announcer bar for sports and for Prime Video (Thursday Night Football)."""
@@ -1623,9 +1249,10 @@ def update_announcer_bar():
         })
 
 
-@state_trigger("media_player.theater_receiver == 'off'")
+@state_trigger(f"{RECEIVER} == 'off'")
 def handle_receiver_power_off():
-    """Detects external/unmanaged AVR power-off (e.g. Yamaha remote or front button) while theater is active."""
+    """The receiver was turned off outside HA (its own remote or front button) during a
+    session: run curtain call so everything else shuts down too."""
     if is_booting():
         return
     if safe_state_get(CURTAIN_CALL) == "on":
@@ -1642,7 +1269,7 @@ def handle_receiver_power_off():
         session_end_house_lights()
 
 
-@state_trigger("media_player.onn_pro == 'off'", state_hold=4)
+@state_trigger(f"{ONN_PRO} == 'off'", state_hold=4)
 def onn_power_button_curtain_call(old_value=None):
     """The Onn remote's power button (sleeping the Onn mid-session) runs curtain call.
     CEC alone often leaves the receiver and projector on. Waking is handled by
@@ -1660,10 +1287,14 @@ def onn_power_button_curtain_call(old_value=None):
 
 
 # ------------------------------------------------------------------------------
-# SOUND MODES & AUDIO CONDUCTION
+# SOUND MODES, VOLUME AND THE ANNOUNCER LEVEL
+# "Announcer" is the receiver's center-channel trim: turned down it leaves
+# mostly crowd noise, turned up it boosts commentary. Hardware range -10 to +10 dB.
 # ------------------------------------------------------------------------------
-@state_trigger("sensor.batocera_state == 'playing'")
+@state_trigger(f"{BATOCERA_STATE} == 'playing'")
 def configure_batocera_audio():
+    """A Batocera game started: Straight for 2-channel retro systems, Surround Decoder
+    for the rest, announcer back to 0 dB."""
     if is_booting():
         return
     system_id = (safe_state_get(BATOCERA_SYSTEM) or "").lower()
@@ -1674,6 +1305,8 @@ def configure_batocera_audio():
 
 @service
 def apply_sports_audio_mode():
+    """Sports sound program, with the announcer at the slider's level. Only while the
+    theater is in use."""
     if safe_state_get(THEATER_IN_USE) != "on":
         return
     set_receiver_sound_mode("Sports")
@@ -1683,6 +1316,7 @@ def apply_sports_audio_mode():
 
 @service
 def reset_standard_audio_mode(target_dsp="Standard"):
+    """Set a sound program (Standard unless given) and put the announcer back to 0 dB."""
     set_receiver_sound_mode(target_dsp)
     safe_service(rest_command.yamaha_set_center_trim, level=0.0)
 
@@ -1707,8 +1341,10 @@ def _announcer_zone(level):
     return None
 
 
-@state_trigger("input_number.theater_announcer_volume")
+@state_trigger(ANNOUNCER_VOLUME)
 def sync_announcer_volume_to_hardware(value=None):
+    """The announcer slider moved: send the level to the receiver (sports and Prime
+    Video only) and keep the preset picker in step."""
     if safe_state_get(THEATER_IN_USE) != "on":
         return
     if safe_state_get(THEATER_MODE) == "sports" or get_active_app_id() in ANNOUNCER_BAR_APPS:
@@ -1723,6 +1359,8 @@ def sync_announcer_volume_to_hardware(value=None):
 
 @service
 def theater_set_announcer_preset(preset=None):
+    """Pick an announcer preset (Stadium Crowd, Broadcast Ref, Dialogue Boost): sets the
+    picker and the slider, and the receiver if the theater is on."""
     if not preset:
         return
     if preset in ANNOUNCER_PRESET_LEVELS:
@@ -1733,8 +1371,10 @@ def theater_set_announcer_preset(preset=None):
             safe_service(rest_command.yamaha_set_center_trim, level=new_val)
 
 
-@state_trigger("input_select.theater_announcer_preset")
+@state_trigger(ANNOUNCER_PRESET)
 def sync_announcer_preset_to_hardware(value=None):
+    """The preset picker changed: move the slider to that preset's level (unless it's
+    already inside the preset's range) and send it to the receiver."""
     if not value:
         return
     if value in ANNOUNCER_PRESET_LEVELS:
@@ -1762,16 +1402,19 @@ def _step_avr_volume(direction: str, step_db: float):
 
 @service
 def theater_volume_up(step_db=1.0):
+    """Receiver volume up by step_db."""
     _step_avr_volume("Up", step_db)
 
 
 @service
 def theater_volume_down(step_db=1.0):
+    """Receiver volume down by step_db."""
     _step_avr_volume("Down", step_db)
 
 
 @service
 def theater_announcer_up(step=1.0):
+    """Announcer level up by step dB (at most +10)."""
     cur_val = safe_float(safe_state_get(ANNOUNCER_VOLUME), -10.0)
     step_val = safe_float(step, 1.0)
     new_val = min(10.0, round(cur_val + step_val, 1))
@@ -1780,6 +1423,7 @@ def theater_announcer_up(step=1.0):
 
 @service
 def theater_announcer_down(step=1.0):
+    """Announcer level down by step dB (at least -10)."""
     cur_val = safe_float(safe_state_get(ANNOUNCER_VOLUME), 0.0)
     step_val = safe_float(step, 1.0)
     new_val = max(-10.0, round(cur_val - step_val, 1))
@@ -1788,16 +1432,19 @@ def theater_announcer_down(step=1.0):
 
 @service
 def theater_announcer_mute():
+    """Toggle the announcer between -10 dB (crowd only) and 0 dB."""
     cur_val = safe_float(safe_state_get(ANNOUNCER_VOLUME), 0.0)
     new_val = 0.0 if cur_val <= -9.5 else -10.0
     input_number.set_value(entity_id=ANNOUNCER_VOLUME, value=new_val)
 
 
 @state_trigger(
-    "media_player.onn_pro.app_id, "
-    "remote.onn_pro.current_activity"
+    f"{ONN_PRO}.app_id, "
+    f"{ONN_REMOTE}.current_activity"
 )
 def route_app_audio_mode():
+    """When the Onn's app changes on HDMI1, pick its sound program from APP_AUDIO_MODES.
+    Sports apps get the sports program."""
     task.unique("theater_audio_routing")
 
     if is_booting() or safe_state_get(THEATER_IN_USE) != "on":
@@ -1837,6 +1484,8 @@ def is_batocera_on():
 
 
 def shutdown_batocera():
+    """Ask interlocks.py for a clean Batocera shutdown. Logs instead of raising if that
+    file isn't loaded."""
     try:
         pyscript.shutdown_batocera()
     except Exception as e:
@@ -1844,13 +1493,15 @@ def shutdown_batocera():
 
 
 def cancel_projector_cooldown():
+    """Ask interlocks.py to stop a running projector cooldown, because a new session is
+    starting."""
     try:
         pyscript.cancel_projector_cooldown()
     except Exception as e:
         log.warning(f"[Theater] pyscript.cancel_projector_cooldown failed: {e}")
 
 
-@state_trigger("float(sensor.batocera_current) < 0.05", state_hold=12)
+@state_trigger(f"float({BATOCERA_CURRENT}) < 0.05", state_hold=12)
 def reset_boxart_on_batocera_halt():
     """Same trigger as interlocks.batocera_auto_power_off (which opens the relay); this only resets the art."""
     if is_booting():
@@ -1894,8 +1545,9 @@ def _wait_projector_dark(timeout_s):
 
 
 def _cec_standby_burst(rounds=2, drop_receiver=True):
-    """Sleep the Onn (broadcasts CEC standby) and drops receiver until projector current collapses.
-    Never wakes Onn if it is already off/standby, preventing false wakeups and HDMI passthrough leaks."""
+    """Up to `rounds` tries: SLEEP the Onn (it sends CEC standby to the projector) if it's on,
+    then move the receiver to AUDIO1 and turn it off. Stops once the lamp draws under 0.5 A.
+    Never wakes an Onn that is already off, since a wake could light the projector again."""
     for _ in range(rounds):
         if safe_state_get(ONN_PRO) == "on":
             safe_service(remote.send_command, entity_id=ONN_REMOTE, command="SLEEP")
@@ -1911,10 +1563,14 @@ def _cec_standby_burst(rounds=2, drop_receiver=True):
 
 
 # ------------------------------------------------------------------------------
-# ORCHESTRATION SERVICES & CROSS-MODE TEARDOWN
+# STARTING SESSIONS: movie, game, PC game, music
+# Every play_* service starts with _begin_session(), which stops whatever the
+# previous mode left running.
 # ------------------------------------------------------------------------------
 def _teardown_conflicting_sources(target_mode: str):
-    """Prevents cross-mode session leaks, hardware lockups, and background audio bleed."""
+    """Stop what the previous mode left running: pause Spotify (unless going to music), shut
+    Batocera down (unless going to game), and when leaving sports, send the Onn home to free
+    the HDHomeRun tuner and drop the Social Mode that game day turned on."""
     # 1. If transitioning away from music, ensure Spotify Connect is paused
     if target_mode != "music":
         pause_spotify_if_playing()
@@ -1965,6 +1621,8 @@ def _begin_session(target_mode, cancel_cooldown=True):
 
 
 def _mark_session_active(mode):
+    """Record that a session in this mode is running: theater mode, in-use flag and the
+    dashboard picker."""
     state.set(THEATER_MODE, value=mode)
     state.set(THEATER_IN_USE, value="on")
     sync_theater_select(mode)
@@ -1991,6 +1649,7 @@ PROJECTOR_WAKE_CHECKS = 6  # up to 3 min for a projector that is still cooling
 
 
 def _projector_lit():
+    """True while the lamp draws at least PROJECTOR_LIT_AMPS."""
     return safe_float(safe_state_get(PROJECTOR_CURRENT), 0.0) >= PROJECTOR_LIT_AMPS
 
 
@@ -2006,6 +1665,8 @@ def _projector_confirmed_cold():
 
 
 def _wake_session_ok(session):
+    """True if this projector wake still belongs to the current session, and that
+    session isn't music or off."""
     return (session == _session_seq and safe_state_get(THEATER_IN_USE) == "on"
             and safe_state_get(THEATER_MODE) not in ["music", "off"])
 
@@ -2027,6 +1688,10 @@ def _wake_projector():
 
 
 def _projector_wake_task(session):
+    """Background part of _wake_projector. Mains off: turn them on (Direct Power On
+    starts the projector). Mains on and lamp cold: cycle the mains. Lamp still
+    cooling: check every PROJECTOR_WAKE_CHECK_S, and cycle once it's cold. Gives up
+    if the session changes."""
     if _projector_lit():
         return
     if safe_state_get(PROJECTOR_SWITCH) != "on":
@@ -2062,10 +1727,9 @@ def _projector_wake_task(session):
 
 POWER_WAKE_SETTLE_S = 2
 STREMIO_DEFER_S = 1.5
-MMWAVE_PRESENCE = "binary_sensor.theater_mmwave_sensor"
 
 
-@state_trigger("media_player.onn_pro == 'on'")
+@state_trigger(f"{ONN_PRO} == 'on'")
 def onn_power_button_wake(old_value=None):
     """The Onn remote's power button works like the movie button. CEC wakes the Onn
     and sometimes the projector, but never the receiver, so HA runs play_movie.
@@ -2092,13 +1756,15 @@ def onn_power_button_wake(old_value=None):
     session = _session_seq
     task.sleep(STREMIO_DEFER_S)  # an app opened by the wake press shows up by now
     if session == _session_seq and _is_launcher(get_active_app_id()):
-        launch_onn_app("com.stremio.one")
+        launch_onn_app(STREMIO_APP)
         task.sleep(0.5)
         update_theater_media_art()
 
 
 @service
 def play_movie(open_stremio=True):
+    """Movie mode: receiver on HDMI1, Onn and projector on, Stremio opened (unless
+    open_stremio is false), Standard sound, announcer 0 dB."""
     _begin_session("movie")
     _mark_session_active("movie")
     release_sports_social_mode()
@@ -2115,7 +1781,7 @@ def play_movie(open_stremio=True):
     _wake_hdmi1_chain()
 
     if open_stremio:
-        launch_onn_app("com.stremio.one")
+        launch_onn_app(STREMIO_APP)
     task.sleep(0.5)
     update_theater_media_art()
 
@@ -2126,6 +1792,9 @@ def play_movie(open_stremio=True):
 
 @service
 def play_game():
+    """Batocera game mode: Batocera and the receiver on, projector on, receiver on HDMI2
+    with Surround Decoder. Keeps the receiver on HDMI2 for 30 s in case CEC pulls it
+    back."""
     _begin_session("game")
 
     switch.turn_on(entity_id=BATOCERA_SWITCH)
@@ -2161,7 +1830,9 @@ def _hold_receiver_on_hdmi2(session):
 
 @service
 def play_pc_game(app="moonlight", target="batocera"):
-    """Orchestrates PC Gaming mode: boots PC via WOL, selects AVR surround sound, launches Moonlight on Batocera."""
+    """PC game mode: turn the gaming PC on, then play it through Moonlight on Batocera
+    (receiver HDMI2; target="batocera", the default, or "auto" when Batocera is already on),
+    or on the Onn (HDMI1) for any other target. Surround Decoder sound."""
     _begin_session("game")
 
     switch.turn_on(entity_id=PC_SWITCH)
@@ -2181,7 +1852,7 @@ def play_pc_game(app="moonlight", target="batocera"):
         media_player.select_source(entity_id=RECEIVER, source="HDMI1")
         set_receiver_sound_mode("Surround Decoder")
         # Wake Onn and launch Moonlight app
-        launch_onn_app("com.limelight")
+        launch_onn_app(MOONLIGHT_APP)
 
     safe_service(rest_command.yamaha_set_center_trim, level=0.0)
 
@@ -2211,14 +1882,14 @@ def play_music():
     if not projector_cold and get_active_app_id() not in MUSIC_APPS:
         media_player.turn_on(entity_id=ONN_PRO)
         task.sleep(1.0)
-        launch_onn_app("com.spotify.tv.android")
+        launch_onn_app(SPOTIFY_TV_APP)
 
     update_theater_media_art()
 
 
 @service
 def theater_play_spotify_playlist(uri="spotify:playlist:37i9dQZF1DXcBWIGoYBM5M"):
-    """Puts theater into Hi-Fi music mode and plays a Spotify playlist on Spotify Connect."""
+    """Music mode, then play a Spotify playlist (uri) on the whole-house Spotify player."""
     play_music()
     task.sleep(1.0)
     try:
@@ -2309,7 +1980,8 @@ def preempt_tuner_for_theater(target_tuner="1"):
 
 
 def ensure_hdhomerun_tuner_available():
-    """Guarantees at least 1 ATSC 1.0 physical tuner is free for the basement theater."""
+    """Interlock 5: if both HDHomeRun tuners are busy, free tuner 1 for the theater by
+    dropping the remote (xTeVe) stream on it. Returns True when a tuner is free."""
     t0 = (safe_state_get("sensor.tuner0") or "idle").lower().strip()
     t1 = (safe_state_get("sensor.tuner1") or "idle").lower().strip()
     if t0 not in TUNER_IDLE_STATES and t1 not in TUNER_IDLE_STATES:
@@ -2318,6 +1990,9 @@ def ensure_hdhomerun_tuner_available():
     return True
 
 
+# ------------------------------------------------------------------------------
+# SPORTS, CURTAIN CALL AND MANUAL SERVICES
+# ------------------------------------------------------------------------------
 @service
 def play_sports(app=None):
     """Sports mode. Default source is HDHomeRun; pass app="prime" to watch sports on Prime Video instead."""
@@ -2338,7 +2013,7 @@ def play_sports(app=None):
         ensure_hdhomerun_tuner_available()
 
     apply_sports_audio_mode()
-    launch_onn_app(PRIME_VIDEO_PACKAGE if use_prime else "com.silicondust.view")
+    launch_onn_app(PRIME_VIDEO_PACKAGE if use_prime else HDHOMERUN_APP)
     task.sleep(0.5)
     update_theater_media_art()
 
@@ -2363,12 +2038,14 @@ def session_end_house_lights():
 
 
 def _session_end_sequence():
+    """The steps of curtain call, in order. AGENTS.md (interlock 3) lists them too; keep
+    both in step."""
     global _session_seq
     _session_seq += 1  # stop the HDMI2 guard so it can't undo the AUDIO1 switch
     state.set(CURTAIN_CALL, value="on")
 
     # 1. Restore house lights first so the room isn't dark while the CEC burst runs
-    safe_service(switch.turn_on, entity_id="switch.basement_adaptive_lighting_adaptive_lighting_basement_adaptive_lighting")
+    safe_service(switch.turn_on, entity_id=ADAPTIVE_SWITCH)
 
     # 2. Clean up conflicting sources / background media
     _teardown_conflicting_sources("off")
@@ -2434,6 +2111,8 @@ def _session_end_sequence():
 
 @service
 def force_projector_off():
+    """Manual: put the projector into standby over CEC (wake the Onn, send SLEEP), then
+    turn the receiver off. Never cuts the projector's mains."""
     media_player.turn_on(entity_id=RECEIVER)
     media_player.turn_on(entity_id=ONN_PRO)
     task.sleep(2.0)
@@ -2445,7 +2124,8 @@ def force_projector_off():
 
 @service
 def theater_force_reconcile():
-    """Forces hardware states, receiver input, sound mode, and UI sensors into full synchronization."""
+    """Manual fix-up: recompute the theater mode, in-use flag, dashboard picker and poster from
+    the receiver's current state. Doesn't change any hardware."""
     rx_state = safe_state_get(RECEIVER)
     if rx_state == "on":
         state.set(THEATER_IN_USE, value="on")
@@ -2466,7 +2146,9 @@ def theater_force_reconcile():
 
 @service
 def launch_app(app=None):
-    """Direct App Launching and Deep-Linking service for Onn 4K Pro & Theater."""
+    """Start a mode or open an app by short name: stremio/movie, hdhomerun/sports/tv,
+    prime_sports, spotify/music, batocera/game, moonlight/pc/steam, youtube, netflix, prime.
+    Anything else is treated as an Android package name and opened on the Onn."""
     if not app:
         return
     app_lower = str(app).lower().strip()
@@ -2485,15 +2167,18 @@ def launch_app(app=None):
     elif app_lower in ["moonlight_batocera", "batocera_moonlight", "pc_batocera"]:
         play_pc_game(target="batocera")
     elif app_lower in ["youtube"]:
-        launch_onn_app("com.google.android.youtube.tv")
+        launch_onn_app(YOUTUBE_TV_APP)
     elif app_lower in ["netflix"]:
-        launch_onn_app("com.netflix.ninja")
+        launch_onn_app(NETFLIX_APP)
     elif app_lower in ["prime", "prime_video", "amazon"]:
         launch_onn_app(PRIME_VIDEO_PACKAGE)
     else:
         launch_onn_app(app)
 
 
+# ------------------------------------------------------------------------------
+# MOVIE SEARCH (Stremio deep link)
+# ------------------------------------------------------------------------------
 def fetch_cinemeta_movie(query):
     """Queries Stremio's Cinemeta catalog to resolve IMDb ID, Title, Year, and artwork."""
     if not query:
@@ -2527,10 +2212,11 @@ def fetch_cinemeta_movie(query):
 
 @service
 def search_and_play_movie(query=None):
-    """
-    Powers on theater, configures Yamaha audio to Bitstream, sets lighting to Cinema Shield,
-    resolves IMDb metadata via Cinemeta, and deep-links directly into Stremio with autoPlay.
-    """
+    """Find a movie and start it in Stremio. Looks the title up in Cinemeta for its IMDb ID
+    and poster, starts movie mode (receiver on HDMI1, Onn and projector on, Standard sound),
+    then deep-links Stremio straight to the movie with autoplay, or to a search if there was
+    no match. With no query it reads input_text.theater_movie_search; with neither, it runs
+    plain play_movie."""
     search_term = query
     if not search_term or not str(search_term).strip():
         search_term = safe_state_get("input_text.theater_movie_search")
@@ -2558,7 +2244,7 @@ def search_and_play_movie(query=None):
         else MOVIE_FALLBACK_BACKDROP
     )
 
-    # 2. Immediately set theatrical poster & state
+    # 2. Start movie mode and show the poster right away
     _begin_session("movie")
     _mark_session_active("movie")
     release_sports_social_mode()
@@ -2580,7 +2266,7 @@ def search_and_play_movie(query=None):
     set_receiver_sound_mode("Standard")
     safe_service(rest_command.yamaha_set_center_trim, level=0.0)
 
-    # 5. Deep Link Intent Construction
+    # 4. Build the Stremio deep link (the movie itself, or a search)
     if imdb_id and str(imdb_id).startswith("tt"):
         deep_link = f"stremio:///detail/movie/{imdb_id}/{imdb_id}?autoPlay=true"
     else:

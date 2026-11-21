@@ -2,7 +2,7 @@
 
 _Moved verbatim from AGENTS.md. "§N" references point to the old AGENTS.md sections (§4 lighting/sports now live in docs/lighting.md)._
 
-### Audio Conduction & Yamaha RX-V673 DSP Routing (`theater.py`)
+### Sound modes on the Yamaha RX-V673 (`theater.py`)
 The RX-V673 exposes no `PLII ...` programs through HA. `media_player.theater_receiver` `sound_mode_list`: Hall in Munich, Hall in Vienna, Chamber, Cellar Club, The Roxy Theatre, The Bottom Line, Sports, Action Game, Roleplaying Game, Music Video, Standard, Spectacle, Sci-Fi, Adventure, Drama, Mono Movie, Surround Decoder, 2ch Stereo, 7ch Stereo, Straight. `set_receiver_sound_mode()` only selects names from this list and uses `SOUND_MODE_FALLBACKS` when needed (`Surround Decoder` falls back to `Action Game` then `Standard`).
 
 | Application / Source | Receiver Input | DSP Mode | Audio Steer / Channel Behavior |
@@ -25,7 +25,7 @@ The RX-V673 exposes no `PLII ...` programs through HA. `media_player.theater_rec
 - Receiver scenes (`Main_Zone,Scene,Scene_Sel`) are exposed on the network and may allow per-mode decoder flavors later. Untested.
 
 ### Theater Pyscript Engine Notes (`theater.py`)
-- **Art lookups need `await`**: `_fetch_movie_or_tv_art()` and `_fetch_game_art_from_secrets()` must be called as `await ...`. Without it pyscript handed back an unawaited coroutine, so lookups never resolved and only fallback art ever showed (and `update_game_poster()` crashed with `'coroutine' object has no attribute 'get'`).
+- **Art lookups are plain functions, not async**: `_fetch_movie_or_tv_art()` and `_fetch_game_art_from_secrets()` (in `pyscript/modules/theater_art.py`, with the cache and outage backoff) are normal `def`s; call them without `await`. Only the blocking HTTP request runs in a thread, through `task.executor(_http_get, ...)`. Keep it that way: an `async def` here once made pyscript hand back an unawaited coroutine, so lookups never resolved, only fallback art showed, and `update_game_poster()` crashed with `'coroutine' object has no attribute 'get'`.
 - **Debounced triggers**: `update_theater_media_art()` and `update_game_poster()` are plain functions (called directly by the `play_*` services). The `@state_trigger` wrappers `on_theater_media_changed()` and `on_theater_game_changed()` debounce with `task.unique` plus a 0.5s sleep.
 - **Mode resolver**: on HDMI1, `update_theater_mode()` maps the foreground app to a mode via `MUSIC_APPS`, `SPORTS_APPS`, `GAME_APPS` and `MOVIE_APPS`. Launcher or unknown apps keep the current mode.
 - **Select feedback guard**: `sync_theater_select()` records its own changes in `_SELECT_SYNC_PENDING` (5s window) so `on_theater_select_changed()` ignores them and doesn't re-fire a `play_*` service.

@@ -10,7 +10,7 @@ import builtins
 import re
 
 pyscript_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "pyscript"))
-for _d in (pyscript_dir, os.path.join(pyscript_dir, "apps")):
+for _d in (pyscript_dir, os.path.join(pyscript_dir, "apps"), os.path.join(pyscript_dir, "modules")):
     if _d not in sys.path:
         sys.path.insert(0, _d)
 
@@ -189,6 +189,7 @@ with open(os.path.join(os.path.dirname(__file__), "..", "packages", "sports.yaml
 
 # Import target engines after builtins are registered
 import theater
+import theater_art
 import basement
 import team_lights
 import watchdog
@@ -888,8 +889,8 @@ def test_pc_gaming_blackout_in_theater_lighting_sync():
 def test_steam_shortcut_title_sanitization():
     """Verify steam shortcut titles like '1794680_Vampire_Survivors' have AppID dropped and underscores replaced."""
     raw = "1794680_Vampire_Survivors.exe"
-    clean = theater.RE_ROM_EXT.sub("", raw)
-    clean = theater.RE_ROM_TAGS.sub("", clean).strip()
+    clean = theater_art.RE_ROM_EXT.sub("", raw)
+    clean = theater_art.RE_ROM_TAGS.sub("", clean).strip()
     import re
     clean = re.sub(r"^\d+_", "", clean).replace("_", " ").strip()
     assert clean == "Vampire Survivors", f"FAIL: Expected 'Vampire Survivors', got '{clean}'!"
@@ -1110,22 +1111,22 @@ def test_stale_spotify_title_ignored_in_movie_mode():
 
 def test_tmdb_rejects_unrelated_result():
     """A TMDB hit whose name is nothing like the search must not become the poster."""
-    assert theater._title_resembles("Futurama", {"name": "Futurama"})
-    assert theater._title_resembles("Inception", {"title": "Inception: The Cobol Job"})
-    assert theater._title_resembles("The Backrooms", {"title": "Backrooms"})
-    assert not theater._title_resembles("Avatar: Seven Havens", {"name": "The Order"})
+    assert theater_art._title_resembles("Futurama", {"name": "Futurama"})
+    assert theater_art._title_resembles("Inception", {"title": "Inception: The Cobol Job"})
+    assert theater_art._title_resembles("The Backrooms", {"title": "Backrooms"})
+    assert not theater_art._title_resembles("Avatar: Seven Havens", {"name": "The Order"})
 
-    saved = (theater._fetch_json, theater._read_secret)
-    theater._ART_CACHE.clear()
-    theater._read_secret = lambda key: "k" if key == "tmdb_api_key" else None
-    theater._fetch_json = lambda service, url, headers=None, timeout=5: (
+    saved = (theater_art._fetch_json, theater_art._read_secret)
+    theater_art._ART_CACHE.clear()
+    theater_art._read_secret = lambda key: "k" if key == "tmdb_api_key" else None
+    theater_art._fetch_json = lambda service, url, headers=None, timeout=5: (
         {"results": [{"media_type": "tv", "name": "The Order", "poster_path": "/x.jpg"}]}
         if service == "tmdb" else None)
     try:
-        assert theater._movie_or_tv_art_lookup("Avatar: Seven Havens") is None, "FAIL: unrelated TMDB result accepted!"
+        assert theater_art._movie_or_tv_art_lookup("Avatar: Seven Havens") is None, "FAIL: unrelated TMDB result accepted!"
     finally:
-        theater._fetch_json, theater._read_secret = saved
-        theater._ART_CACHE.clear()
+        theater_art._fetch_json, theater_art._read_secret = saved
+        theater_art._ART_CACHE.clear()
     print("  ✓ [Atmospheric] test_tmdb_rejects_unrelated_result PASSED")
 
 
@@ -1330,12 +1331,12 @@ def test_tmdb_fetcher_missing_key_graceful_fail():
     from unittest.mock import patch
 
     # 1. Verify missing secret path returns safe error dict or None
-    with patch.object(theater, "_read_secret", return_value=None):
-        res = theater._fetch_movie_or_tv_art("Interstellar 2014")
+    with patch.object(theater_art, "_read_secret", return_value=None):
+        res = theater_art._fetch_movie_or_tv_art("Interstellar 2014")
         assert res is None or "error" in res, "FAIL: TMDB fetcher did not handle missing secret safely!"
 
     # 2. Verify that if a key is present (user's environment), it returns either results or error safely without unhandled exception
-    res_actual = theater._fetch_movie_or_tv_art("Interstellar 2014")
+    res_actual = theater_art._fetch_movie_or_tv_art("Interstellar 2014")
     assert res_actual is None or isinstance(res_actual, dict), "FAIL: TMDB fetcher did not return dict or None!"
     print("  ✓ [Chaos] test_tmdb_fetcher_missing_key_graceful_fail PASSED")
 
@@ -3088,11 +3089,11 @@ def test_libretro_boxart_system_mapping_and_encoding():
     }
 
     for sys_id, repo in expected_repos.items():
-        assert theater.LIBRETRO_SYSTEM_REPOS.get(sys_id) == repo, \
-            f"FAIL: System '{sys_id}' mapped to '{theater.LIBRETRO_SYSTEM_REPOS.get(sys_id)}', expected '{repo}'"
+        assert theater_art.LIBRETRO_SYSTEM_REPOS.get(sys_id) == repo, \
+            f"FAIL: System '{sys_id}' mapped to '{theater_art.LIBRETRO_SYSTEM_REPOS.get(sys_id)}', expected '{repo}'"
 
     # Unknown system should not resolve
-    assert theater.LIBRETRO_SYSTEM_REPOS.get("dosbox") is None
+    assert theater_art.LIBRETRO_SYSTEM_REPOS.get("dosbox") is None
 
     # Verify percent encoding
     import urllib.parse
@@ -3136,31 +3137,31 @@ def test_media_search_candidate_sanitization_matrix():
     """Verify regex matrix for TMDB search candidates across messy release titles, TV formats, and torrent tags."""
     # 1. 4K HDR Remux Torrent format
     raw1 = "Dune.Part.Two.2024.2160p.UHD.HDR.Remux.mkv"
-    cands1 = theater.get_search_candidates(raw1)
+    cands1 = theater_art.get_search_candidates(raw1)
     assert "Dune Part Two" in cands1, f"FAIL: Expected 'Dune Part Two' in {cands1}"
 
     # 2. TV Show episode format: Episode - Show
     raw2 = "Space Pilot 3000 - Futurama"
-    cands2 = theater.get_search_candidates(raw2)
+    cands2 = theater_art.get_search_candidates(raw2)
     assert "Futurama" in cands2, f"FAIL: Expected 'Futurama' in {cands2}"
     assert cands2[0] == "Futurama" or "Futurama" in cands2[:2]
 
     # 3. Season/Episode tag
     raw3 = "Breaking Bad S05E14 Ozymandias 1080p WebRip"
-    cands3 = theater.get_search_candidates(raw3)
+    cands3 = theater_art.get_search_candidates(raw3)
     assert "Breaking Bad" in cands3, f"FAIL: Expected 'Breaking Bad' in {cands3}"
 
     # 4. Artist/Show parameter fallback
-    cands4 = theater.get_search_candidates("Ozymandias", artist="Breaking Bad")
+    cands4 = theater_art.get_search_candidates("Ozymandias", artist="Breaking Bad")
     assert cands4[0] == "Breaking Bad", f"FAIL: Expected artist 'Breaking Bad' first in {cands4}"
 
     # 5. Clean parenthetical year
     raw5 = "The Matrix (1999)"
-    cands5 = theater.get_search_candidates(raw5)
+    cands5 = theater_art.get_search_candidates(raw5)
     assert "The Matrix" in cands5, f"FAIL: Expected 'The Matrix' in {cands5}"
 
     # 6. Rejection filters (e.g. Stremio UI junk)
-    cands6 = theater.get_search_candidates("Stremio")
+    cands6 = theater_art.get_search_candidates("Stremio")
     assert len(cands6) == 0, f"FAIL: 'Stremio' should have been rejected, got {cands6}"
 
     print("  ✓ [TitleCleaningMatrix] test_media_search_candidate_sanitization_matrix PASSED (all torrent & TV formats resolved)")
@@ -3307,20 +3308,20 @@ def test_theater_artwork_cache_and_circuit_breaker():
     setup_clean_environment()
 
     # 1. Circuit breaker initial state
-    assert not theater._is_circuit_open("tmdb")
-    assert not theater._is_circuit_open("libretro")
+    assert not theater_art._is_circuit_open("tmdb")
+    assert not theater_art._is_circuit_open("libretro")
 
     # 2. Trip circuit breaker after 3 failures
-    theater._record_service_failure("tmdb")
-    assert not theater._is_circuit_open("tmdb")
-    theater._record_service_failure("tmdb")
-    assert not theater._is_circuit_open("tmdb")
-    theater._record_service_failure("tmdb")
-    assert theater._is_circuit_open("tmdb"), "FAIL: Circuit breaker should be OPEN after 3 failures"
+    theater_art._record_service_failure("tmdb")
+    assert not theater_art._is_circuit_open("tmdb")
+    theater_art._record_service_failure("tmdb")
+    assert not theater_art._is_circuit_open("tmdb")
+    theater_art._record_service_failure("tmdb")
+    assert theater_art._is_circuit_open("tmdb"), "FAIL: Circuit breaker should be OPEN after 3 failures"
 
     # 3. Successful call resets breaker
-    theater._record_service_success("tmdb")
-    assert not theater._is_circuit_open("tmdb"), "FAIL: Circuit breaker should be CLOSED after success"
+    theater_art._record_service_success("tmdb")
+    assert not theater_art._is_circuit_open("tmdb"), "FAIL: Circuit breaker should be CLOSED after success"
 
     # 4. In-memory cache returns cached hit without network request
     cache_key = "movie_tv:CachedMovie:None"
@@ -3331,8 +3332,8 @@ def test_theater_artwork_cache_and_circuit_breaker():
         "media_type": "movie",
         "source": "tmdb_cache",
     }
-    theater._ART_CACHE[cache_key] = (time.time(), sample_payload)
-    res = theater._fetch_movie_or_tv_art("CachedMovie")
+    theater_art._ART_CACHE[cache_key] = (time.time(), sample_payload)
+    res = theater_art._fetch_movie_or_tv_art("CachedMovie")
     assert res == sample_payload, f"FAIL: Expected cached payload, got {res}"
 
     # 5. Resilience status service

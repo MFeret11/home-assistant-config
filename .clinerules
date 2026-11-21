@@ -4,7 +4,7 @@
 - **Secrets Management**: Never inline API keys or credentials in code or dashboards. Always reference `secrets.yaml`.
 - **Database Health**: The system runs on a DRAM-less SSD via USB. Do NOT remove exclusions for micro-jitter sensors (e.g., `sensor.projector_current`, `sensor.batocera_current`) from the recorder. Keep database writes to a minimum.
 - **PyScript Conventions**: 
-  - Always `await` async functions (especially metadata/art lookups like `_fetch_movie_or_tv_art()`).
+  - Art lookups (`_fetch_movie_or_tv_art()`, `_fetch_game_art_from_secrets()`) are plain functions: no `async`, no `await`. Blocking HTTP goes through `task.executor`.
   - Use `@state_trigger` for debounced automations alongside raw service entry points.
 
 ## 2. Hardware Safety Interlocks (CRITICAL)

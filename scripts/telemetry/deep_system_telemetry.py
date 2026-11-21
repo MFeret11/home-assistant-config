@@ -1,11 +1,12 @@
 """
 Deep Telemetry Audit: Lamp Burn Hours, Ghost Triggers, and Hardware Response Lag.
-Run: python3 ~/ha_config/tests/deep_system_telemetry.py
+Run: python3 scripts/telemetry/deep_system_telemetry.py
 """
 import sqlite3
 import os
 
-DB_PATH = os.path.expanduser("~/ha_config/home-assistant_v2.db")
+REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+DB_PATH = os.path.join(REPO, "home-assistant_v2.db")
 conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
 cursor = conn.cursor()
 

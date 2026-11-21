@@ -153,6 +153,7 @@ TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 PYSCRIPT_DIR = os.path.abspath(os.path.join(TESTS_DIR, "..", "pyscript"))
 sys.path.insert(0, PYSCRIPT_DIR)
 sys.path.insert(0, os.path.join(PYSCRIPT_DIR, "apps"))
+sys.path.insert(0, os.path.join(PYSCRIPT_DIR, "modules"))
 
 # Team Lights reads its YAML config (packages/sports.yaml) as pyscript.app_config.
 import yaml

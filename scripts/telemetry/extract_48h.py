@@ -1,10 +1,13 @@
+import os
 import sqlite3
 import time
 import json
 from datetime import datetime, timezone
 
-DB_PATH = "/home/mferet11/ha_config/home-assistant_v2.db"
-OUTPUT_FILE = "telemetry_48h.json"
+REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+DB_PATH = os.path.join(REPO, "home-assistant_v2.db")
+# The replay suites in tests/ read this file.
+OUTPUT_FILE = os.path.join(REPO, "tests", "telemetry_48h.json")
 
 # Target entities to pull (or set to None to pull everything)
 TARGET_ENTITIES = [

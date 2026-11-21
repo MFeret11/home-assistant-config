@@ -11,8 +11,9 @@ import time
 import builtins
 
 pyscript_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "pyscript"))
-if pyscript_dir not in sys.path:
-    sys.path.insert(0, pyscript_dir)
+for _d in (pyscript_dir, os.path.join(pyscript_dir, "modules")):
+    if _d not in sys.path:
+        sys.path.insert(0, _d)
 
 # --- Stateful Mock Runtime ---
 class MockState:
@@ -121,6 +122,7 @@ builtins.pyscript_executor = lambda f: f
 
 import health_check
 import theater
+import theater_art
 
 
 def setup_healthy_environment():
@@ -243,7 +245,7 @@ def test_edge_case_media_candidate_sanitization():
         ("SingleWordTitle", "SingleWordTitle"),
     ]
     for raw, expected in cases:
-        cands = theater.get_search_candidates(raw)
+        cands = theater_art.get_search_candidates(raw)
         if isinstance(expected, list):
             assert any(exp in cands for exp in expected), f"Failed candidate for '{raw}': got {cands}"
         else:
