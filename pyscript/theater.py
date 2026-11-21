@@ -51,7 +51,6 @@ except NameError:
 # ENTITY IDS, APP LISTS AND FALLBACK ART
 # ------------------------------------------------------------------------------
 from shared_entities import (  # pyscript/modules/shared_entities.py
-    ADAPTIVE_SWITCH,
     RECEIVER,
     RECEIVER_ZONE_2,
     ONN_PRO,
@@ -1833,7 +1832,9 @@ def play_music():
     set_receiver_sound_mode("7ch Stereo")
     safe_service(rest_command.yamaha_set_center_trim, level=0.0)
 
-    if not projector_cold and get_active_app_id() not in MUSIC_APPS:
+    # Only while the lamp is lit: waking the Onn can wake a projector that is still
+    # cooling down from the last session.
+    if _projector_lit() and get_active_app_id() not in MUSIC_APPS:
         media_player.turn_on(entity_id=ONN_PRO)
         task.sleep(1.0)
         launch_onn_app(SPOTIFY_TV_APP)
@@ -1998,18 +1999,13 @@ def _session_end_sequence():
     _session_seq += 1  # stop the HDMI2 guard so it can't undo the AUDIO1 switch
     state.set(CURTAIN_CALL, value="on")
 
-    # 1. Restore house lights first so the room isn't dark while the CEC burst runs
-    safe_service(switch.turn_on, entity_id=ADAPTIVE_SWITCH)
+    # 1. House lights: CURTAIN_CALL on makes basement.py raise them
+    #    (handle_curtain_call_lighting), which also turns Adaptive Lighting back on
+    #    once the house-lights window ends. Turning it on here let it pull the lights
+    #    down to its night level, which the cans can't show (2026-11-14).
 
-    # 2. Clean up conflicting sources / background media
+    # 2-4. Pause Spotify, shut Batocera down cleanly, free the HDHomeRun tuner
     _teardown_conflicting_sources("off")
-
-    # 3. Pause Spotify Connect
-    pause_spotify_if_playing()
-
-    # 4. Clean Batocera shutdown if active
-    if is_batocera_on():
-        shutdown_batocera()
 
     prior_mode = safe_state_get(THEATER_MODE)
     rx_source = safe_state_getattr(RECEIVER, "source")

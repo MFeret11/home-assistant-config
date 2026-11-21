@@ -2061,9 +2061,108 @@ def test_session_end_restores_adaptive_lighting_and_clears_party():
 
     theater.session_end_house_lights()
     assert state.get("input_select.basement_lighting_mode") == "Daily Driver", "FAIL: Social Mode not ended on session end!"
+    # Adaptive Lighting comes back when the house-lights window ends, not during it
+    assert not spy.was_called("switch", "turn_on", "switch.basement_adaptive_lighting_adaptive_lighting_basement_adaptive_lighting"), \
+        "FAIL: Adaptive Lighting turned on during curtain call (pulls the house lights down at night)!"
+    basement.handle_curtain_call_lighting()
     assert spy.was_called("switch", "turn_on", "switch.basement_adaptive_lighting_adaptive_lighting_basement_adaptive_lighting"), \
-        "FAIL: Adaptive lighting switch not restored on session end!"
+        "FAIL: Adaptive lighting switch not restored after curtain call!"
     print("  ✓ [Shutdown] test_session_end_restores_adaptive_lighting_and_clears_party PASSED")
+
+
+AL_SWITCH = "switch.basement_adaptive_lighting_adaptive_lighting_basement_adaptive_lighting"
+
+
+def test_curtain_call_keeps_house_lights_from_adaptive_lighting():
+    """2026-11-14: curtain call raised the lights, then Adaptive Lighting (turned on by session
+    end, the switch to Daily Driver, and stairs motion on the way out) pulled them down to
+    its night level, which the cans can't show. During curtain call nothing else may touch them."""
+    setup_clean_environment()
+    state.set(AL_SWITCH, "on")
+    state.set("input_select.basement_lighting_mode", "Social Mode")
+    state.set("pyscript.basement_social_source", "manual")
+    state.set("sensor.theater_mode", "movie")
+    state.set("binary_sensor.theater_in_use", "on")
+
+    theater.session_end_house_lights()
+    assert state.get("pyscript.curtain_call_active") == "on", "FAIL: Curtain call not on!"
+    # What HA would run next: the lighting-mode change and someone walking past the stairs sensor
+    basement.on_lighting_mode_changed(value="Daily Driver", old_value="Social Mode")
+    basement.motion_at_foot_of_stairs(old_value="off")
+    basement.stair_door_opened(old_value="off")
+    mock_task.run_deferred_tasks()
+
+    assert not spy.was_called("adaptive_lighting", "apply"), "FAIL: Adaptive Lighting applied during curtain call!"
+    assert not spy.was_called("switch", "turn_on", AL_SWITCH), "FAIL: Adaptive Lighting on during curtain call!"
+    assert state.get("sensor.basement_palette") != "normal", "FAIL: mood_reset_normal ran during curtain call!"
+
+    spy.clear()
+    mock_task.sleep_hook = lambda s: None
+    state.set("binary_sensor.theater_mmwave_sensor", "off")
+    basement.handle_curtain_call_lighting()
+    assert spy.was_called("switch", "turn_off", AL_SWITCH), "FAIL: Adaptive Lighting not paused for curtain call!"
+    assert spy.was_called("light", "turn_on", "light.theater_dimmer"), "FAIL: House lights not raised!"
+    assert spy.was_called("switch", "turn_on", AL_SWITCH), "FAIL: Adaptive Lighting not back on after curtain call!"
+    print("  ✓ [CurtainCall] test_curtain_call_keeps_house_lights_from_adaptive_lighting PASSED")
+
+
+def test_curtain_call_holds_lights_while_someone_is_there():
+    """People staying to talk after the movie keep the house lights past 10 minutes;
+    they go off once the mmWave stops seeing anyone."""
+    setup_clean_environment()
+    state.set("pyscript.curtain_call_active", "on")
+    state.set("binary_sensor.theater_mmwave_sensor", "on")
+    sleeps = []
+
+    def hook(seconds):
+        sleeps.append(seconds)
+        if len(sleeps) == 4:  # 10-minute window, then three minutes of people still there
+            assert not spy.was_called("light", "turn_off", "light.theater_dimmer"), \
+                "FAIL: House lights went off with someone still downstairs!"
+            state.set("binary_sensor.theater_mmwave_sensor", "off")
+    mock_task.sleep_hook = hook
+
+    basement.handle_curtain_call_lighting()
+    assert sleeps[0] == basement.CURTAIN_CALL_S, "FAIL: House-lights window changed!"
+    assert len(sleeps) == 4, f"FAIL: expected the hold to run until the room emptied, got {sleeps}"
+    assert spy.was_called("light", "turn_off", "light.theater_dimmer"), "FAIL: Lights not off once the room emptied!"
+    assert state.get("pyscript.curtain_call_active") == "off", "FAIL: Curtain call not ended!"
+    print("  ✓ [CurtainCall] test_curtain_call_holds_lights_while_someone_is_there PASSED")
+
+
+def test_nightly_reset_leaves_a_running_session_alone():
+    """A movie at 4 AM: the nightly reset mustn't turn Adaptive Lighting on (it raised the
+    3% glow) or switch the lighting mode mid-session."""
+    setup_clean_environment()
+    state.set("sensor.theater_mode", "movie")
+    state.set("binary_sensor.theater_in_use", "on")
+    state.set("input_select.basement_lighting_mode", "Social Mode")
+    state.set("binary_sensor.basement_lights_active", "on")
+    basement.safe_nightly_social_reset()
+    assert not spy.was_called("switch", "turn_on", AL_SWITCH), "FAIL: Adaptive Lighting on mid-session!"
+    assert state.get("input_select.basement_lighting_mode") == "Social Mode", "FAIL: Lighting mode changed mid-session!"
+
+    # Nothing running: the reset happens, and the palette in use matches the dashboard
+    setup_clean_environment()
+    basement.CURRENT_PALETTE = "cyberpunk"
+    basement.safe_nightly_social_reset()
+    assert state.get("sensor.basement_palette") == "speakeasy"
+    assert basement.CURRENT_PALETTE == "speakeasy", "FAIL: Palette in use differs from the dashboard's!"
+    print("  ✓ [Nightly] test_nightly_reset_leaves_a_running_session_alone PASSED")
+
+
+def test_play_music_cooling_projector_leaves_onn_asleep():
+    """Music right after a movie, lamp still cooling (warm, not lit): waking the Onn could wake
+    the projector again, so leave it asleep."""
+    setup_clean_environment()
+    state.set("switch.projector", "on")
+    state.set("sensor.projector_current", "0.3")
+    theater.play_music()
+    mock_task.run_deferred_tasks()
+    assert not spy.was_called("switch", "turn_off", "switch.projector"), "FAIL: Warm projector mains cut!"
+    assert not spy.was_called("media_player", "turn_on", "media_player.onn_pro"), "FAIL: Woke the Onn!"
+    assert not any(c["domain"] == "remote" for c in spy.calls), "FAIL: Sent something to the Onn!"
+    print("  ✓ [Core] test_play_music_cooling_projector_leaves_onn_asleep PASSED")
 
 
 def test_toggle_ambient_drift_service():
@@ -4089,6 +4188,10 @@ if __name__ == "__main__":
         test_pc_on_without_stream_does_not_claim_moonlight,
         test_bidirectional_theater_select_sync,
         test_curtain_call_warm_white_lighting_restoration,
+        test_curtain_call_keeps_house_lights_from_adaptive_lighting,
+        test_curtain_call_holds_lights_while_someone_is_there,
+        test_nightly_reset_leaves_a_running_session_alone,
+        test_play_music_cooling_projector_leaves_onn_asleep,
         test_curtain_call_after_gaming_never_wakes_onn_or_leaks_hdmi1,
         test_slow_upward_stair_exit_real_telemetry_protected,
         test_walkout_detected_when_door_sensor_drops_events,

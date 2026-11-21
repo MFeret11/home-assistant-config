@@ -24,14 +24,14 @@ Interlocks 1 and 2 run in `pyscript/interlocks.py` (split out of `theater.py` 20
    - `shutdown_batocera` (button press) and `batocera_auto_power_off` (relay) are in interlocks.py; theater.py's `reset_boxart_on_batocera_halt` uses the same trigger only to reset the box art.
    - `switch.batocera` opens only after `sensor.batocera_current < 0.05A` holds continuously for 12s.
 3. **Shutdown Sequence (`session_end_house_lights`)**:
-   - Raise house lights first (`pyscript.curtain_call_active` on, Adaptive Lighting on) so the room isn't dark during the CEC steps.
-   - Pause Spotify and start the clean Batocera shutdown (`_teardown_conflicting_sources("off")`, then again explicitly; the repeat is harmless).
+   - Raise house lights first: `pyscript.curtain_call_active` on, and basement.py's `handle_curtain_call_lighting` does the rest (house lights for 10 min, longer while the mmWave sees someone; Adaptive Lighting stays off until they go off, because at night it pulled them down to a level the cans can't show, 2026-11-14). Stairs motion, the door opening and the lighting-mode change leave the lights alone while it is on.
+   - Pause Spotify and start the clean Batocera shutdown (`_teardown_conflicting_sources("off")`).
    - Onn: when gaming (mode `game`, HDMI2/HDMI3, or Batocera on) send only CEC `SLEEP`, never HOME or HDMI1; otherwise `HOME`, 0.5s, then `SLEEP`. Either way `media_player.onn_pro` is turned off.
    - Wait for the projector (`_wait_projector_dark`, 2026-10-31): poll `sensor.projector_current` every 2s for up to 24s with the receiver still on, since the projector needs ~15s to act on CEC standby and an early receiver off breaks the CEC path. If the lamp is still lit and the session wasn't gaming (`_gaming_on_hdmi2`: mode `game`, receiver on HDMI2/HDMI3, or Batocera relay on), wake the Onn once, wait 10s, resend `SLEEP` and wait again. An unavailable sensor skips the wait. Never cuts mains.
    - Receiver to `AUDIO1` (cuts HDMI pass-through), 0.5s.
    - `_cec_standby_burst(rounds=2)`: each round re-sends `SLEEP` if the Onn still reads on (1s), then receiver `AUDIO1` (0.5s) and off (2s); stops early once `sensor.projector_current` < 0.5A. By this point the projector has normally gone dark already.
    - Turn off `media_player.theater_receiver` and `media_player.theater_receiver_zone_2`.
-   - Return `input_select.basement_lighting_mode` to Daily Driver (`end_social_mode()`) and re-enable Adaptive Lighting.
+   - Return `input_select.basement_lighting_mode` to Daily Driver (`end_social_mode()`). Adaptive Lighting comes back on when the house lights go off.
    - Reset Center channel trim to flat 0.0 dB. Projector mains stay on (standby); the stray wake guard covers a lamp that stays lit.
 4. **Post-Power-Outage Restoration Sweep (`post_power_restoration_sweep`)**:
    - Triggers only after a real power cut: `power_restoration_on_boot()` (`@time_trigger("startup")`) runs the sweep only if the Pi's own uptime (`/proc/uptime`) is under 15 minutes (`POWER_RESTORE_BOOT_WINDOW_S`). HA restarts and pyscript reloads also fire "startup" but leave host uptime high, so they skip it. `post_power_restoration_sweep` stays a `@service` for on-demand use.

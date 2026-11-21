@@ -314,6 +314,8 @@ def on_lighting_mode_changed(value=None, old_value=None):
     elif value in (MODE_DAILY, "Movie Mode"):
         state.set(SOCIAL_SOURCE, value="none")
         task.unique("basement_ambient_loop")
+        if safe_state_get(CURTAIN_CALL) == "on":
+            return  # curtain call owns the lights until its window ends
         if safe_state_get(THEATER_IN_USE) == "on":
             theater_lighting_sync()
         else:
@@ -402,7 +404,13 @@ def apply_ambient_lighting():
 
 @time_trigger("cron(0 4 * * *)")
 def safe_nightly_social_reset():
-    """Nightly hygiene at 4 AM: clears social/guest modes without waking dormant lights."""
+    """Nightly hygiene at 4 AM: clears social/guest modes without waking dormant lights.
+    Skipped while a theater session is running, so a late movie or game keeps its lights.
+    It does clear a curtain call left on (a reload can kill its timer)."""
+    global CURRENT_PALETTE
+    if _theater_active():
+        log.info("[Basement] 4 AM reset skipped: theater in use")
+        return
     task.unique("basement_ambient_loop")
     task.unique("stair_red_timer")
     task.unique("stair_timer")
@@ -419,7 +427,8 @@ def safe_nightly_social_reset():
     set_lighting_mode(MODE_DAILY)
     state.set(CURTAIN_CALL, value="off")
     state.set(SENSOR_EFFECT, value="static")
-    state.set(SENSOR_PALETTE, value="speakeasy")
+    CURRENT_PALETTE = "speakeasy"
+    state.set(SENSOR_PALETTE, value=CURRENT_PALETTE)
 
     try:
         switch.turn_on(entity_id=ADAPTIVE_SWITCH)
@@ -515,6 +524,9 @@ def stair_door_opened(old_value=None):
     time_since_bottom_motion = LAST_DOOR_OPEN_TS - LAST_MOTION_BOTTOM_TS
     DIRECTION_OF_TRAVEL = "up" if 0 < time_since_bottom_motion < EXIT_WINDOW_S else "down"
 
+    if safe_state_get(CURTAIN_CALL) == "on":
+        return  # curtain call has the stairs lit for people leaving
+
     mode = get_lighting_mode()
     theater_active = _theater_active()
 
@@ -557,6 +569,9 @@ def motion_at_foot_of_stairs(old_value=None):
     LAST_MOTION_SEEN_TS = time.time()
     if is_booting() or old_value != "off":
         return
+    if safe_state_get(CURTAIN_CALL) == "on":
+        LAST_MOTION_BOTTOM_TS = time.time()  # still counts for walk-out detection
+        return  # curtain call has the lights set for people leaving
     # Game day: Social Mode's lock doesn't apply to the stairs; motion lights them.
     if _sports_stairs():
         LAST_MOTION_BOTTOM_TS = time.time()
@@ -666,6 +681,7 @@ def stair_door_closed(old_value=None):
         state.set(CURTAIN_CALL, value="off")
         DIRECTION_OF_TRAVEL = "none"
         basement_all_off()
+        safe_service(switch.turn_on, entity_id=ADAPTIVE_SWITCH)  # lights are off; ready for next time
         return
 
     # 2. Social Mode or Theater Active: Preserve ambient lighting
@@ -906,9 +922,20 @@ def _theater_glow():
         light.turn_on(entity_id=THEATER_DIMMER, brightness_pct=GLOW_PCT)
 
 
+# House lights after a session: this long at least, and then until nobody is seen.
+CURTAIN_CALL_S = 600
+CURTAIN_HOLD_CHECK_S = 60
+
+
 @state_trigger(f"{CURTAIN_CALL} == 'on'")
 def handle_curtain_call_lighting():
-    """House lights rise to 20% warm white for 10m on shutdown to let people exit."""
+    """House lights for people leaving: 20% warm white on the dimmer, the stairs and (in
+    Daily Driver) the room. They stay up for CURTAIN_CALL_S, and after that for as long as
+    the mmWave sees someone; then they go off and Adaptive Lighting comes back on. The door
+    closing ends it early (stair_door_closed). Adaptive Lighting stays off meanwhile: at
+    night it pulled these lights down to a level the cans can't show (2026-11-14)."""
+    if safe_state_get(ADAPTIVE_SWITCH) == "on":
+        switch.turn_off(entity_id=ADAPTIVE_SWITCH)
     light.turn_on(entity_id=THEATER_DIMMER, brightness_pct=20, transition=5)
     light.turn_on(entity_id=STAIRLIGHTS, brightness_pct=20, color_temp_kelvin=2700, transition=5)
     switch.turn_off(entity_id=BIAS_LIGHTS)
@@ -917,12 +944,16 @@ def handle_curtain_call_lighting():
         light.turn_on(entity_id=MASTER_ZIGBEE_GROUP, brightness_pct=20, color_temp_kelvin=2700, transition=5)
 
     task.unique("curtain_call_timeout")
-    task.sleep(600)
+    task.sleep(CURTAIN_CALL_S)
+    # Still people downstairs (staying to talk): keep the house lights up.
+    while safe_state_get(CURTAIN_CALL) == "on" and _mmwave_occupied():
+        task.sleep(CURTAIN_HOLD_CHECK_S)
 
     if safe_state_get(CURTAIN_CALL) == "on":
         state.set(CURTAIN_CALL, value="off")
         set_lighting_mode(MODE_DAILY)
         light.turn_off(entity_id=[THEATER_DIMMER, MASTER_ZIGBEE_GROUP, STAIRLIGHTS], transition=4)
+        safe_service(switch.turn_on, entity_id=ADAPTIVE_SWITCH)
 
 
 # ------------------------------------------------------------------------------
