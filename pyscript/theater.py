@@ -935,118 +935,124 @@ def is_pc_game_playing():
 
 # Plain function (no trigger): called directly by play_pc_game and by the
 # debounced trigger wrapper below.
-def update_game_poster():
-    """Set the box art and theater poster in game mode, from Batocera or the gaming PC.
-    Which one wins is listed in the comment below."""
-    if safe_state_get(THEATER_MODE) != "game":
-        return
-
-    # Check Batocera
+def _game_now_showing(gpu_temp_str):
+    """Work out what game mode is showing. The first match wins:
+      1. Batocera playing a game
+      2. The PC playing a game
+      3. Steam Big Picture menu on the PC
+      4. Batocera in its game menu
+      5. The PC on and a Moonlight app open on the Onn
+      6. Nothing: the EmulationStation idle card
+    Returns a dict:
+      title        the game's name ("" for none); also sent as raw_title
+      display      the title to show if the art lookup finds nothing better
+      state        "playing" or "idle"
+      system       the system label on the poster (SNES, PC, STEAM...)
+      subtitle     the line under the title
+      art_system   which system to look up box art for; None skips the lookup
+      defaults     SYSTEM_ART_MAP entry to use when there is no box art
+      badge_icon, badge_color
+    """
     batocera_title = safe_state_get(BATOCERA_GAME)
     batocera_sys = (safe_state_get(BATOCERA_SYSTEM) or "").lower()
     batocera_st = safe_state_get(BATOCERA_STATE)
+    batocera_has_title = batocera_title and batocera_title not in ["None", "unknown", "unavailable", ""]
 
-    # Check PC Gaming (sensor.gaming_pc_active_game, filtered from HASS.Agent's active window)
-    pc_win = safe_state_get(PC_ACTIVE_WINDOW)
-    pc_title, pc_st, is_steam = parse_pc_active_window(pc_win)
+    # sensor.gaming_pc_active_game, filtered from HASS.Agent's active window
+    pc_title, pc_st, is_steam = parse_pc_active_window(safe_state_get(PC_ACTIVE_WINDOW))
+    is_pc_playing = pc_st == "playing" and bool(pc_title)
+
+    # 1. Batocera playing a game
+    if batocera_st == "playing" and batocera_has_title:
+        title = batocera_title
+        art_system = batocera_sys
+        if batocera_sys == "moonlight" and is_pc_playing:
+            # Batocera only knows it launched Moonlight/Big Picture; the PC knows the game
+            title = _spaced_title(pc_title)
+            art_system = "pc"
+        if batocera_sys == "moonlight":
+            subtitle = "🎮 Streaming • PC via Moonlight"
+        else:
+            subtitle = f"🎮 Playing • {(batocera_sys.upper() or 'RETRO')} Gaming"
+        return {
+            "title": title, "display": title, "state": "playing",
+            "system": batocera_sys.upper() or "RETRO", "subtitle": subtitle,
+            "art_system": art_system if title else None,
+            "defaults": SYSTEM_ART_MAP.get(batocera_sys, SYSTEM_ART_MAP["default"]),
+            "badge_icon": "mdi:gamepad-variant", "badge_color": "green",
+        }
+
+    # 2. The PC playing a game
+    if is_pc_playing:
+        temp_suffix = f" (GPU: {gpu_temp_str})" if gpu_temp_str else ""
+        return {
+            "title": pc_title, "display": pc_title, "state": "playing",
+            "system": "STEAM" if is_steam else "PC",
+            "subtitle": f"🎮 Playing • ASUS ROG Gaming PC{temp_suffix}",
+            "art_system": "pc", "defaults": SYSTEM_ART_MAP["pc"],
+            "badge_icon": "mdi:steam" if is_steam else "mdi:desktop-tower", "badge_color": "purple",
+        }
+
+    temp_suffix = f" • GPU {gpu_temp_str}" if gpu_temp_str else ""
+
+    # 3. Steam Big Picture menu on the PC
+    if pc_st == "idle" and is_steam:
+        return {
+            "title": "Steam Big Picture Mode", "display": "Steam Big Picture Mode", "state": "idle",
+            "system": "STEAM", "subtitle": f"🕹️ Ready • Steam Library & Carousel{temp_suffix}",
+            "art_system": None, "defaults": SYSTEM_ART_MAP["steam"],
+            "badge_icon": "mdi:steam", "badge_color": "blue",
+        }
+
+    # 4. Batocera in its game menu
+    if batocera_has_title:
+        return {
+            "title": batocera_title, "display": batocera_title, "state": batocera_st or "idle",
+            "system": batocera_sys.upper() or "ARCADE",
+            "subtitle": "🕹️ Ready • EmulationStation System Menu",
+            "art_system": batocera_sys,
+            "defaults": SYSTEM_ART_MAP.get(batocera_sys, SYSTEM_ART_MAP["default"]),
+            "badge_icon": "mdi:gamepad-variant", "badge_color": "green",
+        }
+
+    # 5. The PC on, and a Moonlight/Steam Link app open on the Onn. A PC that is
+    #    just switched on (or Batocera between games) doesn't count.
+    pc_on = safe_state_get(PC_SWITCH) == "on" or safe_state_get(PC_ONLINE) == "on"
+    if pc_on and get_active_app_id() in GAME_APPS:
+        return {
+            "title": "ASUS ROG Gaming PC", "display": "ASUS ROG Gaming PC", "state": "idle",
+            "system": "PC", "subtitle": f"🕹️ Ready • PC Gaming via Moonlight{temp_suffix}",
+            "art_system": None, "defaults": SYSTEM_ART_MAP["pc"],
+            "badge_icon": "mdi:desktop-tower", "badge_color": "purple",
+        }
+
+    # 6. Nothing: the EmulationStation idle card
+    return {
+        "title": "", "display": "EmulationStation Carousel", "state": "idle",
+        "system": "ARCADE", "subtitle": "🕹️ Ready • EmulationStation System Menu",
+        "art_system": None, "defaults": SYSTEM_ART_MAP["default"],
+        "badge_icon": "mdi:gamepad-variant", "badge_color": "green",
+    }
+
+
+def update_game_poster():
+    """Set the box art and theater poster in game mode, from Batocera or the gaming PC.
+    _game_now_showing() decides what is showing; this looks up the box art and sets it."""
+    if safe_state_get(THEATER_MODE) != "game":
+        return
+
     gpu_temp = safe_state_get(PC_GPU_TEMP)
     gpu_temp_str = f"{round(float(gpu_temp))}°C" if (gpu_temp and str(gpu_temp).replace('.', '', 1).isdigit()) else ""
 
-    # Which poster wins, in order:
-    # 1. Batocera actively playing a ROM
-    # 2. PC actively playing a game
-    # 3. Steam Big Picture Mode active
-    # 4. Batocera loaded in carousel/menu
-    # 5. ASUS ROG PC Online / Ready
-    # 6. Default idle arcade
-    is_batocera_playing = batocera_st == "playing" and batocera_title and batocera_title not in ["None", "unknown", "unavailable", ""]
-    is_pc_playing = pc_st == "playing" and bool(pc_title)
-    # "PC ready via Moonlight" only while a Moonlight/Steam Link app is open on the Onn.
-    # A PC that is just switched on (or Batocera between games) doesn't count.
-    moonlight_open_on_onn = get_active_app_id() in GAME_APPS
+    show = _game_now_showing(gpu_temp_str)
+    data = None
+    if show["art_system"] is not None:
+        data = _fetch_game_art_from_secrets(show["title"], show["art_system"])
 
-    if is_batocera_playing:
-        clean_title = batocera_title
-        system_id = batocera_sys
-        art_system = system_id
-        if system_id == "moonlight" and is_pc_playing:
-            # Batocera only knows it launched Moonlight/Big Picture; the PC knows the game
-            clean_title = _spaced_title(pc_title)
-            art_system = "pc"
-        game_state = "playing"
-        sys_name = system_id.upper() if system_id else "RETRO"
-        display_title = clean_title
-        if system_id == "moonlight":
-            game_sub = "🎮 Streaming • PC via Moonlight"
-        else:
-            game_sub = f"🎮 Playing • {sys_name} Gaming"
-        data = _fetch_game_art_from_secrets(clean_title, art_system) if clean_title else None
-        sys_defaults = SYSTEM_ART_MAP.get(system_id, SYSTEM_ART_MAP["default"])
-        badge_icon = "mdi:gamepad-variant"
-        badge_color = "green"
-    elif is_pc_playing:
-        clean_title = pc_title
-        system_id = "steam" if is_steam else "pc"
-        game_state = "playing"
-        sys_name = "STEAM" if is_steam else "PC"
-        display_title = clean_title
-        temp_suffix = f" (GPU: {gpu_temp_str})" if gpu_temp_str else ""
-        game_sub = f"🎮 Playing • ASUS ROG Gaming PC{temp_suffix}"
-        data = _fetch_game_art_from_secrets(clean_title, "pc")
-        sys_defaults = SYSTEM_ART_MAP.get("pc", SYSTEM_ART_MAP["default"])
-        badge_icon = "mdi:steam" if is_steam else "mdi:desktop-tower"
-        badge_color = "purple"
-    elif pc_st == "idle" and is_steam:
-        clean_title = "Steam Big Picture Mode"
-        system_id = "steam"
-        game_state = "idle"
-        sys_name = "STEAM"
-        display_title = "Steam Big Picture Mode"
-        temp_suffix = f" • GPU {gpu_temp_str}" if gpu_temp_str else ""
-        game_sub = f"🕹️ Ready • Steam Library & Carousel{temp_suffix}"
-        data = None
-        sys_defaults = SYSTEM_ART_MAP["steam"]
-        badge_icon = "mdi:steam"
-        badge_color = "blue"
-    elif batocera_title and batocera_title not in ["None", "unknown", "unavailable", ""]:
-        clean_title = batocera_title
-        system_id = batocera_sys
-        game_state = batocera_st or "idle"
-        sys_name = system_id.upper() if system_id else "ARCADE"
-        display_title = clean_title
-        game_sub = "🕹️ Ready • EmulationStation System Menu"
-        data = _fetch_game_art_from_secrets(clean_title, system_id)
-        sys_defaults = SYSTEM_ART_MAP.get(system_id, SYSTEM_ART_MAP["default"])
-        badge_icon = "mdi:gamepad-variant"
-        badge_color = "green"
-    elif (safe_state_get(PC_SWITCH) == "on" or safe_state_get(PC_ONLINE) == "on") and moonlight_open_on_onn:
-        clean_title = "ASUS ROG Gaming PC"
-        system_id = "pc"
-        game_state = "idle"
-        sys_name = "PC"
-        display_title = "ASUS ROG Gaming PC"
-        temp_suffix = f" • GPU {gpu_temp_str}" if gpu_temp_str else ""
-        game_sub = f"🕹️ Ready • PC Gaming via Moonlight{temp_suffix}"
-        data = None
-        sys_defaults = SYSTEM_ART_MAP["pc"]
-        badge_icon = "mdi:desktop-tower"
-        badge_color = "purple"
-    else:
-        clean_title = ""
-        system_id = "arcade"
-        game_state = "idle"
-        sys_name = "ARCADE"
-        display_title = "EmulationStation Carousel"
-        game_sub = "🕹️ Ready • EmulationStation System Menu"
-        data = None
-        sys_defaults = SYSTEM_ART_MAP["default"]
-        badge_icon = "mdi:gamepad-variant"
-        badge_color = "green"
-
-    poster_val = data.get("poster") if (data and data.get("poster")) else sys_defaults["poster"]
-    backdrop_val = data.get("backdrop") if (data and data.get("backdrop")) else sys_defaults["backdrop"]
+    poster_val = data.get("poster") if (data and data.get("poster")) else show["defaults"]["poster"]
+    backdrop_val = data.get("backdrop") if (data and data.get("backdrop")) else show["defaults"]["backdrop"]
     source_val = data.get("source", "system_art") if data else "system_art"
-    final_title = data.get("title", display_title) if data else display_title
+    final_title = data.get("title", show["display"]) if data else show["display"]
 
     state.set(
         THEATER_BOXART,
@@ -1054,21 +1060,21 @@ def update_game_poster():
         new_attributes={
             "friendly_name": "Theater Box Art",
             "title": final_title,
-            "raw_title": clean_title,
-            "system": sys_name,
+            "raw_title": show["title"],
+            "system": show["system"],
             "backdrop_url": backdrop_val,
             "media_type": "game",
             "source": source_val,
-            "state": game_state,
+            "state": show["state"],
             "gpu_temperature": gpu_temp_str,
         },
     )
 
     set_theater_poster(
-        poster_val, final_title, game_sub,
-        raw_title=clean_title, backdrop_url=backdrop_val, media_type="game",
-        source=source_val, badge_icon=badge_icon, badge_color=badge_color,
-        system=sys_name, gpu_temperature=gpu_temp_str,
+        poster_val, final_title, show["subtitle"],
+        raw_title=show["title"], backdrop_url=backdrop_val, media_type="game",
+        source=source_val, badge_icon=show["badge_icon"], badge_color=show["badge_color"],
+        system=show["system"], gpu_temperature=gpu_temp_str,
     )
 
 

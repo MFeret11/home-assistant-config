@@ -238,63 +238,51 @@ def _title_resembles(candidate, item):
     return False
 
 
-def _movie_or_tv_art_lookup(raw_title, artist=None):
-    """Poster and backdrop for a movie or show. Tries TMDB (needs tmdb_api_key in
-    secrets.yaml), then Cinemeta, then TVMaze. Returns {poster, backdrop, title,
-    media_type, source}, or None. Results are cached, misses for less time than hits."""
-    if not raw_title and not artist:
-        return None
-
-    cache_key = f"movie_tv:{raw_title}:{artist}"
-    if cache_key in _ART_CACHE:
-        cached_ts, cached_data = _ART_CACHE[cache_key]
-        ttl = CACHE_TTL_HIT if cached_data else CACHE_TTL_MISS
-        if time.time() - cached_ts < ttl:
-            return cached_data
-
-    candidates = get_search_candidates(raw_title, artist=artist)
-    if not candidates and raw_title:
-        candidates = [raw_title]
-
-    # 1. TMDB (needs tmdb_api_key in secrets.yaml)
+def _tmdb_art(candidates):
+    """Look each search term up on TMDB (needs tmdb_api_key in secrets.yaml).
+    Returns the art dict for the first good match, or None."""
     api_key = _read_secret("tmdb_api_key")
-    if api_key:
-        for candidate in candidates:
-            if _is_circuit_open("tmdb"):
+    if not api_key:
+        return None
+    for candidate in candidates:
+        if _is_circuit_open("tmdb"):
+            break
+        encoded = urllib.parse.quote(candidate)
+        data = _fetch_json(
+            "tmdb",
+            f"https://api.themoviedb.org/3/search/multi?api_key={api_key}&query={encoded}",
+            timeout=4,
+        )
+        results = (data or {}).get("results", [])
+        if not results:
+            continue
+        # Take the first top result that has a poster and whose name resembles
+        # what was searched; TMDB pads thin searches with unrelated titles.
+        best = None
+        for item in results[:5]:
+            if (item.get("media_type") in ["movie", "tv"] and item.get("poster_path")
+                    and _title_resembles(candidate, item)):
+                best = item
                 break
-            encoded = urllib.parse.quote(candidate)
-            data = _fetch_json(
-                "tmdb",
-                f"https://api.themoviedb.org/3/search/multi?api_key={api_key}&query={encoded}",
-                timeout=4,
-            )
-            results = (data or {}).get("results", [])
-            if not results:
-                continue
-            # Take the first top result that has a poster and whose name resembles
-            # what was searched; TMDB pads thin searches with unrelated titles.
-            best = None
-            for item in results[:5]:
-                if (item.get("media_type") in ["movie", "tv"] and item.get("poster_path")
-                        and _title_resembles(candidate, item)):
-                    best = item
-                    break
-            if not best:
-                continue
-            poster_path = best.get("poster_path")
-            backdrop_path = best.get("backdrop_path")
-            if poster_path:
-                res = {
-                    "poster": f"https://image.tmdb.org/t/p/w500{poster_path}",
-                    "backdrop": f"https://image.tmdb.org/t/p/w780{backdrop_path}" if backdrop_path else "",
-                    "title": best.get("title") or best.get("name") or candidate,
-                    "media_type": best.get("media_type", "movie"),
-                    "source": "tmdb",
-                }
-                _ART_CACHE[cache_key] = (time.time(), res)
-                return res
+        if not best:
+            continue
+        poster_path = best.get("poster_path")
+        backdrop_path = best.get("backdrop_path")
+        if poster_path:
+            return {
+                "poster": f"https://image.tmdb.org/t/p/w500{poster_path}",
+                "backdrop": f"https://image.tmdb.org/t/p/w780{backdrop_path}" if backdrop_path else "",
+                "title": best.get("title") or best.get("name") or candidate,
+                "media_type": best.get("media_type", "movie"),
+                "source": "tmdb",
+            }
+    return None
 
-    # 2. Cinemeta (Stremio's catalog backend; no API key)
+
+def _cinemeta_art(candidates):
+    """Look each search term up on Cinemeta (Stremio's catalog; no API key), first
+    for an exact name match, then for a name that contains the term or the reverse.
+    Returns the art dict for the first match, or None."""
     for pass_mode in ("exact", "fuzzy"):
         for candidate in candidates:
             if _is_circuit_open("cinemeta"):
@@ -323,21 +311,24 @@ def _movie_or_tv_art_lookup(raw_title, artist=None):
                 poster_url = meta.get("poster")
                 bg_url = meta.get("background") or poster_url
                 if poster_url:
+                    # Ask for a bigger image than the catalog's thumbnail
                     if "_V1_SX250.jpg" in poster_url:
                         poster_url = poster_url.replace("_V1_SX250.jpg", "_V1_SX700.jpg")
                     elif "/small/" in poster_url:
                         poster_url = poster_url.replace("/small/", "/medium/")
-                    res = {
+                    return {
                         "poster": poster_url,
                         "backdrop": bg_url,
                         "title": meta.get("name") or candidate,
                         "media_type": meta.get("type", cat),
                         "source": "cinemeta",
                     }
-                    _ART_CACHE[cache_key] = (time.time(), res)
-                    return res
+    return None
 
-    # 3. TVMaze (no API key)
+
+def _tvmaze_art(candidates):
+    """Look each search term up on TVMaze (TV shows only; no API key).
+    Returns the art dict for the first show with an image, or None."""
     for candidate in candidates:
         if _is_circuit_open("tvmaze"):
             break
@@ -346,15 +337,38 @@ def _movie_or_tv_art_lookup(raw_title, artist=None):
         if data and data.get("image"):
             img = data["image"].get("original") or data["image"].get("medium")
             if img:
-                res = {
+                return {
                     "poster": img,
                     "backdrop": img,
                     "title": data.get("name") or candidate,
                     "media_type": "tv",
                     "source": "tvmaze",
                 }
-                _ART_CACHE[cache_key] = (time.time(), res)
-                return res
+    return None
+
+
+def _movie_or_tv_art_lookup(raw_title, artist=None):
+    """Poster and backdrop for a movie or show. Tries TMDB, then Cinemeta, then TVMaze.
+    Returns {poster, backdrop, title, media_type, source}, or None. Results are
+    cached, misses for less time than hits."""
+    if not raw_title and not artist:
+        return None
+
+    cache_key = f"movie_tv:{raw_title}:{artist}"
+    if cache_key in _ART_CACHE:
+        cached_ts, cached_data = _ART_CACHE[cache_key]
+        ttl = CACHE_TTL_HIT if cached_data else CACHE_TTL_MISS
+        if time.time() - cached_ts < ttl:
+            return cached_data
+
+    candidates = get_search_candidates(raw_title, artist=artist)
+    if not candidates and raw_title:
+        candidates = [raw_title]
+
+    res = _tmdb_art(candidates) or _cinemeta_art(candidates) or _tvmaze_art(candidates)
+    if res:
+        _ART_CACHE[cache_key] = (time.time(), res)
+        return res
 
     # Don't negative-cache when a service was down: a brief outage would pin the fallback poster.
     had_outage = any([_is_circuit_open(s) for s in ("tmdb", "cinemeta", "tvmaze")])
