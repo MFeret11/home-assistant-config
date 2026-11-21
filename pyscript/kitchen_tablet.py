@@ -2,11 +2,20 @@
 #
 # Battery-health charging for the wall-mounted kitchen tablet. The tablet has
 # no built-in charge limit, so its charger sits on a smart plug and we keep
-# the battery between CHARGE_ON_PCT and CHARGE_OFF_PCT instead of holding it
-# at 100% around the clock (that's what swells tablet batteries).
+# the battery below CHARGE_OFF_PCT instead of holding it at 100% around the
+# clock (that's what swells tablet batteries).
+#
+# When: Android wakes the screen whenever the charger is plugged in or pulled,
+# so the plug only switches while the screen is meant to be on anyway (a
+# WAKE_WINDOWS window). In a window it tops up from CHARGE_ON_PCT to
+# CHARGE_OFF_PCT and stops when the window ends; the windows give about 7 h a
+# day, more than the ~6 h a day of use needs. Outside them it switches only if
+# the battery falls to LOW_CHARGE_PCT, and then also stops at CHARGE_OFF_PCT.
 #
 # Safety layers:
-# 1. HA charge window: plug on at <= 30%, off at >= 80%.
+# 1. HA charge window: in a wake window, on at <= CHARGE_ON_PCT, off at
+#    >= CHARGE_OFF_PCT or when the window ends; at any hour, on at
+#    <= LOW_CHARGE_PCT.
 # 2. On-device backstop: every time the plug turns on, its own countdown timer
 #    is set to MAX_CHARGE_S, so the plug cuts power by itself even if HA, the
 #    Pi, Wi-Fi or the tablet's battery reporting goes down mid-charge.
@@ -28,8 +37,9 @@ PLUG = "switch.kitchen_tablet_mains"
 PLUG_COUNTDOWN = "number.kitchen_tablet_mains_countdown_to_turn_off"
 BATTERY = "sensor.big_tablet_battery_level"
 
-CHARGE_ON_PCT = 30
+CHARGE_ON_PCT = 70   # top up from here, in a wake window
 CHARGE_OFF_PCT = 80
+LOW_CHARGE_PCT = 25  # charge at any hour from here (one screen wake)
 LOW_ALERT_PCT = 15
 TABLET_NOTIFY = "mobile_app_big_tablet"
 WAKE_WINDOWS = [
@@ -57,17 +67,32 @@ def _notify(title, message):
         pass
 
 
+_low_charge = False  # the running charge began outside a window, at LOW_CHARGE_PCT
+
+
 def _apply_charge_window():
+    """Switch the plug if needed. Returns True when it switched."""
+    global _low_charge
     pct = _battery_pct()
     if pct is None:
-        return
+        return False
     plug = state.get(PLUG)
-    if pct <= CHARGE_ON_PCT and plug == "off":
+    in_window = _in_wake_window()
+    if in_window:
+        _low_charge = False  # from here on it's an ordinary window charge
+    if plug == "off" and (pct <= LOW_CHARGE_PCT or (in_window and pct <= CHARGE_ON_PCT)):
         log.info(f"kitchen_tablet: battery {pct:.0f}%, starting charge")
+        _low_charge = not in_window
         switch.turn_on(entity_id=PLUG)
-    elif pct >= CHARGE_OFF_PCT and plug == "on":
+        return True
+    # A window charge stops when its window ends; a low-battery charge runs on
+    # to CHARGE_OFF_PCT, so it wakes the screen only twice.
+    window_over = not in_window and not _low_charge
+    if plug == "on" and (pct >= CHARGE_OFF_PCT or window_over):
         log.info(f"kitchen_tablet: battery {pct:.0f}%, stopping charge")
         switch.turn_off(entity_id=PLUG)
+        return True
+    return False
 
 
 @state_trigger(BATTERY)
@@ -156,6 +181,10 @@ def kitchen_tablet_screen_inputs_changed():
     # Debounce: let window handovers and GPS blips settle before deciding.
     task.unique("kitchen_tablet_screen_sync")
     task.sleep(5)
+    # Charger first: when a window ends, pulling the charger wakes the screen,
+    # so do it while the screen is still held, then let the screen go.
+    if _apply_charge_window():
+        task.sleep(5)
     _sync_screen()
 
 
