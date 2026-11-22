@@ -368,10 +368,10 @@ def test_movie_intermission_glow():
 
     intermission_called = any(
         c["domain"] == "light" and c["service"] == "turn_on" and
-        c["kwargs"].get("entity_id") == "light.theater_dimmer" and c["kwargs"].get("brightness_pct") == 3
+        c["kwargs"].get("entity_id") == "light.theater_dimmer" and c["kwargs"].get("brightness_pct") == basement.GLOW_PCT
         for c in spy.calls
     )
-    assert intermission_called, "FAIL: 1% Intermission glow not applied!"
+    assert intermission_called, "FAIL: intermission glow not applied!"
     assert spy.was_called("switch", "turn_on", "switch.bias_lights"), "FAIL: Bias not on during pause!"
     print("  ✓ [Core] test_movie_intermission_glow PASSED")
 
@@ -428,9 +428,9 @@ def test_adb_player_drives_movie_lighting():
     mock_task.run_deferred_tasks()
     assert any(
         c["domain"] == "light" and c["service"] == "turn_on" and
-        c["kwargs"].get("entity_id") == "light.theater_dimmer" and c["kwargs"].get("brightness_pct") == 3
+        c["kwargs"].get("entity_id") == "light.theater_dimmer" and c["kwargs"].get("brightness_pct") == basement.GLOW_PCT
         for c in spy.calls
-    ), "FAIL: ADB paused did not apply the 3% glow!"
+    ), "FAIL: ADB paused did not apply the glow!"
     print("  ✓ [Core] test_adb_player_drives_movie_lighting PASSED")
 
 
@@ -1148,7 +1148,7 @@ def test_lobby_browsing_android_launcher():
 
     assert any(
         c["domain"] == "light" and c["service"] == "turn_on" and
-        c["kwargs"].get("entity_id") == "light.theater_dimmer" and c["kwargs"].get("brightness_pct") == 3
+        c["kwargs"].get("entity_id") == "light.theater_dimmer" and c["kwargs"].get("brightness_pct") == basement.GLOW_PCT
         for c in spy.calls
     ), "FAIL: Lobby browsing did not set cans to 1%!"
     assert spy.was_called("switch", "turn_on", "switch.bias_lights"), "FAIL: Bias not on in lobby!"
@@ -1168,7 +1168,7 @@ def test_lobby_browsing_batocera_carousel():
 
     assert any(
         c["domain"] == "light" and c["service"] == "turn_on" and
-        c["kwargs"].get("entity_id") == "light.theater_dimmer" and c["kwargs"].get("brightness_pct") == 3
+        c["kwargs"].get("entity_id") == "light.theater_dimmer" and c["kwargs"].get("brightness_pct") == basement.GLOW_PCT
         for c in spy.calls
     ), "FAIL: Batocera carousel did not set cans to 1%!"
     print("  ✓ [Atmospheric] test_lobby_browsing_batocera_carousel PASSED")
@@ -1388,7 +1388,7 @@ def test_full_evening_story_simulation():
     state.set("media_player.theater_onn_pro_adb", "paused")
     basement.theater_lighting_sync()
     mock_task.run_deferred_tasks()
-    assert any(c["domain"] == "light" and c["kwargs"].get("brightness_pct") == 3 for c in spy.calls), \
+    assert any(c["domain"] == "light" and c["kwargs"].get("brightness_pct") == basement.GLOW_PCT for c in spy.calls), \
         "Story Fail: Step 5 Intermission 1% glow didn't activate!"
 
     # --- 6. Curtain Call & Exit (10:30 PM) ---

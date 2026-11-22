@@ -145,8 +145,8 @@ WALKOUT_CONFIRM_S = 20
 # Door opened this recently, then bottom-stairs motion, then the close: that is a group
 # coming down (the first person trips the sensor before the last one shuts the door).
 ENTRY_FOLLOW_WINDOW_S = 180
-# Paused / pre-show glow on the theater dimmer. The cans don't light below ~3%.
-GLOW_PCT = 3
+# Paused / pre-show glow on the theater dimmer. The cans barely show at 3%; 6% reads as a faint glow (2026-11-21).
+GLOW_PCT = 6
 # 4 AM reset: turn a forgotten room off if the stairs have seen no motion for this long.
 NIGHTLY_IDLE_OFF_S = 7200
 # Daily Driver: lights off once the mmWave and the stairs have both been quiet this long.
@@ -835,7 +835,7 @@ def _resume_adaptive_after_theater():
 def theater_lighting_sync(var_name=None, value=None, old_value=None):
     """Set the basement lights to match the theater. Social Mode is left alone, except that
     sports paints team color once per session. Music, or a movie or game playing: lights off,
-    bias lights on. A movie paused for 4 s, menus and pre-show: 3% glow on the dimmer, the
+    bias lights on. A movie paused for 4 s, menus and pre-show: glow (GLOW_PCT) on the dimmer, the
     rest off, bias on."""
     # ADB blip, or back from one to the same state: nothing changed, so don't touch the
     # lights (each blip used to flash the 3% glow mid-movie).
@@ -914,7 +914,7 @@ def theater_lighting_sync(var_name=None, value=None, old_value=None):
 
 
 def _theater_glow():
-    """3% dimmer glow. From off, skip the fade: the Leviton (Matter) dimmer would start
+    """Dimmer glow at GLOW_PCT. From off, skip the fade: the Leviton (Matter) dimmer would start
     at its last level (often 100% from daytime use) and visibly fade down from there."""
     if safe_state_get(THEATER_DIMMER) == "on":
         light.turn_on(entity_id=THEATER_DIMMER, brightness_pct=GLOW_PCT, transition=2)
