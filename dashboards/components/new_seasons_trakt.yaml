@@ -1,0 +1,34 @@
+# New seasons: season premieres (and new shows) coming up for the shows you follow on
+# Trakt, from sensor.trakt_upcoming_premieres (packages/trakt.yaml). Shown only while
+# the theater is idle and something is coming.
+type: conditional
+conditions:
+  - condition: state
+    entity: binary_sensor.theater_in_use
+    state: "off"
+  - condition: numeric_state
+    entity: sensor.trakt_upcoming_premieres
+    above: 0
+card:
+  type: markdown
+  content: >-
+    {# The first item in "data" is the integration's display template, not a show #}
+    {% set shows = (state_attr('sensor.trakt_upcoming_premieres', 'data') or [])[1:] %}
+    **NEW SEASONS**
+
+    {% for s in shows %}
+    {% set season = s.number[1:3] | int(0) if s.number else 0 %}
+    **{{ s.title }}** · {{ 'New show' if season <= 1 else 'Season ' ~ season }} · {{ as_timestamp(s.airdate) | timestamp_custom('%a %b %-d') }}
+
+    {% endfor %}
+  card_mod:
+    style: |
+      ha-card {
+        background: rgba(33, 150, 243, 0.08) !important;
+        border: 1px solid rgba(33, 150, 243, 0.3) !important;
+        border-radius: 24px !important;
+        backdrop-filter: blur(16px);
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+        padding: 4px 8px !important;
+        font-size: 0.85rem;
+      }

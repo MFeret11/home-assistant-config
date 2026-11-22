@@ -1,4 +1,4 @@
-# Trakt: upcoming episodes, what's next to watch, and watch stats.
+# Trakt: upcoming episodes, season premieres for the basement dashboard, and watch stats.
 # The account link (client ID/secret) is set up in the UI, not here.
 # Changes to this file need an HA restart.
 trakt_tv:
@@ -9,8 +9,8 @@ trakt_tv:
       show:
         days_to_fetch: 7
         max_medias: 5
-    next_to_watch:
-      all:
+      premiere:          # season premieres and new shows you follow
+        days_to_fetch: 90
         max_medias: 5
     stats:
       - movies_watched
