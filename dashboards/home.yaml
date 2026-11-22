@@ -155,6 +155,16 @@ views:
             heading: Live Activity
             icon: mdi:radar
 
+          # Trains home, only while one of us is in Center City.
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: binary_sensor.in_center_city
+                state: "on"
+            card:
+              type: vertical-stack
+              cards: !include components/home/trains_home.yaml
+
           # 1. Philly games: each team shows only while its game is live, starts
           # within 24 hours, or ended in the last 12 (binary_sensor.*_game_soon
           # in packages/sports.yaml).

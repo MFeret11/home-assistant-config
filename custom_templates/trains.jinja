@@ -1,0 +1,53 @@
+{#- Shared markup for the on-demand train cards: the kitchen's "Trains to the
+    city" (sensor.city_trains) and the Home dashboard's "Trains home"
+    (sensor.trains_home). Both sensors come from pyscript/city_trains.py and
+    have the same attributes. In a markdown card:
+      {% from 'trains.jinja' import trains_card %}{{ trains_card('sensor.city_trains', '🚆 To Suburban Station') }}
+    After editing, run homeassistant.reload_custom_templates. -#}
+{% macro trains_card(entity, title) %}
+{% set a = states[entity].attributes if states[entity] is not none else {} %}
+{% set walk = a.get('walk_minutes') or 0 %}
+## {{ title }}
+
+{% for x in a.get('alerts') or [] %}
+  🚨 **{{ x }}**
+{% endfor %}
+{% if is_state(entity, 'error') %}
+  ### ⚠️ Couldn't get train times
+
+  {{ a.get('error') }} · check the SEPTA app
+{% else %}
+  {% for t in a.get('trains') or [] %}
+    {% set leave = as_datetime(t.leave_by) if t.leave_by else none %}
+    {% set mins = ((leave - now()).total_seconds() / 60) | round(0, 'ceil') | int if leave else none %}
+    {% if mins is none %}{% set when = '' %}
+    {% elif mins > 60 %}{% set when = 'Leave at ' ~ leave.strftime('%-I:%M %p') %}
+    {% elif mins > 0 %}{% set when = 'Leave in ' ~ mins ~ ' min' %}
+    {% elif mins > -walk %}{% set when = 'Leave now' %}
+    {% else %}{% set when = 'Too late' %}{% endif %}
+    {% if t.status == 'cancelled' %}{% set how = '❌ Cancelled' %}
+    {% elif t.status == 'unclear' %}{% set how = '⚠️ Delay unknown' %}
+    {% elif t.status == 'at_risk' %}{% set how = '⚠️ Tight change' %}
+    {% elif (t.delay or 0) > 0 %}{% set how = ('🔴 ' if t.delay >= 10 else '🟡 ') ~ t.delay ~ ' min late' %}
+    {% else %}{% set how = '🟢 On time' %}{% endif %}
+    {% set track = a.get('track') if loop.first and a.get('track') not in [none, '', 'TBD'] else none %}
+  **{{ when }}** · {{ t.depart }}{{ ' · Track ' ~ track if track else '' }} → arrives {{ t.arrive }} · {{ how }}
+    {% if t.change_train %}
+  <small>Change at {{ a.get('change_at') or 'Center City' }} to train {{ t.change_train }} ({{ t.change_depart }})</small>
+    {% endif %}
+
+  {% else %}
+  No trains listed right now · check the SEPTA app
+  {% endfor %}
+{% endif %}
+{% for x in (a.get('advisories') or [])[:2] %}
+  <small>ℹ️ {{ x }}</small>
+{% endfor %}
+{% if a.get('data_stale') %}
+  <small>⏳ SEPTA didn't answer just now; times are from a few minutes ago.</small>
+{% endif %}
+{% if a.get('alerts_unavailable') %}
+  <small>Couldn't check SEPTA's alerts.</small>
+{% endif %}
+<small>Checked {{ as_datetime(a.get('looked_up_at')).strftime('%-I:%M %p') if a.get('looked_up_at') else '' }}{{ ' · ' ~ walk ~ ' min walk to the station' if walk else '' }}</small>
+{% endmacro %}

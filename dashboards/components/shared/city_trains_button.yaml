@@ -1,0 +1,27 @@
+# "Trains to the city": one tap asks SEPTA (through pyscript/city_trains.py)
+# for the next trains from home to Center City. The answer shows in
+# city_trains.yaml, just below, for 20 minutes. Nothing polls in between.
+type: custom:mushroom-template-card
+primary: Trains to the city
+secondary: >-
+  {% set s = states('sensor.city_trains') %}
+  {% if s == 'loading' %}Checking SEPTA…
+  {% elif s in ['ready', 'error'] %}Tap to check again
+  {% else %}Tap for the next trains{% endif %}
+icon: mdi:train
+icon_color: >-
+  {{ 'amber' if is_state('sensor.city_trains', 'loading') else 'blue' }}
+tap_action:
+  action: perform-action
+  perform_action: pyscript.city_trains_lookup
+  haptic: light
+hold_action:
+  action: none
+grid_options:
+  columns: full
+  rows: 1
+card_mod:
+  style: |
+    ha-card {
+      padding: 10px 16px !important;
+    }

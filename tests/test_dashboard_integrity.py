@@ -63,7 +63,7 @@ REGISTERED_ENTITIES = {
     # Commute, Weather & House Entities
     "binary_sensor.septa_am_window", "binary_sensor.septa_pm_window", "binary_sensor.drive_display_window",
     "sensor.septa_commute", "sensor.commute_weather", "sensor.commute_drive_time",
-    "sensor.commute_am_severity", "sensor.commute_pm_severity",
+    "sensor.commute_am_severity", "sensor.commute_pm_severity", "sensor.city_trains", "sensor.trains_home", "binary_sensor.in_center_city",
     "sensor.maintenance_attention", "sensor.next_calendar_event", "binary_sensor.theater_media_playing",
     "sensor.cameras_online", "sensor.partner_location", "sensor.me_location",
     "binary_sensor.partner_away", "binary_sensor.me_away",
@@ -142,6 +142,7 @@ REGISTERED_SERVICES = {
     "pyscript.play_movie", "pyscript.play_game", "pyscript.play_pc_game", "pyscript.play_music", "pyscript.play_sports",
     "pyscript.theater_play_spotify_playlist",
     "pyscript.session_end_house_lights", "pyscript.basement_all_off", "pyscript.bedroom_goodnight",
+    "pyscript.city_trains_lookup", "pyscript.trains_home_lookup",
     "pyscript.toggle_all_basement_lights", "pyscript.mood_reset_normal",
     "pyscript.select_palette", "pyscript.select_effect_modifier",
     "pyscript.effect_bar_toast", "pyscript.effect_eagles_chant",

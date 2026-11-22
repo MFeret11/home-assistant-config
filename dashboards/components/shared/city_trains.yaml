@@ -1,0 +1,30 @@
+# Answer to the "Trains to the city" button (city_trains_button.yaml): the
+# next trains from home with when to leave, live delays and the home lines'
+# alerts. sensor.city_trains (pyscript/city_trains.py) holds the data and goes
+# back to "idle" 20 minutes after the tap, which hides this card. The markup
+# is shared with the Home dashboard's trains-home card: custom_templates/trains.jinja.
+type: markdown
+visibility:
+  - condition: state
+    entity: sensor.city_trains
+    state:
+      - ready
+      - error
+content: >-
+  {% from 'trains.jinja' import trains_card %}{{ trains_card('sensor.city_trains',
+  '🚆 To ' ~ (state_attr('sensor.city_trains', 'destination') or 'Center City')) }}
+grid_options:
+  columns: full
+  rows: auto
+card_mod:
+  style:
+    .: |
+      ha-card {
+        font-size: 20px;
+        line-height: 1.4;
+        padding: 14px 18px;
+      }
+    ha-markdown $: |
+      h2 { font-size: 26px !important; margin: 0 0 8px 0 !important; }
+      h3 { font-size: 22px !important; margin: 0 0 6px 0 !important; }
+      small { opacity: 0.75; font-size: 16px; }

@@ -1,4 +1,7 @@
-# Rest of the day: game cards (game days only), the week ahead and chores.
+# Rest of the day: game cards (game days only), the week ahead, chores, and
+# the on-demand "Trains to the city" button with its answer below it.
 - !include games.yaml
 - !include week_planner.yaml
 - !include chores.yaml
+- !include city_trains_button.yaml
+- !include city_trains.yaml

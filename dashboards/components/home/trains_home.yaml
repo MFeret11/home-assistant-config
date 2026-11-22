@@ -1,0 +1,59 @@
+# "Trains home": shown while either of us is in Center City
+# (binary_sensor.in_center_city, from GPS in pyscript/city_trains.py). One tap
+# asks SEPTA for the next trains home from the Center City station nearest
+# that person, with the walk to it worked out from their position. The answer
+# shows below for 20 minutes; nothing polls in between. The markup is shared
+# with the kitchen's "Trains to the city" card: custom_templates/trains.jinja.
+# A list of cards: home.yaml includes it inside a vertical-stack.
+- type: custom:mushroom-template-card
+  primary: Trains home
+  secondary: >-
+    {% set s = states('sensor.trains_home') %}
+    {% set where = state_attr('binary_sensor.in_center_city', 'station') %}
+    {% set walk = state_attr('binary_sensor.in_center_city', 'walk_minutes') %}
+    {% if s == 'loading' %}Checking SEPTA…
+    {% elif where %}From {{ where }} · ~{{ walk }} min walk
+    {% else %}Tap for the next trains{% endif %}
+  icon: mdi:home-import-outline
+  icon_color: >-
+    {{ 'amber' if is_state('sensor.trains_home', 'loading') else 'blue' }}
+  layout: horizontal
+  tap_action:
+    action: perform-action
+    perform_action: pyscript.trains_home_lookup
+    haptic: light
+  hold_action:
+    action: none
+  card_mod:
+    class: glass-tile row
+    style: |
+      ha-card {
+        --tile-rgb: 33, 150, 243;
+        --tile-on: {{ 0.6 if is_state('sensor.trains_home', 'loading') else 0.35 }};
+      }
+
+- type: conditional
+  conditions:
+    - condition: state
+      entity: sensor.trains_home
+      state:
+        - ready
+        - error
+  card:
+    type: markdown
+    content: >-
+      {% from 'trains.jinja' import trains_card %}{{ trains_card('sensor.trains_home',
+      '🏠 Home from ' ~ (state_attr('sensor.trains_home', 'from_station') or 'Center City')) }}
+    card_mod:
+      class: glass-tile
+      style:
+        .: |
+          ha-card {
+            font-size: 17px;
+            line-height: 1.4;
+            padding: 12px 16px;
+          }
+        ha-markdown $: |
+          h2 { font-size: 21px !important; margin: 0 0 6px 0 !important; }
+          h3 { font-size: 18px !important; margin: 0 0 6px 0 !important; }
+          small { opacity: 0.75; font-size: 14px; }
