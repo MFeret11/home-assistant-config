@@ -6,6 +6,23 @@
 # ==============================================================================
 
 template:
+  # Weather alert banner: on while there is an alert you haven't dismissed.
+  # The key is the alert text plus the alert count, so the banner comes back
+  # by itself when the alert changes (say, a watch becomes a warning) or
+  # another alert is added. pyscript.weather_alert_dismiss (pyscript/weather_alert.py)
+  # saves the key attribute as pyscript.weather_alert_dismissed.
+  - binary_sensor:
+      - name: Weather Alert Showing
+        unique_id: weather_alert_showing
+        icon: mdi:alert
+        state: >-
+          {% set key = (states('sensor.weather_alert') ~ ' | ' ~ states('sensor.weather_alert_count'))[:255] %}
+          {{ states('sensor.weather_alert_count') | int(0) > 0
+             and key != states('pyscript.weather_alert_dismissed') }}
+        attributes:
+          key: >-
+            {{ (states('sensor.weather_alert') ~ ' | ' ~ states('sensor.weather_alert_count'))[:255] }}
+
   # morning: weekdays 6-9 AM, only commute, weather and today's events.
   # day: everything else.
   - sensor:

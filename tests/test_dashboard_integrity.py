@@ -111,6 +111,10 @@ REGISTERED_ENTITIES = {
     "sensor.kitchen_display_mode", "sensor.kitchen_weather", "sensor.kitchen_today_events",
     "binary_sensor.working_from_home", "binary_sensor.kitchen_show_pm_commute",
     "sensor.weather_alert", "sensor.weather_alert_count", "calendar.holidays_in_united_states",
+    # Kitchen tablet screen (Companion app "Interactive" sensor, enabled on the tablet)
+    "binary_sensor.big_tablet_interactive",
+    # Weather alert banner dismiss (packages/kitchen_display.yaml, pyscript/weather_alert.py)
+    "binary_sensor.weather_alert_showing",
 
     # Vaculina part resets (Maintenance view)
     "button.vaculina_reset_main_brush", "button.vaculina_reset_side_brush", "button.vaculina_reset_filter",
@@ -143,6 +147,7 @@ REGISTERED_SERVICES = {
     "pyscript.theater_play_spotify_playlist",
     "pyscript.session_end_house_lights", "pyscript.basement_all_off", "pyscript.bedroom_goodnight",
     "pyscript.city_trains_lookup", "pyscript.trains_home_lookup",
+    "pyscript.weather_alert_dismiss",
     "pyscript.toggle_all_basement_lights", "pyscript.mood_reset_normal",
     "pyscript.select_palette", "pyscript.select_effect_modifier",
     "pyscript.effect_bar_toast", "pyscript.effect_eagles_chant",

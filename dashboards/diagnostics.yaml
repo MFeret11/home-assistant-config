@@ -251,6 +251,34 @@ views:
       - type: grid
         cards:
           - type: heading
+            heading: Kitchen Tablet
+            icon: mdi:tablet
+          # The real screen state comes from the Companion app's "Interactive"
+          # sensor, which is off by default: turn it on in the app under
+          # Settings > Companion app > Manage sensors.
+          - type: custom:mushroom-template-card
+            entity: binary_sensor.big_tablet_interactive
+            primary: Screen
+            secondary: >-
+              {% set s = states('binary_sensor.big_tablet_interactive') %}
+              {% if s == 'on' %}On{% elif s == 'off' %}Off{% else %}Unknown: turn on the Interactive sensor in the Companion app{% endif %}
+            icon: >-
+              {{ 'mdi:tablet-dashboard' if is_state('binary_sensor.big_tablet_interactive', 'on') else 'mdi:tablet' }}
+            icon_color: >-
+              {{ 'green' if is_state('binary_sensor.big_tablet_interactive', 'on') else 'grey' }}
+            layout: horizontal
+            tap_action:
+              action: more-info
+            card_mod:
+              class: glass-tile row
+              style: |
+                ha-card {
+                  --tile-rgb: 76, 175, 80;
+                  --tile-on: {{ 1 if is_state('binary_sensor.big_tablet_interactive', 'on') else 0 }};
+                }
+      - type: grid
+        cards:
+          - type: heading
             heading: Host & Infrastructure (RPi 4)
             icon: mdi:raspberry-pi
           - type: entities

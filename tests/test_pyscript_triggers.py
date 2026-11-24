@@ -73,6 +73,9 @@ class FakeState:
     def set(self, *args, **kwargs):
         pass
 
+    def persist(self, *args, **kwargs):
+        pass
+
 
 class FakePyscript(Anything):
     # Team Lights reads its settings (packages/sports.yaml) as pyscript.app_config.

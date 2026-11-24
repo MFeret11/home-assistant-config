@@ -1,36 +1,44 @@
-# Weather Service watch/warning/advisory banner; hidden when there's none.
-# Shared by the kitchen tablet and the Home dashboard. Sized for the tablet;
-# the media queries shrink it on phone-width screens.
-type: markdown
+# Weather Service watch/warning/advisory banner; hidden when there's none or
+# you've dismissed it (tap it; it comes back when the alert changes, see
+# pyscript/weather_alert.py). Shared by the kitchen tablet and the Home
+# dashboard. Sized for the tablet; the media queries shrink it on phone-width
+# screens.
+type: custom:mushroom-template-card
 visibility:
-  - condition: numeric_state
-    entity: sensor.weather_alert_count
-    above: 0
-content: >-
-  ## ⚠️ {{ states('sensor.weather_alert') }}{% if states('sensor.weather_alert_count') | int(0) > 1 %} (+{{ states('sensor.weather_alert_count') | int - 1 }} more){% endif %}
+  - condition: state
+    entity: binary_sensor.weather_alert_showing
+    state: "on"
+primary: >-
+  {{ states('sensor.weather_alert') }}{% if states('sensor.weather_alert_count') | int(0) > 1 %} (+{{ states('sensor.weather_alert_count') | int - 1 }} more){% endif %}
+secondary: Tap to dismiss
+icon: mdi:alert
+icon_color: red
+layout: horizontal
+tap_action:
+  action: perform-action
+  perform_action: pyscript.weather_alert_dismiss
+  confirmation:
+    text: Hide this weather alert? It comes back if the alert changes.
 grid_options:
   columns: full
   rows: auto
 card_mod:
-  style:
-    .: |
+  style: |
+    ha-card {
+      background: linear-gradient(135deg, rgba(244, 67, 54, 0.4), rgba(183, 28, 28, 0.2)) !important;
+      border: 2px solid rgba(244, 67, 54, 0.8) !important;
+      padding: 10px 16px !important;
+      --card-primary-font-size: 26px;
+      --card-secondary-font-size: 14px;
+      --icon-size: 48px;
+    }
+    @media (max-width: 600px) {
       ha-card {
-        background: linear-gradient(135deg, rgba(244, 67, 54, 0.4), rgba(183, 28, 28, 0.2)) !important;
-        border: 2px solid rgba(244, 67, 54, 0.8) !important;
-        text-align: center;
-        padding: 10px 16px;
+        border-radius: 20px !important;
+        padding: 6px 12px !important;
+        margin-bottom: 6px !important;
+        --card-primary-font-size: 18px;
+        --card-secondary-font-size: 12px;
+        --icon-size: 36px;
       }
-      @media (max-width: 600px) {
-        ha-card {
-          border-radius: 20px !important;
-          padding: 6px 12px;
-          margin-bottom: 6px !important;
-        }
-      }
-    # Headings and tables sit inside ha-markdown's shadow root.
-    ha-markdown $: |
-      :host { text-align: center; }
-      h2 { font-size: 26px !important; margin: 0 !important; }
-      @media (max-width: 600px) {
-        h2 { font-size: 18px !important; }
-      }
+    }

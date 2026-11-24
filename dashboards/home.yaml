@@ -437,9 +437,9 @@ views:
                   - unknown
                   - "off"
                   - standby
-              - condition: numeric_state
-                entity: sensor.weather_alert_count
-                below: 1
+              - condition: state
+                entity: binary_sensor.weather_alert_showing
+                state_not: "on"
             card:
               type: custom:mushroom-template-card
               primary: All quiet
