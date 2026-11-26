@@ -62,6 +62,8 @@ rest:
           - rider_on_train
           - rider_home
           - rider_location_age_minutes
+          # False on weekends and holidays (the service's HOLIDAYS setting).
+          - commute_day
 
   - resource: "http://127.0.0.1:8000/api/weather"
     scan_interval: 300
@@ -85,17 +87,18 @@ rest:
 template:
   # Commute cards show only on office days (schedule.*_office_days, set in
   # packages/private_work_schedule.yaml): the train on the commuter's, the
-  # drive on mine. Hours sit inside the transit
-  # service's own windows (5-9, 14-19).
+  # drive on mine. Not on holidays: the transit service says so in
+  # commute_day (a missing value counts as a commute day). Hours sit inside
+  # the transit service's own windows (5-9, 14-19).
   - binary_sensor:
       - name: "Septa Display Window"
-        state: "{{ is_state('schedule.partner_office_days', 'on') and now().hour in [6, 7, 16, 17] }}"
+        state: "{{ is_state('schedule.partner_office_days', 'on') and now().hour in [6, 7, 16, 17] and state_attr('sensor.septa_commute', 'commute_day') is not false }}"
       - name: "Drive Display Window"
-        state: "{{ is_state('schedule.me_office_days', 'on') and now().hour == 8 }}"
+        state: "{{ is_state('schedule.me_office_days', 'on') and now().hour == 8 and state_attr('sensor.septa_commute', 'commute_day') is not false }}"
       - name: "Septa AM Window"
-        state: "{{ is_state('schedule.partner_office_days', 'on') and now().hour in [6, 7] }}"
+        state: "{{ is_state('schedule.partner_office_days', 'on') and now().hour in [6, 7] and state_attr('sensor.septa_commute', 'commute_day') is not false }}"
       - name: "Septa PM Window"
-        state: "{{ is_state('schedule.partner_office_days', 'on') and now().hour in [16, 17] }}"
+        state: "{{ is_state('schedule.partner_office_days', 'on') and now().hour in [16, 17] and state_attr('sensor.septa_commute', 'commute_day') is not false }}"
 
   # On from when the commuter leaves work until they're home: the kitchen's
   # train-home card and the tablet's screen follow it, and the transit service
