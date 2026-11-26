@@ -10,6 +10,56 @@ views:
     type: sections
     max_columns: 2
     sections:
+      # Electric + gas together. Only dollars add up (kWh and CCF are
+      # different units), so this section is all cost.
+      - type: grid
+        column_span: 2
+        cards:
+          - type: heading
+            heading: Combined
+            icon: mdi:home-lightning-bolt
+          - type: markdown
+            content: |
+              {% set elec_bill = states('sensor.whole_house_peco_electric_current_bill_electric_cost_to_date') | float(0) %}
+              {% set gas_bill = states('sensor.whole_house_peco_gas_current_bill_gas_cost_to_date') | float(0) %}
+              {% set elec_forecast = states('sensor.whole_house_peco_electric_current_bill_electric_forecasted_cost') | float(0) %}
+              {% set gas_forecast = states('sensor.whole_house_peco_gas_current_bill_gas_forecasted_cost') | float(0) %}
+              {% set elec_typical = states('sensor.whole_house_peco_electric_typical_monthly_electric_cost') | float(0) %}
+              {% set gas_typical = states('sensor.whole_house_peco_gas_typical_monthly_gas_cost') | float(0) %}
+              | | Electric | Gas | **Total** |
+              |:--|--:|--:|--:|
+              | Bill so far | ${{ '%.2f' % elec_bill }} | ${{ '%.2f' % gas_bill }} | **${{ '%.2f' % (elec_bill + gas_bill) }}** |
+              | Forecast | ${{ '%.0f' % elec_forecast }} | ${{ '%.0f' % gas_forecast }} | **${{ '%.0f' % (elec_forecast + gas_forecast) }}** |
+              | Typical month | ${{ '%.0f' % elec_typical }} | ${{ '%.0f' % gas_typical }} | **${{ '%.0f' % (elec_typical + gas_typical) }}** |
+            grid_options:
+              columns: full
+          - type: statistics-graph
+            title: Monthly cost, electric + gas
+            entities:
+              - entity: !include private/peco_elec_cost.yaml
+                name: Electric
+              - entity: !include private/peco_gas_cost.yaml
+                name: Gas
+            chart_type: bar
+            period: month
+            stat_types: [change]
+            days_to_show: 365
+            grid_options:
+              columns: full
+          - type: statistics-graph
+            title: Daily cost, electric + gas
+            entities:
+              - entity: !include private/peco_elec_cost.yaml
+                name: Electric
+              - entity: !include private/peco_gas_cost.yaml
+                name: Gas
+            chart_type: bar
+            period: day
+            stat_types: [change]
+            days_to_show: 30
+            grid_options:
+              columns: full
+
       - type: grid
         cards:
           - type: heading
