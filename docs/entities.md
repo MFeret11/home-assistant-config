@@ -131,6 +131,8 @@ Template sensors that hold logic the dashboards used to repeat inline. Cards rea
 
 ### Work schedule (`packages/private_work_schedule.yaml`)
 - `schedule.partner_office_days` / `schedule.me_office_days`: on all day on each person's office days. The only place the days are set. The train windows (`binary_sensor.septa_display_window`, `septa_am_window`, `septa_pm_window`) and location sharing with the transit service follow the partner's; `binary_sensor.drive_display_window` follows mine. Reload with `schedule.reload`.
+- `sensor.kitchen_attention` (`packages/kitchen_display.yaml`): number of chips in the kitchen attention row; `items` holds `{icon, text}` for each. The rules are `kitchen_attention()` in `custom_templates/house_status.jinja`: the Maintenance items without chores, a camera unreachable for 15+ minutes, the basement stair door open for 10+ minutes.
+- `sensor.kitchen_today_events` (`packages/kitchen_display.yaml`): today's events for the morning card; `countdowns` lists events in the next 30 days whose description holds `countdown:N`, while they are N days away or less.
 - `binary_sensor.kitchen_morning_wake` (`packages/kitchen_display.yaml`): kitchen tablet screen in the morning, 6-9 AM on weekdays whether or not anyone commutes, 8-11 AM on weekends.
 - `binary_sensor.kitchen_evening_wake` (`packages/kitchen_display.yaml`): kitchen tablet screen on, 4-8 PM every day.
 - `binary_sensor.kitchen_show_pm_commute` (`packages/kitchen_display.yaml`): shows the train-home card once the commuter has left work (`binary_sensor.partner_heading_home`) until they're home. Without a live location it falls back to fixed hours.

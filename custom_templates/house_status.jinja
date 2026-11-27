@@ -2,12 +2,11 @@
     Macros can only return strings, so each one returns JSON and the
     caller parses it with from_json. -#}
 
-{#- Everything the Maintenance page lists under "Needs Attention":
-    worn vacuum and printer parts, low batteries, device problem flags,
-    and chores that are due or overdue. Returns {count, items}: items are
-    display lines, and count is the number of things needing attention
-    (each due chore counts once, though they share one line). -#}
-{%- macro maintenance_status() -%}
+{#- Things to fix or replace: worn vacuum and printer parts, low
+    batteries, and device problem flags. Chores are not included.
+    Returns a JSON list of {emoji, icon, text}: the Maintenance page shows
+    the emoji, the kitchen attention row shows the icon. -#}
+{%- macro maintenance_items() -%}
   {%- set ns = namespace(l=[]) -%}
   {%- set parts = {
     'sensor.vaculina_main_brush_left': 'Vacuum main brush',
@@ -20,7 +19,7 @@
     'sensor.brother_drum_remaining_lifetime': 'Printer drum'
   } -%}
   {%- for e, n in parts.items() if states(e) | is_number and states(e) | float <= 20 -%}
-    {%- set ns.l = ns.l + ['🧰 ' ~ n ~ ': ' ~ states(e) | int ~ '%'] -%}
+    {%- set ns.l = ns.l + [{'emoji': '🧰', 'icon': 'mdi:tools', 'text': n ~ ': ' ~ states(e) | int ~ '%'}] -%}
   {%- endfor -%}
   {#- Phones and the vacuum are left out: they charge daily. -#}
   {%- for s in states.sensor
@@ -28,7 +27,7 @@
        | selectattr('attributes.device_class', 'eq', 'battery')
        if s.state | is_number and s.state | float <= 20
        and not (s.entity_id is search('pixel_8|iphone|vaculina')) -%}
-    {%- set ns.l = ns.l + ['🔋 ' ~ s.name ~ ': ' ~ s.state | int ~ '%'] -%}
+    {%- set ns.l = ns.l + [{'emoji': '🔋', 'icon': 'mdi:battery-alert-variant-outline', 'text': s.name ~ ': ' ~ s.state | int ~ '%'}] -%}
   {%- endfor -%}
   {%- set flags = {
     'binary_sensor.vaculina_problem': 'Vacuum reports a problem',
@@ -40,16 +39,28 @@
     'binary_sensor.brother_door_open': 'Printer door open'
   } -%}
   {%- for e, n in flags.items() if is_state(e, 'on') -%}
-    {%- set ns.l = ns.l + ['⚠️ ' ~ n] -%}
+    {%- set ns.l = ns.l + [{'emoji': '⚠️', 'icon': 'mdi:alert-circle-outline', 'text': n}] -%}
   {%- endfor -%}
   {%- set err = states('sensor.vaculina_error') -%}
   {%- if err not in ['no_error', 'unknown', 'unavailable'] -%}
-    {%- set ns.l = ns.l + ['⚠️ Vacuum error: ' ~ err | replace('_', ' ')] -%}
+    {%- set ns.l = ns.l + [{'emoji': '⚠️', 'icon': 'mdi:robot-vacuum-alert', 'text': 'Vacuum error: ' ~ err | replace('_', ' ')}] -%}
   {%- endif -%}
   {%- set water = states('sensor.vaculina_low_water_warning') -%}
   {%- if water not in ['no_warning', 'unknown', 'unavailable'] -%}
-    {%- set ns.l = ns.l + ['💧 Vacuum: ' ~ water | replace('_', ' ')] -%}
+    {%- set ns.l = ns.l + [{'emoji': '💧', 'icon': 'mdi:water-alert-outline', 'text': 'Vacuum: ' ~ water | replace('_', ' ')}] -%}
   {%- endif -%}
+  {{- ns.l | to_json -}}
+{%- endmacro -%}
+
+{#- Everything the Maintenance page lists under "Needs Attention": the
+    items above, then chores that are due or overdue. Returns {count, items}:
+    items are display lines, and count is the number of things needing
+    attention (each due chore counts once, though they share one line). -#}
+{%- macro maintenance_status() -%}
+  {%- set ns = namespace(l=[]) -%}
+  {%- for i in maintenance_items() | from_json -%}
+    {%- set ns.l = ns.l + [i.emoji ~ ' ' ~ i.text] -%}
+  {%- endfor -%}
   {%- set hk = state_attr('sensor.home_keeper_tasks', 'overdue') | int(0)
              + state_attr('sensor.home_keeper_tasks', 'due_today') | int(0) -%}
   {%- set count = ns.l | count + hk -%}
@@ -57,6 +68,41 @@
     {%- set ns.l = ns.l + ['📋 ' ~ hk ~ ' chore' ~ ('' if hk == 1 else 's') ~ ' due or overdue'] -%}
   {%- endif -%}
   {{- {'count': count, 'items': ns.l} | to_json -}}
+{%- endmacro -%}
+
+{#- The kitchen tablet's attention row (packages/kitchen_display.yaml):
+    the maintenance items above, plus cameras unreachable for a while and
+    the basement stair door left open. Chores stay out: they have their own
+    line on the kitchen page and there are usually some due, so the row
+    would never empty. Returns a JSON list of {icon, text}. -#}
+{%- macro kitchen_attention() -%}
+  {%- set CAMERA_OFFLINE_MINUTES = 15 -%}
+  {%- set DOOR_OPEN_MINUTES = 10 -%}
+  {%- set cameras = {
+    'camera.front_porch_cam': 'Front porch cam',
+    'camera.back_deck_cam': 'Back deck cam',
+    'camera.back_yard_cam': 'Back yard cam'
+  } -%}
+  {%- set doors = {
+    'binary_sensor.basement_stairs_door_sensor': 'Basement stair door'
+  } -%}
+  {%- set ns = namespace(l=[]) -%}
+  {%- for i in maintenance_items() | from_json -%}
+    {%- set ns.l = ns.l + [{'icon': i.icon, 'text': i.text}] -%}
+  {%- endfor -%}
+  {%- for s in expand(cameras.keys() | list)
+       if s.state in ['unavailable', 'unknown']
+       and now() - s.last_changed >= timedelta(minutes=CAMERA_OFFLINE_MINUTES) -%}
+    {%- set ns.l = ns.l + [{'icon': 'mdi:cctv-off', 'text': cameras[s.entity_id] ~ ' offline'}] -%}
+  {%- endfor -%}
+  {%- for s in expand(doors.keys() | list) if s.state == 'on' -%}
+    {%- set mins = ((now() - s.last_changed).total_seconds() // 60) | int -%}
+    {%- if mins >= DOOR_OPEN_MINUTES -%}
+      {%- set took = (mins // 60) ~ ' h ' ~ (mins % 60) ~ ' min' if mins >= 60 else mins ~ ' min' -%}
+      {%- set ns.l = ns.l + [{'icon': 'mdi:door-open', 'text': doors[s.entity_id] ~ ' open · ' ~ took}] -%}
+    {%- endif -%}
+  {%- endfor -%}
+  {{- ns.l | to_json -}}
 {%- endmacro -%}
 
 {#- The soonest event across the household calendars.

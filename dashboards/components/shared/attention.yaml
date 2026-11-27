@@ -1,0 +1,28 @@
+# Attention row across the top of the kitchen page: one chip per thing that
+# needs doing (sensor.kitchen_attention, rules in
+# custom_templates/house_status.jinja kitchen_attention()). Hidden when there
+# is nothing, so on a normal day it takes no space. Markup: kitchen.jinja
+# attention_chips().
+type: markdown
+visibility:
+  - condition: numeric_state
+    entity: sensor.kitchen_attention
+    above: 0
+content: >-
+  {% from 'kitchen.jinja' import attention_chips %}{{ attention_chips() }}
+grid_options:
+  columns: full
+  rows: auto
+card_mod:
+  style:
+    .: |
+      ha-card {
+        background: none !important;
+        box-shadow: none !important;
+        padding: 0 4px;
+      }
+    # Chips sit inside ha-markdown's shadow root.
+    ha-markdown $: |
+      p { margin: 0 !important; display: flex; flex-wrap: wrap; gap: 10px; }
+      .chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 999px; background: rgba(232, 163, 61, 0.16); color: #f2c27a; font-size: 19px; font-weight: 500; }
+      .chip ha-icon { --mdc-icon-size: 22px; }

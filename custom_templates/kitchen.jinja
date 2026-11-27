@@ -38,6 +38,96 @@
   {%- endif -%}
 {%- endmacro -%}
 
+{#- Weather advice chips, shown under the clothing tip; empty when none applies.
+    - Open the windows: it is 60-72°F out now, the dew point is under 60°F,
+      the rain chance stays under 20% for the next 3 hours, and it is between
+      7 AM and 8 PM. There is no air-quality data, so smoky days aren't caught.
+    - Windy: the forecast wind reaches 20 mph or more in the next 12 hours.
+    The card styles .chip (see weather_today.yaml / weather_full.yaml). -#}
+{%- set WINDOW_TEMP_MIN = 60 -%}
+{%- set WINDOW_TEMP_MAX = 72 -%}
+{%- set WINDOW_DEW_MAX = 60 -%}
+{%- set WINDOW_RAIN_MAX = 20 -%}
+{%- set WINDOW_HOURS = [7, 20] -%}
+{%- set WIND_MPH = 20 -%}
+{%- macro weather_advice(hourly) -%}
+  {%- set temp = state_attr(WX, 'temperature') -%}
+  {%- set dew = hourly[0].dew if hourly else none -%}
+  {%- set rain_soon = hourly[:3] | map(attribute='rain') | max if hourly else 100 -%}
+  {%- if temp is number and dew is number
+        and WINDOW_TEMP_MIN <= temp <= WINDOW_TEMP_MAX and dew < WINDOW_DEW_MAX
+        and rain_soon < WINDOW_RAIN_MAX
+        and WINDOW_HOURS[0] <= now().hour < WINDOW_HOURS[1] -%}
+<span class="chip"><ha-icon icon="mdi:window-open-variant"></ha-icon> Nice out: open the windows</span>
+  {%- endif -%}
+  {%- set ns = namespace(when=none, peak=0) -%}
+  {%- for h in hourly[:12] -%}
+    {%- if h.wind is number and h.wind >= WIND_MPH -%}
+      {%- if ns.when is none %}{% set ns.when = 'now' if loop.first else 'from ' ~ h.t %}{% endif -%}
+      {%- set ns.peak = [ns.peak, h.wind] | max -%}
+    {%- endif -%}
+  {%- endfor -%}
+  {%- if ns.when is not none -%}
+    {%- set when = ns.when -%}
+<span class="chip"><ha-icon icon="mdi:weather-windy"></ha-icon> Windy {{ when }} · up to {{ ns.peak }} mph</span>
+  {%- endif -%}
+{%- endmacro -%}
+
+{#- Calendar icons picked from words in the event title (whole words, any
+    case). First match wins, so holidays come before meals
+    ("Thanksgiving dinner" gets the turkey); no match shows no icon. -#}
+{%- set EVENT_ICONS = [
+  ('thanksgiving', 'mdi:food-turkey'),
+  ('christmas', 'mdi:pine-tree'),
+  ('halloween', 'mdi:halloween'),
+  ('birthday|bday', 'mdi:cake-variant'),
+  ('anniversary', 'mdi:heart-outline'),
+  ('wedding', 'mdi:ring'),
+  ('dentist|orthodontist', 'mdi:tooth-outline'),
+  ('doctor|dr|checkup|physical', 'mdi:stethoscope'),
+  ('vet', 'mdi:paw'),
+  ('haircut|barber', 'mdi:content-cut'),
+  ('flight|airport', 'mdi:airplane'),
+  ('trip|vacation|beach', 'mdi:bag-suitcase'),
+  ('gym|workout|yoga', 'mdi:dumbbell'),
+  ('dinner|lunch|brunch|breakfast', 'mdi:silverware-fork-knife'),
+  ('concert', 'mdi:music'),
+  ('party', 'mdi:party-popper'),
+  ('trash|recycling', 'mdi:trash-can-outline')
+] -%}
+{%- macro event_icon(title) -%}
+  {%- set t = (title or '') | lower -%}
+  {%- set ns = namespace(icon='') -%}
+  {%- for words, icon in EVENT_ICONS if not ns.icon and t is search('\\b(' ~ words ~ ')\\b') -%}
+    {%- set ns.icon = icon -%}
+  {%- endfor -%}
+  {%- if ns.icon %}<ha-icon icon="{{ ns.icon }}"></ha-icon> {% endif -%}
+{%- endmacro -%}
+
+{#- One event line: calendar dot, keyword icon (not on the birthday
+    calendar, whose dot is already a cake), time, title. -#}
+{%- set CAL_DOTS = {'matt': '🔵', 'partner': '🩷', 'family': '🟢', 'birthday': '🎂'} -%}
+{%- macro event_line(e) -%}
+{{ CAL_DOTS.get(e.who, '📅') }} {% if e.who != 'birthday' %}{{ event_icon(e.title) }}{% endif %}{% if e.time %}**{{ e.time }}** {% endif %}{{ e.title }}
+{%- endmacro -%}
+
+{#- Countdown lines (sensor.kitchen_today_events `countdowns`), up to `limit`.
+    Skips anything `min_days` away or closer, for lists that already show it. -#}
+{%- macro countdown_lines(limit=2, min_days=0) -%}
+  {%- set cds = (state_attr('sensor.kitchen_today_events', 'countdowns') or []) | selectattr('days', '>', min_days) | list -%}
+  {%- for c in cds[:limit] %}
+{{ CAL_DOTS.get(c.who, '📅') }} <ha-icon icon="mdi:flag-outline"></ha-icon> **{{ c.title }}** {{ 'tomorrow' if c.days == 1 else 'in ' ~ c.days ~ ' days' }} · {{ c.day }}
+  {%- endfor -%}
+{%- endmacro -%}
+
+{#- Attention chips for the top of the kitchen page (sensor.kitchen_attention).
+    The card styles .chip (dashboards/components/shared/attention.yaml). -#}
+{%- macro attention_chips() -%}
+  {%- for i in state_attr('sensor.kitchen_attention', 'items') or [] -%}
+<span class="chip"><ha-icon icon="{{ i.icon }}"></ha-icon> {{ i.text }}</span>
+  {%- endfor -%}
+{%- endmacro -%}
+
 {#- Weather card. full=false: now + rain line + 2-hourly strip (morning).
     full=true: adds the next five days. -#}
 {%- macro weather_panel(full=false) -%}
@@ -59,6 +149,11 @@
 {%- if wear not in ['unknown', 'unavailable', 'None', ''] %}
 
 ### {{ wear }}
+{%- endif %}
+{%- set advice = weather_advice(hourly) %}
+{%- if advice | trim %}
+
+{{ advice }}
 {%- endif %}
 
 **{{ rain_line(hourly) }}**
@@ -91,32 +186,36 @@
 {% endif %}
 {%- endmacro -%}
 
-{#- Today's events as short lines; empty string when there are none. -#}
+{#- Today's events as short lines, then any countdowns. -#}
 {%- macro today_events(limit=4) -%}
-  {%- set dots = {'matt': '🔵', 'partner': '🩷', 'family': '🟢', 'birthday': '🎂'} -%}
   {%- set evs = state_attr('sensor.kitchen_today_events', 'events') or [] -%}
   {%- for e in evs[:limit] -%}
-{{ dots.get(e.who, '📅') }} {% if e.time %}**{{ e.time }}** {% endif %}{{ e.title }}
+{{ event_line(e) }}
 {% endfor -%}
   {%- if evs | length > limit %}…and {{ evs | length - limit }} more{% endif -%}
   {%- if not evs %}Nothing on the calendar{% endif -%}
+  {{- countdown_lines(2) -}}
 {%- endmacro -%}
 
 {#- Fridays: today, Saturday and Sunday in one list (the weekend attribute
-    is only filled on Fridays). Each day shows up to `limit` events. -#}
+    is only filled on Fridays). Each day shows up to `limit` events, then
+    countdowns to anything after Sunday. -#}
 {%- macro weekend_events(limit=4) -%}
-  {%- set dots = {'matt': '🔵', 'partner': '🩷', 'family': '🟢', 'birthday': '🎂'} -%}
   {%- set today = {'day': 'Today', 'events': state_attr('sensor.kitchen_today_events', 'events') or []} -%}
   {%- for d in [today] + (state_attr('sensor.kitchen_today_events', 'weekend') or []) -%}
 **{{ d.day }}**
 {% for e in d.events[:limit] -%}
-{{ dots.get(e.who, '📅') }} {% if e.time %}**{{ e.time }}** {% endif %}{{ e.title }}
+{{ event_line(e) }}
 {% endfor -%}
 {%- if d.events | length > limit %}…and {{ d.events | length - limit }} more
 {% endif -%}
 {%- if not d.events %}Nothing planned yet
 {% endif %}
 {% endfor -%}
+  {%- set cds = countdown_lines(2, 2) -%}
+  {%- if cds | trim %}
+**Coming up**{{ cds }}
+  {%- endif -%}
 {%- endmacro -%}
 
 {#- One line for chores, or empty when nothing is due. -#}

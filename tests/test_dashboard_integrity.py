@@ -109,6 +109,7 @@ REGISTERED_ENTITIES = {
 
     # Kitchen display (packages/kitchen_display.yaml)
     "sensor.kitchen_display_mode", "sensor.kitchen_weather", "sensor.kitchen_today_events",
+    "sensor.kitchen_attention",
     "binary_sensor.working_from_home", "binary_sensor.kitchen_show_pm_commute",
     "sensor.weather_alert", "sensor.weather_alert_count", "calendar.holidays_in_united_states",
     # Kitchen tablet screen (Companion app "Interactive" sensor, enabled on the tablet)

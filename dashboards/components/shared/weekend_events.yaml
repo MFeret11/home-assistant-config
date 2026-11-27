@@ -23,3 +23,5 @@ card_mod:
     ha-markdown $: |
       h3 { font-size: 18px !important; margin: 0 0 4px 0 !important; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.08em; }
       p { margin: 0 0 10px 0 !important; }
+      # Keyword and countdown icons (kitchen.jinja event_icon()).
+      p ha-icon { --mdc-icon-size: 22px; vertical-align: -3px; opacity: 0.85; }

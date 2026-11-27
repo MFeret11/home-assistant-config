@@ -23,6 +23,22 @@ template:
           key: >-
             {{ (states('sensor.weather_alert') ~ ' | ' ~ states('sensor.weather_alert_count'))[:255] }}
 
+  # Attention row across the top of the kitchen page: chips for things that
+  # need doing (worn vacuum or printer parts, low batteries, a camera offline,
+  # the basement stair door left open). State is the count; the row is hidden
+  # at 0. Rules: kitchen_attention() in custom_templates/house_status.jinja.
+  - sensor:
+      - name: Kitchen Attention
+        unique_id: kitchen_attention
+        icon: mdi:alert-circle-outline
+        state: >-
+          {% from 'house_status.jinja' import kitchen_attention %}
+          {{ kitchen_attention() | from_json | count }}
+        attributes:
+          items: >-
+            {% from 'house_status.jinja' import kitchen_attention %}
+            {{ kitchen_attention() | from_json }}
+
   # morning: weekdays 6-9 AM, only commute, weather and today's events.
   # day: everything else.
   - sensor:
@@ -97,7 +113,8 @@ template:
         icon: mdi:weather-partly-cloudy
         state: "{{ now().isoformat() }}"
         attributes:
-          # Next 16 hours: time label, temperature, condition, rain chance.
+          # Next 16 hours: time label, temperature, condition, rain chance,
+          # dew point and wind speed (none when NWS leaves them out).
           hourly: >-
             {% set fc = hourly['weather.whole_house_national_weather_service_kphl'].forecast %}
             {% set ns = namespace(out=[]) %}
@@ -107,7 +124,9 @@ template:
                 'hour': (as_datetime(h.datetime) | as_local).hour,
                 'temp': h.temperature | round(0) | int,
                 'cond': h.condition,
-                'rain': h.precipitation_probability | default(0, true) | int }] %}
+                'rain': h.precipitation_probability | default(0, true) | int,
+                'dew': (h.dew_point | round(0) | int) if h.dew_point is number else none,
+                'wind': (h.wind_speed | round(0) | int) if h.wind_speed is number else none }] %}
             {% endfor %}
             {{ ns.out }}
           # Next 5 days: daytime high, the following night's low, condition, rain chance.
@@ -158,6 +177,52 @@ template:
           end_date_time: >-
             {{ (today_at('00:00') + timedelta(days=3 if now().weekday() == 4 else 1)).isoformat() }}
         response_variable: cal
+      # The next 30 days, only to find countdowns (below).
+      - action: calendar.get_events
+        target:
+          entity_id:
+            - calendar.matt
+            - calendar.partner
+            - calendar.family
+            - calendar.birthdays
+        data:
+          start_date_time: "{{ (today_at('00:00') + timedelta(days=1)).isoformat() }}"
+          duration:
+            days: 30
+        response_variable: ahead
+      # Countdowns: an event whose description says "countdown:7" shows as
+      # "in N days" on the morning card for the 7 days before it starts.
+      # Only the next 30 days are looked at, so anything above 30 acts as 30.
+      # A repeating event counts down only to its next date.
+      - variables:
+          countdowns: >-
+            {% set who = {'calendar.matt': 'matt', 'calendar.partner': 'partner',
+                          'calendar.family': 'family', 'calendar.birthdays': 'birthday'} %}
+            {% set today = now().date() %}
+            {% set ns = namespace(out=[]) %}
+            {% for k, v in ahead.items() %}
+              {% for e in v.events %}
+                {% set n = (e.get('description') or '') | regex_findall('countdown:\s*(\d+)', true) %}
+                {% if n %}
+                  {% set start = strptime(e.start[:10], '%Y-%m-%d').date() if 'T' not in e.start
+                                 else (as_datetime(e.start) | as_local).date() %}
+                  {% set days = (start - today).days %}
+                  {% if 0 < days <= n[0] | int %}
+                    {% set ns.out = ns.out + [{
+                      'title': e.summary | truncate(40, true, '…', 0),
+                      'days': days,
+                      'day': start.strftime('%a'),
+                      'who': who.get(k, '') }] %}
+                  {% endif %}
+                {% endif %}
+              {% endfor %}
+            {% endfor %}
+            {% set nd = namespace(out=[], seen=[]) %}
+            {% for c in ns.out | sort(attribute='days') if c.title not in nd.seen %}
+              {% set nd.out = nd.out + [c] %}
+              {% set nd.seen = nd.seen + [c.title] %}
+            {% endfor %}
+            {{ nd.out }}
       # One list per day: [today, Saturday, Sunday] on Fridays, [today] otherwise.
       # A timed event goes on the day it starts (or today, if it started
       # earlier); an all-day event goes on every day it covers. Sorted by start,
@@ -200,6 +265,8 @@ template:
         state: "{{ days[0] | length }}"
         attributes:
           events: "{{ days[0] }}"
+          # [{'title', 'days', 'day', 'who'}], soonest first; see "Countdowns" above.
+          countdowns: "{{ countdowns }}"
           # Fridays only: [{'day': 'Saturday', 'events': [...]}, {'day': 'Sunday', ...}].
           weekend: >-
             {% set names = ['Saturday', 'Sunday'] %}

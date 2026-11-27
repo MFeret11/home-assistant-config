@@ -90,6 +90,7 @@ recorder:
       - sensor.kitchen_display_mode
       - sensor.kitchen_weather
       - sensor.kitchen_today_events
+      - sensor.kitchen_attention
       # Neutral copies of the location trackers (private package); the
       # coordinates are not kept in history.
       - sensor.partner_location

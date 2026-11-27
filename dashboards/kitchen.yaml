@@ -21,6 +21,17 @@ views:
             state: "on"
         cards:
           - !include components/shared/weather_alert.yaml
+      # Attention chips (vacuum, printer, batteries, cameras, stair door);
+      # hidden, with no gap, when there's nothing.
+      - &attention_row
+        type: grid
+        column_span: 2
+        visibility:
+          - condition: numeric_state
+            entity: sensor.kitchen_attention
+            above: 0
+        cards:
+          - !include components/shared/attention.yaml
       - type: grid
         visibility: &morning
           - condition: state
@@ -59,6 +70,7 @@ views:
             state: "on"
         cards:
           - !include components/shared/weather_alert.yaml
+      - *attention_row
       - type: grid
         cards: !include components/shared/morning_left.yaml
       - type: grid
@@ -77,6 +89,7 @@ views:
             state: "on"
         cards:
           - !include components/shared/weather_alert.yaml
+      - *attention_row
       - type: grid
         cards: !include components/shared/day_left.yaml
       - type: grid
