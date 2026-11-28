@@ -82,7 +82,8 @@ If the entity ID itself has to change (for example, a replaced device came back 
 - `pyscript.basement_social_source`: who engaged Social Mode: `manual`, `sports`, or `none`. Only `sports` Social drops back to Daily when the theater switches to a movie or game.
 - `pyscript.toggle_lighting_mode`: Toggles Daily Driver / Social Mode (dashboard header chip, Room Ambience card).
 - `pyscript.mood_reset_normal`: Resets room to normal Daily Driver lighting (header chip hold action, game over).
-- `pyscript.select_palette`: Applies a palette (`speakeasy`, `lofi`, `synthwave`, `cyberpunk`, `nordic`, `blood_moon`).
+- `pyscript.select_palette`: Paints a theme by id: a built-in from `pyscript/modules/basement_palettes.py` (`speakeasy`, `christmas`, `fourth_of_july`...), an edited copy of one, or one of ours (`my_1`...), from `/config/basement_themes.json`.
+- Theme library pop-up services (basement.py): `pyscript.select_theme_slot` (`slot`: paint that pill's theme), `pyscript.edit_theme_slot` (`slot`: paint it and open the editor), `pyscript.new_theme` (editor on the lights as they are), `pyscript.save_theme` (`as_new`: store every room and stair bulb as it is now), `pyscript.delete_theme` (delete one of ours, or reset an edited built-in), `pyscript.close_theme_editor`, `pyscript.select_theme_tab` (`all`, `moods`, `holidays`, `mine`), `pyscript.theme_page` (`step`: 1 or -1), `pyscript.clear_theme_search`.
 - `pyscript.effect_bar_toast`: "Toast" celebration effect (amber bar & stairs).
 - `pyscript.effect_eagles_chant`: Manual Eagles Kelly Green chant effect (see §4).
 - `pyscript.team_lights_celebrate`: Plays a celebration (`kind: big|small`) in the featured team's color.
@@ -107,9 +108,14 @@ If the entity ID itself has to change (for example, a replaced device came back 
 - `sensor.theater_mode`: Hardware status resolver (`movie`, `game`, `music`, `sports`, `off`).
 - `sensor.theater_current_poster`: Active movie/streaming poster URL and metadata attributes. The `source` attribute shows where the art came from (`tmdb`, `cinemeta`, `tvmaze`, `steamgriddb`, `libretro`, `*_title_match` or brand fallbacks), which is the quickest way to confirm lookups are resolving.
 - `sensor.theater_current_boxart`: Dedicated retro gaming box art and hero backdrop sensor (SteamGridDB / RAWG / Libretro / curated `SYSTEM_ART_MAP` fallback per-system).
-- `sensor.basement_palette`: Active palette (`speakeasy`, `lofi`, `synthwave`, `cyberpunk`, `nordic`, `blood_moon`).
-- `sensor.basement_effect`: Active animation modifier (`static`, `drift`).
-- `pyscript.toggle_ambient_drift`: Service toggling between static mood lock and 22s hardware spatial drift.
+- `sensor.basement_palette`: Palette in use (a theme id, or `normal` for none). Attributes: `label` (display name) and `swatch` (its colors as `"r, g, b"` strings, for the dashboard's Themes row).
+- `pyscript.basement_theme_tab`: Theme library filter (`all`, `moods`, `holidays`, `mine`); kept across restarts.
+- `pyscript.basement_theme_slot_1` … `pyscript.basement_theme_slot_12`: The library pop-up's pills, `shown` or `hidden`. Attributes: `palette_id`, `name`, `icon`, `swatch`, `edited`. Filled by `_refresh_library()`; recorder-excluded.
+- `pyscript.basement_theme_library`: `results` or `none` (nothing matches). Attributes: `count`, `tab`, `query`.
+- `pyscript.basement_theme_pager`: `on` when the matches need more than one page. Attribute `label` ("Page 1 of 2").
+- `pyscript.basement_theme_editor`: `off`, or what is being edited: `new`, `mine`, `builtin`, `edited`. Attributes: `palette_id`, `name`. Always `off` after a reload.
+- `input_text.basement_theme_search`: Library search box; changing it refreshes the pills (a basement.py trigger).
+- `input_text.basement_theme_name`: Name box in the theme editor (`packages/basement_lighting.yaml`).
 - `sensor.tuner0` / `sensor.tuner1`: Per-tuner HDHomeRun state, feeding `sensor.hdhomerun_tuner_allocation`.
 - `sensor.hdhomerun_tuner_allocation`: Real-time ATSC tuner state (`0/2 active (idle)`, `1/2 active`, `2/2 saturated`).
 - `binary_sensor.hdhomerun_contention_risk`: High when both physical ATSC tuners are saturated while theater is not currently in sports mode.

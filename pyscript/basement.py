@@ -5,7 +5,7 @@
 #   ENTITY IDS AND SETTINGS
 #   SMALL HELPERS, AND HELPER ENTITIES CREATED AT LOAD
 #   LIGHTING MODE (Daily Driver or Social Mode)
-#   PALETTES AND THE DRIFT EFFECT, AND THE 4 AM RESET
+#   PALETTES AND THE 4 AM RESET
 #   STAIRS: DOOR, MOTION AND WALK-OUT DETECTION
 #   VACANCY: LIGHTS OFF WHEN NOBODY IS DOWNSTAIRS
 #   THEATER LIGHTING (Daily Driver) AND CURTAIN CALL
@@ -67,70 +67,56 @@ MODE_EXPANDED = "pyscript.mode_selector_expanded"
 
 
 SENSOR_PALETTE = "sensor.basement_palette"
-SENSOR_EFFECT = "sensor.basement_effect"
 
 VALID_MODES = {MODE_DAILY, MODE_SOCIAL}
-DRIFT_EFFECTS = {"wave", "breathe", "cycle", "drift"}
 
-ROOM_ZONES = [
-    "light.zigbee_bar_lights",       # 1. North (Bar)
-    "light.zigbee_lounge_lights_1",  # 2. Central Hub (Lounge Front / Stair Landing)
-    "light.zigbee_lounge_lights_2",  # 3. Theater Flank (Lounge Mid)
-    "light.zigbee_lounge_lights_3",  # 4. South (Lounge Rear)
-]
+# Palettes (colors, zones, bulb order) live in pyscript/modules/basement_palettes.py.
+from basement_palettes import (
+    PALETTES,
+    LIBRARY_TABS,
+    TAB_ALL,
+    MY_THEME_ICON,
+    ROOM_ZONES,
+    ROOM_BULBS,
+    BAR_BULBS,
+    STAIR_BULBS,
+    room_plan,
+    stair_plan,
+    settings_from_state,
+    swatch,
+    library_entries,
+    filter_entries,
+    new_theme_id,
+    read_themes_file,
+    write_themes_file,
+)
 
-PALETTES = {
-    "speakeasy": [
-        {"color_temp_kelvin": 2000, "brightness_pct": 25},
-        {"color_temp_kelvin": 2200, "brightness_pct": 15},
-        {"color_temp_kelvin": 2400, "brightness_pct": 10},
-        {"color_temp_kelvin": 2300, "brightness_pct": 25},
-        {"stair_k": 2200},
-    ],
-    "lofi": [
-        {"hs_color": [28, 85], "brightness_pct": 55},
-        {"hs_color": [340, 65], "brightness_pct": 45},
-        {"hs_color": [280, 50], "brightness_pct": 30},
-        {"hs_color": [15, 75], "brightness_pct": 25},
-        {"stair_hs": [340, 65]},
-    ],
-    "synthwave": [
-        {"hs_color": [35, 95], "brightness_pct": 70},
-        {"hs_color": [300, 95], "brightness_pct": 55},
-        {"hs_color": [185, 95], "brightness_pct": 35},
-        {"hs_color": [320, 95], "brightness_pct": 25},
-        {"stair_hs": [300, 95]},
-    ],
-    "cyberpunk": [
-        {"hs_color": [185, 95], "brightness_pct": 65},
-        {"hs_color": [40, 95], "brightness_pct": 55},
-        {"hs_color": [185, 95], "brightness_pct": 35},
-        {"hs_color": [280, 90], "brightness_pct": 25},
-        {"stair_hs": [320, 95]},
-    ],
-    "nordic": [
-        {"hs_color": [195, 75], "brightness_pct": 50},
-        {"hs_color": [215, 60], "brightness_pct": 40},
-        {"hs_color": [235, 50], "brightness_pct": 30},
-        {"hs_color": [205, 55], "brightness_pct": 25},
-        {"stair_hs": [215, 60]},
-    ],
-    "blood_moon": [
-        {"hs_color": [280, 80], "brightness_pct": 55},
-        {"hs_color": [0, 100], "brightness_pct": 50},
-        {"hs_color": [15, 95], "brightness_pct": 30},
-        {"hs_color": [355, 95], "brightness_pct": 20},
-        {"stair_hs": [0, 100]},
-    ],
-}
+# "normal" means no palette: Daily Driver, or Social Mode entered from the header chip.
+NO_PALETTE = "normal"
 
-# Stair brightness when they show a palette color (hue/saturation, or white in Kelvin)
-STAIR_ACCENT_HS_PCT = 40
-STAIR_ACCENT_K_PCT = 35
+# THEME LIBRARY (the dashboard's Themes pop-up). Themes saved or edited on the
+# dashboard live in this file, {theme id: theme}; see basement_palettes.py.
+THEMES_FILE = "/config/basement_themes.json"
+CUSTOM_THEMES = {}
+LIBRARY_SLOTS = 12          # theme pills per page in the pop-up
+LIBRARY_PAGE = 0
+LIBRARY_TAB = "pyscript.basement_theme_tab"          # all, moods, holidays, mine
+LIBRARY_STATUS = "pyscript.basement_theme_library"   # "results" or "none"
+LIBRARY_PAGER = "pyscript.basement_theme_pager"      # "on" when there's more than one page
+THEME_SEARCH_INPUT = "input_text.basement_theme_search"
+THEME_NAME_INPUT = "input_text.basement_theme_name"
+# The editor: "off", or what is being edited: "new", "mine" (one of ours),
+# "builtin" (an unedited built-in) or "edited" (an edited built-in).
+THEME_EDITOR = "pyscript.basement_theme_editor"
 
-# Runtime tracking state
-CURRENT_PALETTE = "synthwave"
-CURRENT_EFFECT = "static"
+# Gap between bulb commands when painting, so the Zigbee mesh isn't flooded.
+PAINT_STEP_S = 0.25
+BULB_STEP_S = 0.15     # stair bulbs one by one, and the toast putting bulbs back
+# Painting a theme takes a few seconds; a newer pick, a flash or all-off cancels it.
+PAINT_TASK = "basement_paint"
+
+# Runtime tracking state (CURRENT_PALETTE is restored from the sensor at load, below)
+CURRENT_PALETTE = NO_PALETTE
 LAST_DOOR_OPEN_TS = 0.0
 LAST_MOTION_BOTTOM_TS = 0.0
 LAST_MOTION_CLEAR_TS = 0.0
@@ -247,6 +233,14 @@ try:
 except Exception:
     pass
 
+# The library tab survives HA restarts; the editor always starts closed.
+state.persist(LIBRARY_TAB, default_value=TAB_ALL)
+state.set(THEME_EDITOR, "off", {"friendly_name": "Basement theme editor"})
+
+# A reload keeps the palette that was painted. (It used to fall back to Synthwave, so
+# the stairs came on pink in Social Mode after any restart.) Checked after the palette
+# helpers below are defined, in restore_current_palette().
+
 
 # ------------------------------------------------------------------------------
 # LIGHTING MODE (Daily Driver or Social Mode)
@@ -298,7 +292,7 @@ def set_lighting_mode(new_mode: str, source: str = "manual"):
 @state_trigger(LIGHTING_MODE_SELECT)
 def on_lighting_mode_changed(value=None, old_value=None):
     """The lighting mode picker changed. Social: count it as manual if nothing else
-    claimed it, Adaptive Lighting off. Daily Driver: stop any palette effect, then
+    claimed it, Adaptive Lighting off. Daily Driver: stop any palette still painting, then
     hand the lights to the theater (if in use) or back to normal."""
     if is_booting() or value == old_value or BLACKOUT_IN_PROGRESS:
         return
@@ -313,7 +307,7 @@ def on_lighting_mode_changed(value=None, old_value=None):
             pass
     elif value in (MODE_DAILY, "Movie Mode"):
         state.set(SOCIAL_SOURCE, value="none")
-        task.unique("basement_ambient_loop")
+        task.unique(PAINT_TASK)
         if safe_state_get(CURTAIN_CALL) == "on":
             return  # curtain call owns the lights until its window ends
         if safe_state_get(THEATER_IN_USE) == "on":
@@ -323,84 +317,86 @@ def on_lighting_mode_changed(value=None, old_value=None):
 
 
 # ------------------------------------------------------------------------------
-# PALETTES AND THE DRIFT EFFECT, AND THE 4 AM RESET
-# A palette has four room colors (ROOM_ZONES, in order) and a fifth entry for
-# the stairs. "Drift" slowly rotates the four colors around the room.
+# PALETTES AND THE 4 AM RESET
+# The palettes themselves are in pyscript/modules/basement_palettes.py: per-zone
+# colors and bulb-by-bulb holiday patterns; themes saved on the dashboard are in THEMES_FILE.
 # ------------------------------------------------------------------------------
-def _stair_accent_on(stair_conf, transition):
-    """Light the stairs in a palette's stair color (its fifth entry). False if it has none."""
-    if "stair_hs" in stair_conf:
-        light.turn_on(entity_id=STAIRLIGHTS, hs_color=stair_conf["stair_hs"], brightness_pct=STAIR_ACCENT_HS_PCT, transition=transition)
-        return True
-    if "stair_k" in stair_conf:
-        light.turn_on(entity_id=STAIRLIGHTS, color_temp_kelvin=stair_conf["stair_k"], brightness_pct=STAIR_ACCENT_K_PCT, transition=transition)
-        return True
-    return False
+def _theme_slot_entity(slot):
+    return f"pyscript.basement_theme_slot_{slot}"
 
 
-def apply_static_palette(palette_name: str, transition: int = 2):
-    """Applies a static palette cleanly across stairs and 4 room zones."""
-    slots = PALETTES.get(palette_name, PALETTES["synthwave"])
-
-    # 1. Stairs accent
-    _stair_accent_on(slots[4], transition)
-
-    task.sleep(0.2)
-
-    # 2. Room zones
-    for idx, zone in enumerate(ROOM_ZONES):
-        params = dict(slots[idx])
-        params["transition"] = transition
-        light.turn_on(entity_id=zone, **params)
-        task.sleep(0.25)
+def _get_palette(palette_id):
+    """A theme to paint: our own or an edited copy first, then the built-in. None if unknown."""
+    if palette_id in CUSTOM_THEMES:
+        return CUSTOM_THEMES[palette_id]
+    return PALETTES.get(palette_id)
 
 
-def _ambient_loop_runner():
-    """Background runner for locked static scenes or smooth hardware drift."""
-    task.unique("basement_ambient_loop")
+def _palette_label(palette_id):
+    """The name the dashboard shows ("" for no palette)."""
+    theme = _get_palette(palette_id)
+    return (theme or {}).get("name", "")
 
-    if CURRENT_EFFECT == "static":
-        apply_static_palette(CURRENT_PALETTE, transition=2)
+
+def _publish_palette_sensor(palette_id):
+    """Set sensor.basement_palette: the theme in use, its name and its swatch colors."""
+    theme = _get_palette(palette_id)
+    state.set(
+        SENSOR_PALETTE,
+        value=palette_id,
+        new_attributes={
+            "friendly_name": "Active Spatial Palette",
+            "icon": "mdi:palette",
+            "label": _palette_label(palette_id),
+            "swatch": (theme.get("swatch") or swatch(theme)) if theme else [],
+        },
+    )
+
+
+def _send_light(entity_id, settings, transition):
+    """One bulb or group to the given settings; {"off": True} turns it off."""
+    if settings.get("off"):
+        light.turn_off(entity_id=entity_id, transition=transition)
+    else:
+        light.turn_on(entity_id=entity_id, transition=transition, **settings)
+
+
+def _paint_stairs(palette, transition) -> bool:
+    """Light the stairs in a palette's stair colors. False if it has none."""
+    plan = stair_plan(palette) if palette else []
+    for entity_id, settings in plan:
+        _send_light(entity_id, settings, transition)
+        if len(plan) > 1:
+            task.sleep(BULB_STEP_S)
+    return bool(plan)
+
+
+def _paint_room(palette, transition):
+    """Paint the room bulbs (or zone groups) in a palette."""
+    for entity_id, settings in room_plan(palette):
+        _send_light(entity_id, settings, transition)
+        task.sleep(PAINT_STEP_S)
+
+
+def apply_static_palette(palette_id: str, transition: int = 2):
+    """Paint a palette across the stairs and the room. Unknown ids do nothing."""
+    palette = _get_palette(palette_id)
+    if not palette:
+        log.warning(f"[Basement] No palette '{palette_id}' to paint")
         return
-
-    # EFFECT 2: Ambient Spatial Drift
-    TRANSITION_TIME = 22
-    HOLD_TIME = 6
-    step = 0
-
-    slots = PALETTES.get(CURRENT_PALETTE, PALETTES["synthwave"])
-    _stair_accent_on(slots[4], 2)
-
-    while get_lighting_mode() == MODE_SOCIAL and CURRENT_EFFECT in DRIFT_EFFECTS:
-        active_slots = PALETTES.get(CURRENT_PALETTE, PALETTES["synthwave"])
-
-        for idx, zone in enumerate(ROOM_ZONES):
-            slot_data = dict(active_slots[(step + idx) % 4])
-            if "hs_color" in slot_data:
-                light.turn_on(
-                    entity_id=zone,
-                    hs_color=slot_data["hs_color"],
-                    brightness_pct=slot_data["brightness_pct"],
-                    transition=TRANSITION_TIME,
-                )
-            else:
-                light.turn_on(
-                    entity_id=zone,
-                    color_temp_kelvin=slot_data["color_temp_kelvin"],
-                    brightness_pct=slot_data["brightness_pct"],
-                    transition=TRANSITION_TIME,
-                )
-            task.sleep(0.15)
-
-        step += 1
-        task.sleep(TRANSITION_TIME + HOLD_TIME)
+    _paint_stairs(palette, transition)
+    task.sleep(0.2)
+    _paint_room(palette, transition)
 
 
-def apply_ambient_lighting():
-    """Social Mode with the current palette and effect, run in the background."""
-    set_lighting_mode(MODE_SOCIAL)
-    task.create(_ambient_loop_runner)
+def restore_current_palette():
+    """At load: pick up the palette the sensor says is painted, if it still exists."""
+    global CURRENT_PALETTE
+    restored = safe_state_get(SENSOR_PALETTE)
+    CURRENT_PALETTE = restored if _get_palette(restored) else NO_PALETTE
 
+
+restore_current_palette()
 
 @time_trigger("cron(0 4 * * *)")
 def safe_nightly_social_reset():
@@ -411,7 +407,7 @@ def safe_nightly_social_reset():
     if _theater_active():
         log.info("[Basement] 4 AM reset skipped: theater in use")
         return
-    task.unique("basement_ambient_loop")
+    task.unique(PAINT_TASK)
     task.unique("stair_red_timer")
     task.unique("stair_timer")
 
@@ -426,9 +422,8 @@ def safe_nightly_social_reset():
 
     set_lighting_mode(MODE_DAILY)
     state.set(CURTAIN_CALL, value="off")
-    state.set(SENSOR_EFFECT, value="static")
     CURRENT_PALETTE = "speakeasy"
-    state.set(SENSOR_PALETTE, value=CURRENT_PALETTE)
+    _publish_palette_sensor(CURRENT_PALETTE)
 
     try:
         switch.turn_on(entity_id=ADAPTIVE_SWITCH)
@@ -550,12 +545,12 @@ def stair_door_opened(old_value=None):
         # Game day: team-green path light, off 5 min after the stairs go quiet.
         _sports_stair_path_light(STAIR_SPORTS_HOLD_S)
     elif mode == MODE_SOCIAL:
-        # In Social Mode: door opening turns on stair lights (if not already on) and leaves them on permanently
-        current_pal = safe_state_get(SENSOR_PALETTE, CURRENT_PALETTE)
-        lit = False
-        if current_pal in PALETTES and current_pal != "normal":
-            lit = _stair_accent_on(PALETTES[current_pal][4], 1)
-        if not lit:
+        # Social Mode: stairs that are already lit stay exactly as they are (a palette,
+        # or colors set by hand). Off stairs come on in the palette's stair color, or
+        # circadian white with no palette, and stay on.
+        if safe_state_get(STAIRLIGHTS) == "on":
+            return
+        if not _paint_stairs(_get_palette(CURRENT_PALETTE), 1):
             _turn_on_circadian_direct(STAIRLIGHTS, transition=1)
 
 
@@ -969,7 +964,7 @@ def basement_all_off():
 
     # 1. Kill any ambient loops, timers, or transitions immediately
     for t in [
-        "basement_ambient_loop",
+        PAINT_TASK,
         "stair_timer",
         "stair_red_timer",
         "stair_peek_timer",
@@ -1039,10 +1034,6 @@ def toggle_all_basement_lights():
 def update_basement_lights_active(**kwargs):
     """Keep binary_sensor.basement_lights_active, and its list of lights that are on, up
     to date for the dashboard chip."""
-    # Only initialize if the telemetry entities don't already exist
-    if safe_state_get(SENSOR_PALETTE) is None or safe_state_get(SENSOR_EFFECT) is None:
-        initialize_basement_telemetry()
-
     monitored = [THEATER_DIMMER, STAIRLIGHTS, MASTER_ZIGBEE_GROUP, BIAS_LIGHTS]
     active_loads = [e for e in monitored if safe_state_get(e) == "on"]
     new_val = "on" if active_loads else "off"
@@ -1137,27 +1128,13 @@ def post_power_restoration_sweep():
         )
 
 
+@time_trigger("startup")
 @service
 def initialize_basement_telemetry(**kwargs):
-    """Create the palette and effect sensors the dashboard reads."""
-    state.set(
-        SENSOR_PALETTE,
-        value=CURRENT_PALETTE or "synthwave",
-        new_attributes={
-            "friendly_name": "Active Spatial Palette",
-            "icon": "mdi:palette",
-            "available_palettes": list(PALETTES.keys()),
-        },
-    )
-    state.set(
-        SENSOR_EFFECT,
-        value=CURRENT_EFFECT or "static",
-        new_attributes={
-            "friendly_name": "Active Lighting Modifier",
-            "icon": "mdi:creation",
-            "available_effects": ["static", "drift"],
-        },
-    )
+    """Publish the palette sensor and theme library the dashboard reads. Runs at every load,
+    so a palette added to basement_palettes.py shows in the theme library right away."""
+    load_theme_library()
+    _publish_palette_sensor(CURRENT_PALETTE)
 
 
 # ------------------------------------------------------------------------------
@@ -1165,42 +1142,279 @@ def initialize_basement_telemetry(**kwargs):
 # ------------------------------------------------------------------------------
 @service
 def select_palette(palette: str):
-    """Pick a color palette: Social Mode, then paint it (static or drifting, per the
-    current effect)."""
+    """Pick a theme (built-in, edited or our own): Social Mode, then paint it."""
     global CURRENT_PALETTE
-    if palette not in PALETTES:
+    if not _get_palette(palette):
+        log.warning(f"[Basement] select_palette: no palette '{palette}'")
         return
 
     CURRENT_PALETTE = palette
-    state.set(SENSOR_PALETTE, value=palette)
+    _publish_palette_sensor(palette)
     set_lighting_mode(MODE_SOCIAL)
+    task.unique(PAINT_TASK)
+    apply_static_palette(palette, transition=2)
 
-    if CURRENT_EFFECT == "static":
-        apply_static_palette(palette, transition=2)
-    else:
-        task.create(_ambient_loop_runner)
+
+# ------------------------------------------------------------------------------
+# THEME LIBRARY (the dashboard's Themes pop-up)
+# The pop-up has LIBRARY_SLOTS fixed pills; _refresh_library() fills them with the
+# themes that match the tab and search box, one page at a time. Hold a pill to edit
+# that theme: it is painted, the pop-up shows the bulbs to change by hand, and Save
+# writes the bulbs as they are to THEMES_FILE.
+# ------------------------------------------------------------------------------
+def _clean_text(value):
+    value = (value or "").strip()
+    return "" if value in ("unknown", "unavailable") else value
+
+
+def _refresh_library():
+    """Fill the pop-up's theme pills for the current tab, search text and page."""
+    global LIBRARY_PAGE
+    tab = safe_state_get(LIBRARY_TAB, TAB_ALL)
+    if tab not in LIBRARY_TABS:
+        tab = TAB_ALL
+    query = _clean_text(safe_state_get(THEME_SEARCH_INPUT, ""))
+    found = filter_entries(library_entries(CUSTOM_THEMES), tab, query)
+    pages = max(1, (len(found) + LIBRARY_SLOTS - 1) // LIBRARY_SLOTS)
+    LIBRARY_PAGE = max(0, min(LIBRARY_PAGE, pages - 1))
+    shown = found[LIBRARY_PAGE * LIBRARY_SLOTS:(LIBRARY_PAGE + 1) * LIBRARY_SLOTS]
+
+    for i in range(LIBRARY_SLOTS):
+        entry = shown[i] if i < len(shown) else None
+        state.set(
+            _theme_slot_entity(i + 1),
+            value="shown" if entry else "hidden",
+            new_attributes={
+                "friendly_name": f"Basement theme slot {i + 1}",
+                "palette_id": entry["id"] if entry else "",
+                "name": entry["name"] if entry else "",
+                "icon": entry["icon"] if entry else "mdi:palette",
+                "swatch": entry["swatch"] if entry else [],
+                "edited": entry["edited"] if entry else False,
+            },
+        )
+    state.set(
+        LIBRARY_STATUS,
+        value="results" if found else "none",
+        new_attributes={"friendly_name": "Basement theme library", "count": len(found), "tab": tab, "query": query},
+    )
+    state.set(
+        LIBRARY_PAGER,
+        value="on" if pages > 1 else "off",
+        new_attributes={"friendly_name": "Basement theme pages", "label": f"Page {LIBRARY_PAGE + 1} of {pages}"},
+    )
+
+
+def load_theme_library():
+    """Read our saved themes from THEMES_FILE (at load), then refresh the pop-up."""
+    global CUSTOM_THEMES
+    try:
+        CUSTOM_THEMES = task.executor(read_themes_file, THEMES_FILE) or {}
+    except Exception as e:
+        log.warning(f"[Basement] Couldn't read {THEMES_FILE}: {e}")
+        CUSTOM_THEMES = {}
+    restore_current_palette()
+    _refresh_library()
+
+
+def _write_themes(themes) -> bool:
+    try:
+        task.executor(write_themes_file, THEMES_FILE, themes)
+        return True
+    except Exception as e:
+        log.error(f"[Basement] Couldn't write {THEMES_FILE}: {e}")
+        _theme_notice(f"Couldn't save the theme ({e}).")
+        return False
+
+
+def _theme_notice(message):
+    """A dashboard notification about the theme library (replaces the last one)."""
+    safe_service(
+        persistent_notification.create,
+        title="Basement themes",
+        message=message,
+        notification_id="basement_themes",
+    )
+
+
+def _slot_palette_id(slot):
+    try:
+        return safe_state_getattr(_theme_slot_entity(int(slot)), "palette_id") or ""
+    except (TypeError, ValueError):
+        return ""
+
+
+def _open_editor(kind, palette_id, name):
+    state.set(
+        THEME_EDITOR,
+        value=kind,
+        new_attributes={"friendly_name": "Basement theme editor", "palette_id": palette_id, "name": name},
+    )
+    safe_service(input_text.set_value, entity_id=THEME_NAME_INPUT, value=name)
+
+
+@state_trigger(THEME_SEARCH_INPUT)
+def theme_search_changed(value=None):
+    """The search box changed: back to the first page of matches."""
+    global LIBRARY_PAGE
+    LIBRARY_PAGE = 0
+    _refresh_library()
 
 
 @service
-def select_effect_modifier(effect: str):
-    """Pick static or a drift effect for the palette, and restart it."""
-    global CURRENT_EFFECT
-    if effect in {"static", *DRIFT_EFFECTS}:
-        CURRENT_EFFECT = effect
-        state.set(SENSOR_EFFECT, value=effect)
-        set_lighting_mode(MODE_SOCIAL)
-        task.create(_ambient_loop_runner)
+def select_theme_slot(slot: int):
+    """Tap a theme pill: paint that theme."""
+    palette_id = _slot_palette_id(slot)
+    if palette_id:
+        select_palette(palette_id)
+
+
+@service
+def select_theme_tab(tab: str):
+    """Library filter: all, moods, holidays or mine."""
+    global LIBRARY_PAGE
+    if tab in LIBRARY_TABS:
+        state.set(LIBRARY_TAB, value=tab)
+        LIBRARY_PAGE = 0
+        _refresh_library()
+
+
+@service
+def theme_page(step: int = 1):
+    """Next (1) or previous (-1) page of themes, wrapping around."""
+    global LIBRARY_PAGE
+    count = int(safe_state_getattr(LIBRARY_STATUS, "count") or 0)
+    pages = max(1, (count + LIBRARY_SLOTS - 1) // LIBRARY_SLOTS)
+    LIBRARY_PAGE = (LIBRARY_PAGE + int(step)) % pages
+    _refresh_library()
+
+
+@service
+def clear_theme_search():
+    safe_service(input_text.set_value, entity_id=THEME_SEARCH_INPUT, value="")
+    theme_search_changed()
+
+
+@service
+def edit_theme_slot(slot: int):
+    """Hold a theme pill: paint it and open the editor on it."""
+    palette_id = _slot_palette_id(slot)
+    if not palette_id:
+        return
+    select_palette(palette_id)
+    if palette_id not in PALETTES:
+        kind = "mine"
+    elif palette_id in CUSTOM_THEMES:
+        kind = "edited"
+    else:
+        kind = "builtin"
+    _open_editor(kind, palette_id, _palette_label(palette_id))
+
+
+@service
+def new_theme():
+    """"New from current lights": open the editor on the lights as they are now."""
+    _open_editor("new", "", "")
+
+
+@service
+def close_theme_editor():
+    state.set(THEME_EDITOR, value="off", new_attributes={"palette_id": "", "name": ""})
+    safe_service(input_text.set_value, entity_id=THEME_NAME_INPUT, value="")
+
+
+def _snapshot(bulbs):
+    """{bulb: settings} for the bulbs that are reporting, as they are now."""
+    found = {}
+    for bulb in bulbs:
+        settings = settings_from_state(safe_state_get(bulb), state.getattr(bulb))
+        if settings:
+            found[bulb] = settings
+    return found
+
+
+@service
+def save_theme(as_new: bool = False):
+    """Editor Save: store every room and stair bulb as it is now (color, brightness, or
+    off). Saves over the theme being edited (an edited copy, for a built-in), or as a
+    new theme of our own for "new" or as_new. The name comes from the name box."""
+    global CURRENT_PALETTE, CUSTOM_THEMES
+    kind = safe_state_get(THEME_EDITOR, "off")
+    editing_id = safe_state_getattr(THEME_EDITOR, "palette_id") or ""
+    name = _clean_text(safe_state_get(THEME_NAME_INPUT, ""))[:40]
+
+    bulbs = _snapshot(ROOM_BULBS)
+    stair_bulbs = _snapshot(STAIR_BULBS)
+    if not [s for s in list(bulbs.values()) + list(stair_bulbs.values()) if not s.get("off")]:
+        _theme_notice("Nothing to save: turn on some basement lights first.")
+        return
+
+    if as_new or kind in ("new", "off") or not editing_id:
+        theme_id = new_theme_id(CUSTOM_THEMES)
+        icon = MY_THEME_ICON
+        if not name:
+            name = f"My theme {theme_id.split('_')[-1]}"
+        elif editing_id and name == _palette_label(editing_id):
+            name = f"{name} (copy)"
+    else:
+        theme_id = editing_id
+        icon = (PALETTES.get(theme_id) or CUSTOM_THEMES.get(theme_id) or {}).get("icon") or MY_THEME_ICON
+        name = name or _palette_label(theme_id)
+
+    theme = {
+        "name": name,
+        "icon": icon,
+        "bulbs": bulbs,
+        "stair_bulbs": stair_bulbs,
+        "saved_at": time.strftime("%Y-%m-%d %H:%M"),
+    }
+    theme["swatch"] = swatch(theme)
+    themes = dict(CUSTOM_THEMES)
+    themes[theme_id] = theme
+    if not _write_themes(themes):
+        return
+    CUSTOM_THEMES = themes
+    log.info(f"[Basement] Saved theme {theme_id}: {name}")
+
+    # The lights already look like the theme, so it is the one in use.
+    CURRENT_PALETTE = theme_id
+    _publish_palette_sensor(theme_id)
+    close_theme_editor()
+    _refresh_library()
+
+
+@service
+def delete_theme():
+    """Editor Delete (one of ours) or Reset to original (an edited built-in)."""
+    global CURRENT_PALETTE, CUSTOM_THEMES
+    kind = safe_state_get(THEME_EDITOR, "off")
+    theme_id = safe_state_getattr(THEME_EDITOR, "palette_id") or ""
+    if kind not in ("mine", "edited") or theme_id not in CUSTOM_THEMES:
+        return
+    themes = dict(CUSTOM_THEMES)
+    del themes[theme_id]
+    if not _write_themes(themes):
+        return
+    CUSTOM_THEMES = themes
+
+    if CURRENT_PALETTE == theme_id:
+        if kind == "edited":
+            apply_static_palette(theme_id, transition=2)  # back to the original colors
+        else:
+            CURRENT_PALETTE = NO_PALETTE
+        _publish_palette_sensor(CURRENT_PALETTE)
+    close_theme_editor()
+    _refresh_library()
 
 
 @service
 def mood_reset_normal():
-    """Back to normal: no palette or effect, Daily Driver, Adaptive Lighting on and
-    applied, stairs off."""
-    global CURRENT_EFFECT
-    CURRENT_EFFECT = "static"
-    state.set(SENSOR_EFFECT, value="static")
-    state.set(SENSOR_PALETTE, value="normal")
-    task.unique("basement_ambient_loop")
+    """Back to normal: no palette, Daily Driver, Adaptive Lighting on and applied,
+    stairs off."""
+    global CURRENT_PALETTE
+    CURRENT_PALETTE = NO_PALETTE
+    _publish_palette_sensor(NO_PALETTE)
+    task.unique(PAINT_TASK)
 
     set_lighting_mode(MODE_DAILY)
     switch.turn_on(entity_id=ADAPTIVE_SWITCH)
@@ -1217,12 +1431,12 @@ def mood_reset_normal():
 
 @service
 def effect_bar_toast():
-    """Flash the bar and stairs amber three times for a toast, then go back to the
-    palette."""
-    task.unique("basement_ambient_loop")
-    running_effect = CURRENT_EFFECT
+    """Flash the bar and stairs amber three times for a toast, then put them back the
+    way they were."""
+    task.unique(PAINT_TASK)
     toast_amber = [255, 170, 0]
     bar_targets = [ROOM_ZONES[0], STAIRLIGHTS]
+    before = _snapshot(BAR_BULBS + STAIR_BULBS)
 
     for _ in range(3):
         light.turn_on(entity_id=bar_targets, rgb_color=toast_amber, brightness_pct=100, transition=0)
@@ -1233,16 +1447,15 @@ def effect_bar_toast():
     light.turn_on(entity_id=bar_targets, rgb_color=toast_amber, brightness_pct=100, transition=0)
     task.sleep(0.8)
 
-    if running_effect != "static":
-        apply_ambient_lighting()
-    else:
-        apply_static_palette(CURRENT_PALETTE or "synthwave", transition=2)
+    for bulb, settings in before.items():
+        _send_light(bulb, settings, 2)
+        task.sleep(BULB_STEP_S)
 
 
 @service
 def effect_eagles_chant():
     """Manual trigger: plays the Zigbee-safe solid Kelly Green Philadelphia Eagles touchdown chant."""
-    task.unique("basement_ambient_loop")
+    task.unique(PAINT_TASK)
     eagles_green = EAGLES_RGB
     stair_green = {"hs_color": EAGLES_STAIR_HS}
 
@@ -1270,14 +1483,6 @@ def effect_eagles_chant():
     # End holding solid team green
     task.sleep(0.35)
     _team_green_on(100, 2, eagles_green, stair_green)
-
-
-@service
-def toggle_ambient_drift():
-    """Dashboard button: switch the palette between static and drift."""
-    cur_eff = safe_state_get(SENSOR_EFFECT, "static")
-    new_eff = "static" if cur_eff in DRIFT_EFFECTS else "drift"
-    select_effect_modifier(new_eff)
 
 
 @service

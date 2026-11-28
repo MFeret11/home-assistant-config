@@ -32,6 +32,10 @@ class MockState:
         if attrs:
             self._attrs.setdefault(entity_id, {}).update(attrs)
 
+    def persist(self, entity_id, default_value=None, default_attributes=None):
+        if self.get(entity_id) is None and default_value is not None:
+            self.set(entity_id, default_value, default_attributes)
+
 
 class ServiceSpy:
     def __init__(self):

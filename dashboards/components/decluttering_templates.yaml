@@ -129,22 +129,42 @@ spacer_card:
       style: >
         ha-card { background: transparent !important; border: none !important; box-shadow: none !important; }
 
-# Palette pill for the lighting card (2x2 grid, icon beside label)
-quick_mood_pill:
+# Theme pill in the Themes pop-up. [[entity]] is a library slot
+# (pyscript.basement_theme_slot_N) that basement.py fills with whichever theme
+# matches the search: its name, icon and swatch colors. Idle, a strip of the
+# theme's colors runs along the bottom; the theme in use (Social Mode) fills with
+# them and glows. Tap paints it; hold opens the editor on it.
+theme_slot_pill:
   card:
     type: custom:mushroom-template-card
-    primary: "[[name]]"
-    icon: "[[icon]]"
-    icon_color: "[[color]]"
+    primary: "{{ state_attr('[[entity]]', 'name') }}{{ ' ✎' if state_attr('[[entity]]', 'edited') else '' }}"
+    icon: "{{ state_attr('[[entity]]', 'icon') or 'mdi:palette' }}"
+    icon_color: "{{ (state_attr('[[entity]]', 'swatch') or ['255, 193, 7'])[0] }}"
     layout: horizontal
     tap_action:
       action: perform-action
-      perform_action: pyscript.select_palette
+      perform_action: pyscript.select_theme_slot
       data:
-        palette: "[[palette_id]]"
+        slot: "[[slot]]"
       haptic: light
+    hold_action:
+      action: perform-action
+      perform_action: pyscript.edit_theme_slot
+      data:
+        slot: "[[slot]]"
+      haptic: medium
     card_mod:
       style: |
+        {% set sw = state_attr('[[entity]]', 'swatch') or ['255, 255, 255'] %}
+        {% set active = states('sensor.basement_palette') == state_attr('[[entity]]', 'palette_id') and is_state('input_select.basement_lighting_mode', 'Social Mode') %}
+        {% set ns = namespace(strip=[], fill=[]) %}
+        {% for c in sw %}
+          {% set a = (loop.index0 * 100 / sw | length) | round(1) %}
+          {% set b = (loop.index * 100 / sw | length) | round(1) %}
+          {% set ns.strip = ns.strip + ['rgba(' ~ c ~ ', 0.9) ' ~ a ~ '% ' ~ b ~ '%'] %}
+          {% set ns.fill = ns.fill + ['rgba(' ~ c ~ ', 0.38)'] %}
+        {% endfor %}
+        {% set fill = ns.fill if ns.fill | length > 1 else ns.fill + ns.fill %}
         ha-card {
           height: 36px !important;
           min-height: 36px !important;
@@ -158,18 +178,24 @@ quick_mood_pill:
           overflow: hidden !important;
           contain: content !important;
           box-sizing: border-box !important;
-          {% set active = is_state('sensor.basement_palette', '[[palette_id]]') and is_state('input_select.basement_lighting_mode', 'Social Mode') %}
-          background: {{ '[[active_bg]]' if active else 'rgba(255, 255, 255, 0.05)' }} !important;
-          border: {{ '1.5px solid [[active_border]]' if active else '1px solid rgba(255, 255, 255, 0.1)' }} !important;
-          box-shadow: {{ '0 0 14px [[glow]]' if active else 'none' }} !important;
           transition: all 0.2s ease !important;
+        {% if active %}
+          background: linear-gradient(135deg, {{ fill | join(', ') }}) !important;
           background-size: 200% 200% !important;
-          animation: {{ 'moodShift 5s ease-in-out infinite' if active else 'none' }};
+          border: 1.5px solid rgba({{ sw[0] }}, 0.95) !important;
+          box-shadow: 0 0 14px rgba({{ sw[0] }}, 0.5) !important;
+          animation: moodShift 5s ease-in-out infinite;
+        {% else %}
+          background: linear-gradient(90deg, {{ ns.strip | join(', ') }}) bottom / 100% 3px no-repeat, rgba(255, 255, 255, 0.05) !important;
+          border: 1px solid rgba(255, 255, 255, 0.1) !important;
+          box-shadow: none !important;
+          animation: none;
+        {% endif %}
         }
         @keyframes moodShift {
-          0%   { background-position: 0% 50%;   box-shadow: 0 0 10px [[glow]]; }
-          50%  { background-position: 100% 50%; box-shadow: 0 0 20px [[glow]]; }
-          100% { background-position: 0% 50%;   box-shadow: 0 0 10px [[glow]]; }
+          0%   { background-position: 0% 50%;   box-shadow: 0 0 10px rgba({{ sw[0] }}, 0.45); }
+          50%  { background-position: 100% 50%; box-shadow: 0 0 20px rgba({{ sw[0] }}, 0.45); }
+          100% { background-position: 0% 50%;   box-shadow: 0 0 10px rgba({{ sw[0] }}, 0.45); }
         }
         ha-card:active { transform: scale(0.94); }
         ha-card .container {
@@ -197,8 +223,85 @@ quick_mood_pill:
           line-height: 1.1 !important;
           white-space: nowrap !important;
           overflow: hidden !important;
-          text-overflow: clip !important;
+          text-overflow: ellipsis !important;
         }
+
+# Filter button above the theme pills: All, Moods, Holidays, Mine.
+theme_tab_button:
+  card:
+    type: custom:mushroom-template-card
+    primary: "[[name]]"
+    layout: horizontal
+    tap_action:
+      action: perform-action
+      perform_action: pyscript.select_theme_tab
+      data:
+        tab: "[[tab]]"
+      haptic: light
+    card_mod:
+      style: |
+        {% set active = is_state('pyscript.basement_theme_tab', '[[tab]]') %}
+        ha-card {
+          height: 30px !important;
+          min-height: 30px !important;
+          padding: 0 4px !important;
+          --spacing: 0px !important;
+          --mush-spacing: 0px !important;
+          border-radius: 12px !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          background: {{ 'rgba(255, 193, 7, 0.18)' if active else 'transparent' }} !important;
+          border: 1px solid {{ 'rgba(255, 193, 7, 0.6)' if active else 'rgba(255, 255, 255, 0.08)' }} !important;
+          box-shadow: none !important;
+        }
+        ha-card:active { transform: scale(0.94); }
+        ha-card .container { padding: 0 !important; justify-content: center !important; }
+        ha-card mushroom-shape-icon { display: none !important; }
+        ha-card mushroom-state-info { flex: 0 1 auto !important; padding: 0 !important; }
+        ha-card .primary {
+          font-size: 0.7rem !important;
+          font-weight: {{ 700 if active else 500 }} !important;
+          opacity: {{ 1 if active else 0.65 }} !important;
+          white-space: nowrap !important;
+        }
+
+# One bulb in the theme editor: shows the bulb's own color, tap to change it.
+theme_bulb_button:
+  card:
+    type: custom:mushroom-template-card
+    entity: "[[entity]]"
+    primary: "[[name]]"
+    icon: "[[icon]]"
+    icon_color: >-
+      {% set rgb = state_attr('[[entity]]', 'rgb_color') %}
+      {{ (rgb | join(', ')) if is_state('[[entity]]', 'on') and rgb else 'disabled' }}
+    layout: horizontal
+    tap_action:
+      action: more-info
+      haptic: light
+    card_mod:
+      style: |
+        {% set rgb = state_attr('[[entity]]', 'rgb_color') %}
+        {% set c = (rgb | join(', ')) if is_state('[[entity]]', 'on') and rgb else '255, 255, 255' %}
+        ha-card {
+          height: 34px !important;
+          min-height: 34px !important;
+          padding: 0 6px !important;
+          --spacing: 0px !important;
+          --mush-spacing: 0px !important;
+          border-radius: 12px !important;
+          display: flex !important;
+          align-items: center !important;
+          background: rgba({{ c }}, {{ 0.14 if is_state('[[entity]]', 'on') else 0.03 }}) !important;
+          border: 1px solid rgba({{ c }}, {{ 0.5 if is_state('[[entity]]', 'on') else 0.1 }}) !important;
+          box-shadow: none !important;
+        }
+        ha-card:active { transform: scale(0.94); }
+        ha-card .container { padding: 0 !important; gap: 4px !important; }
+        ha-card mushroom-shape-icon { --shape-size: 22px !important; --icon-size: 14px !important; }
+        ha-card mushroom-state-info { min-width: 0 !important; padding: 0 !important; }
+        ha-card .primary { font-size: 0.68rem !important; font-weight: 600 !important; white-space: nowrap !important; }
 
 # Clean Remote Transport Button
 # (default replaces the unsupported [[haptic|light]] pipe syntax)
@@ -260,7 +363,7 @@ announcer_preset_button:
           margin-bottom: 2px !important;
         }
 
-# Lighting Effect Pill (Toast, Eagles): same shape as quick_mood_pill, fires a pyscript effect.
+# Lighting Effect Pill (Toast, Eagles): same shape as theme_slot_pill, fires a pyscript effect.
 # active_expr is a Jinja expression for when to highlight it; by default it never highlights.
 effect_pill:
   default:

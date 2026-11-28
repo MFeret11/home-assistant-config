@@ -15,6 +15,14 @@ views:
           - !include components/header_cockpit_chips.yaml
           - !include components/header_avr_volume.yaml
           - !include components/header_booth_announcer.yaml
+          # Phones stack the columns lighting-first, so they get the now-playing
+          # poster up here instead (shown only while the theater is in use).
+          - type: vertical-stack
+            visibility:
+              - condition: screen
+                media_query: "(max-width: 767px)"
+            cards:
+              - !include components/now_playing_marquee.yaml
 
       # LEFT (first on a phone): lighting, the most-used controls
       - type: grid
@@ -25,7 +33,14 @@ views:
       # column is now-playing plus a compact mode strip and session controls.
       - type: grid
         cards:
-          - !include components/now_playing_marquee.yaml
+          # Wider screens: poster at the top of the theater column (phones: see header).
+          - type: vertical-stack
+            visibility:
+              - condition: screen
+                media_query: "(min-width: 768px)"
+            cards:
+              - !include components/now_playing_marquee.yaml
           - !include components/theater_stage.yaml
           - !include components/new_seasons_trakt.yaml
           - !include components/theater_remote_popup.yaml
+          - !include components/theme_library_popup.yaml

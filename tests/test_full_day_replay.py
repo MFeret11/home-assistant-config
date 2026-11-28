@@ -21,6 +21,11 @@ class MockState:
         self._s[k] = str(v)
         if new_attributes: self._a.setdefault(k, {}).update(new_attributes)
 
+    def persist(self, entity_id, default_value=None, default_attributes=None):
+        if self.get(entity_id) is None and default_value is not None:
+            self.set(entity_id, default_value, default_attributes)
+
+
 class ServiceSpy:
     def __init__(self): self.calls = []
     def clear(self): self.calls.clear()

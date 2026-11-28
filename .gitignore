@@ -52,3 +52,7 @@ dashboards/private/
 # Private packages: entity IDs that contain real names (see packages/private_*.yaml)
 packages/private_*.yaml
 themes/house_glass.yaml
+
+# Basement themes saved/edited on the dashboard (pyscript/basement.py THEMES_FILE)
+basement_themes.json
+basement_themes.json.tmp

@@ -7,6 +7,7 @@ import sys
 import os
 import time
 import builtins
+import json
 import re
 
 pyscript_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "pyscript"))
@@ -34,6 +35,10 @@ class MockState:
         attrs = new_attributes or kwargs.get("attributes")
         if attrs:
             self._attrs.setdefault(entity_id, {}).update(attrs)
+
+    def persist(self, entity_id, default_value=None, default_attributes=None):
+        if self.get(entity_id) is None and default_value is not None:
+            self.set(entity_id, default_value, default_attributes)
 
 
 class ServiceSpy:
@@ -166,6 +171,7 @@ builtins.scene = MockDomain("scene")
 builtins.pyscript = MockDomain("pyscript")
 builtins.notify = MockDomain("notify")
 builtins.persistent_notification = MockDomain("persistent_notification")
+builtins.input_text = MockDomain("input_text")
 builtins.shell_command = MockDomain("shell_command")
 
 # Mock Decorators
@@ -247,7 +253,6 @@ def setup_clean_environment():
     state.set("pyscript.basement_sports_painted", "off")
     basement.LAST_ADB_STATE = None
     basement.CURRENT_PALETTE = "synthwave"
-    basement.CURRENT_EFFECT = "static"
     basement.IS_EFFECT_UPDATING = False
 
     # Base Entities
@@ -1926,7 +1931,7 @@ def test_theater_sports_paints_featured_team():
 
 
 # ==============================================================================
-# SUITE 12: SPORTS ORCHESTRATION, SLIDER SYNC & DRIFT ENGINE (9 TESTS)
+# SUITE 12: SPORTS ORCHESTRATION & SLIDER SYNC
 # ==============================================================================
 def test_play_sports_orchestration():
     """Verify play_sports sets 'sports' mode, powers hardware, ducks center, and sets green."""
@@ -2144,7 +2149,7 @@ def test_nightly_reset_leaves_a_running_session_alone():
 
     # Nothing running: the reset happens, and the palette in use matches the dashboard
     setup_clean_environment()
-    basement.CURRENT_PALETTE = "cyberpunk"
+    basement.CURRENT_PALETTE = "christmas"
     basement.safe_nightly_social_reset()
     assert state.get("sensor.basement_palette") == "speakeasy"
     assert basement.CURRENT_PALETTE == "speakeasy", "FAIL: Palette in use differs from the dashboard's!"
@@ -2163,19 +2168,6 @@ def test_play_music_cooling_projector_leaves_onn_asleep():
     assert not spy.was_called("media_player", "turn_on", "media_player.onn_pro"), "FAIL: Woke the Onn!"
     assert not any(c["domain"] == "remote" for c in spy.calls), "FAIL: Sent something to the Onn!"
     print("  ✓ [Core] test_play_music_cooling_projector_leaves_onn_asleep PASSED")
-
-
-def test_toggle_ambient_drift_service():
-    """Verify toggle_ambient_drift flips between static and drift."""
-    setup_clean_environment()
-    state.set("sensor.basement_effect", "static")
-
-    basement.toggle_ambient_drift()
-    assert state.get("sensor.basement_effect") == "drift", "FAIL: Did not toggle to drift!"
-
-    basement.toggle_ambient_drift()
-    assert state.get("sensor.basement_effect") == "static", "FAIL: Did not toggle back to static!"
-    print("  ✓ [AmbientDrift] test_toggle_ambient_drift_service PASSED")
 
 
 def test_theater_volume_up_down_fine_step():
@@ -3267,24 +3259,6 @@ def test_media_search_candidate_sanitization_matrix():
     print("  ✓ [TitleCleaningMatrix] test_media_search_candidate_sanitization_matrix PASSED (all torrent & TV formats resolved)")
 
 
-def test_ambient_drift_state_machine():
-    """Verify ambient drift toggle and sensor state updates."""
-    setup_clean_environment()
-    state.set("sensor.basement_effect", "static")
-
-    # Toggle to drift
-    basement.toggle_ambient_drift()
-    assert state.get("sensor.basement_effect") == "drift", \
-        f"FAIL: toggle_ambient_drift failed to set 'drift': {state.get('sensor.basement_effect')}"
-
-    # Toggle back to static
-    basement.toggle_ambient_drift()
-    assert state.get("sensor.basement_effect") == "static", \
-        f"FAIL: toggle_ambient_drift failed to set 'static': {state.get('sensor.basement_effect')}"
-
-    print("  ✓ [AmbientDriftState] test_ambient_drift_state_machine PASSED (static <-> drift verified)")
-
-
 def test_packages_theater_yaml_template_contracts():
     """Verify template logic defined in packages/theater.yaml for telemetry and power sensors."""
     pkg_path = os.path.join(os.path.dirname(__file__), "..", "packages", "theater.yaml")
@@ -3534,9 +3508,9 @@ def test_live_scenario_quick_mood_ribbon_during_active_movie():
     assert state.get("media_player.theater_receiver") == "on"
     assert state.get("sensor.theater_mode") == "movie"
 
-    # 3. Operator switches to 'Cyberpunk'
-    basement.select_palette("cyberpunk")
-    assert state.get("sensor.basement_palette") == "cyberpunk"
+    # 3. Operator switches to 'Christmas'
+    basement.select_palette("christmas")
+    assert state.get("sensor.basement_palette") == "christmas"
     assert state.get("input_select.basement_lighting_mode") == "Social Mode"
 
     # 4. Operator resets to circadian normal
@@ -3597,9 +3571,10 @@ def test_pyscript_has_no_generator_expressions():
     import ast
     pyscript_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "pyscript")
     offenders = []
-    for fname in sorted(os.listdir(pyscript_dir)):
-        if not fname.endswith(".py"):
-            continue
+    files = [f for f in sorted(os.listdir(pyscript_dir)) if f.endswith(".py")]
+    for sub in ("modules", "apps"):
+        files += [os.path.join(sub, f) for f in sorted(os.listdir(os.path.join(pyscript_dir, sub))) if f.endswith(".py")]
+    for fname in files:
         tree = ast.parse(open(os.path.join(pyscript_dir, fname)).read())
         exempt = set()
         for node in ast.walk(tree):
@@ -3944,6 +3919,256 @@ def _green_calls():
     return [c for c in spy.calls if c["domain"] == "light" and c["service"] == "turn_on" and c["kwargs"].get("rgb_color")]
 
 
+def _light_calls(service="turn_on"):
+    return [c for c in spy.calls if c["domain"] == "light" and c["service"] == service]
+
+
+def test_social_door_leaves_lit_stairs_alone():
+    """Social Mode: opening the door must not repaint stairs that are already lit (the
+    hand-set Christmas stairs kept going back to Synthwave pink)."""
+    setup_clean_environment()
+    state.set("input_select.basement_lighting_mode", "Social Mode")
+    basement.CURRENT_PALETTE = "synthwave"
+    state.set("light.stairlights", "on")
+    state.set("binary_sensor.basement_stairs_door_sensor", "on")
+    spy.clear()
+    basement.stair_door_opened(old_value="off")
+    assert not [c for c in _light_calls() if c["kwargs"].get("entity_id") == "light.stairlights"], \
+        "FAIL: Social door open repainted lit stairs!"
+
+    # Off stairs still come on, in the palette's stair color
+    state.set("light.stairlights", "off")
+    spy.clear()
+    basement.stair_door_opened(old_value="off")
+    call = spy.last_call_for("light", "turn_on")
+    assert call and call["kwargs"]["entity_id"] == "light.stairlights", "FAIL: Off stairs not lit on door open!"
+    assert call["kwargs"]["hs_color"] == [300, 95]
+    print("  ✓ [Palettes] test_social_door_leaves_lit_stairs_alone PASSED")
+
+
+def test_no_palette_after_reload_means_white_stairs():
+    """A reload with no painted palette must not fall back to Synthwave (pink stairs)."""
+    setup_clean_environment()
+    basement.restore_current_palette()
+    assert basement.CURRENT_PALETTE == "normal", "FAIL: Reload picked a palette nobody chose!"
+    state.set("input_select.basement_lighting_mode", "Social Mode")
+    state.set("light.stairlights", "off")
+    spy.clear()
+    basement.stair_door_opened(old_value="off")
+    assert not [c for c in _light_calls() if "hs_color" in c["kwargs"]], "FAIL: Stairs painted a color with no palette!"
+    print("  ✓ [Palettes] test_no_palette_after_reload_means_white_stairs PASSED")
+
+
+def test_christmas_alternates_bulb_by_bulb():
+    """Holiday patterns paint each room bulb in turn (red, green, red...) and each stair bulb."""
+    setup_clean_environment()
+    spy.clear()
+    basement.select_palette("christmas")
+    assert state.get("input_select.basement_lighting_mode") == "Social Mode"
+    assert state.get("sensor.basement_palette") == "christmas"
+    hues = {c["kwargs"]["entity_id"]: c["kwargs"]["hs_color"][0] for c in _light_calls() if "hs_color" in c["kwargs"]}
+    from basement_palettes import ROOM_BULBS, STAIR_BULBS
+    for i, bulb in enumerate(ROOM_BULBS):
+        assert hues.get(bulb) == (0 if i % 2 == 0 else 120), f"FAIL: {bulb} wrong Christmas color: {hues.get(bulb)}"
+    assert [hues.get(b) for b in STAIR_BULBS] == [0, 120, 0], "FAIL: Stairs not red/green/red!"
+    assert state.getattr("sensor.basement_palette", "label") == "Christmas"
+    print("  ✓ [Palettes] test_christmas_alternates_bulb_by_bulb PASSED")
+
+
+def _fake_themes_file():
+    """Swap the themes file helpers for in-memory fakes; returns the 'file'."""
+    disk = {"themes": None}
+    def write(path, themes):
+        disk["themes"] = json.loads(json.dumps(themes))  # must survive JSON
+    def read(path):
+        return disk["themes"] or {}
+    write.test_fake = True
+    read.test_fake = True
+    basement.write_themes_file = write
+    basement.read_themes_file = read
+    basement.CUSTOM_THEMES = {}
+    basement.LIBRARY_PAGE = 0
+    return disk
+
+
+def _slot_ids():
+    return [state.getattr(f"pyscript.basement_theme_slot_{n}").get("palette_id")
+            for n in range(1, 13) if state.get(f"pyscript.basement_theme_slot_{n}") == "shown"]
+
+
+def _set_bulbs_for_save():
+    state.set("light.bar_light_1", "on", {"color_mode": "hs", "hs_color": [0, 100], "brightness": 255})
+    state.set("light.bar_light_2", "on", {"color_mode": "color_temp", "color_temp_kelvin": 2700, "brightness": 128})
+    state.set("light.lounge_light_1", "off")
+    state.set("light.stairlight_1", "on", {"color_mode": "hs", "hs_color": [120, 100], "brightness": 102})
+
+
+def test_theme_library_search_tabs_and_pages():
+    """The pop-up pills show the themes for the tab and search text, 12 per page."""
+    setup_clean_environment()
+    _fake_themes_file()
+    # Enough of our own themes (listed after the built-ins, by name) to need two pages
+    mine = {f"my_{n}": {"name": f"Party {n}", "bulbs": {"light.bar_light_1": {"hs_color": [n * 40, 80], "brightness_pct": 60}}}
+            for n in range(1, 7)}
+    basement.CUSTOM_THEMES = mine
+    state.set("pyscript.basement_theme_tab", "all")
+    basement._refresh_library()
+    from basement_palettes import PALETTES
+    every = list(PALETTES.keys()) + [f"my_{n}" for n in range(1, 7)]
+    assert _slot_ids() == every[:12], "FAIL: First page isn't the first 12 themes!"
+    assert state.get("pyscript.basement_theme_pager") == "on"
+    basement.theme_page(1)
+    assert _slot_ids() == every[12:], "FAIL: Second page wrong!"
+    basement.theme_page(1)
+    assert _slot_ids()[0] == "speakeasy", "FAIL: Paging doesn't wrap!"
+
+    basement.select_theme_tab("holidays")
+    assert _slot_ids()[0] == "christmas" and "speakeasy" not in _slot_ids()
+    assert state.get("pyscript.basement_theme_pager") == "off"
+
+    basement.CUSTOM_THEMES = {}
+    basement.select_theme_tab("all")
+    state.set("input_text.basement_theme_search", "MAS")
+    basement.theme_search_changed()
+    assert _slot_ids() == ["christmas"], f"FAIL: Search found {_slot_ids()}"
+    state.set("input_text.basement_theme_search", "zzz")
+    basement.theme_search_changed()
+    assert state.get("pyscript.basement_theme_library") == "none"
+    assert _slot_ids() == []
+
+    state.set("input_text.basement_theme_search", "")
+    basement.theme_search_changed()
+    spy.clear()
+    basement.select_theme_slot(1)
+    assert state.get("sensor.basement_palette") == "speakeasy"
+    assert state.get("input_select.basement_lighting_mode") == "Social Mode"
+    print("  ✓ [Themes] test_theme_library_search_tabs_and_pages PASSED")
+
+
+def test_new_theme_saved_and_recalled():
+    """New from current lights: every bulb (color, white, off) saved to the file and painted back."""
+    setup_clean_environment()
+    disk = _fake_themes_file()
+    _set_bulbs_for_save()
+    basement.new_theme()
+    assert state.get("pyscript.basement_theme_editor") == "new"
+    state.set("input_text.basement_theme_name", "Movie Night")
+    basement.save_theme()
+    theme = disk["themes"]["my_1"]
+    assert theme["name"] == "Movie Night"
+    assert theme["bulbs"]["light.bar_light_1"] == {"hs_color": [0, 100], "brightness_pct": 100}
+    assert theme["bulbs"]["light.bar_light_2"] == {"color_temp_kelvin": 2700, "brightness_pct": 50}
+    assert theme["bulbs"]["light.lounge_light_1"] == {"off": True}
+    assert "light.lounge_light_2" not in theme["bulbs"], "FAIL: Saved a bulb that isn't reporting!"
+    assert theme["swatch"][0] == "255, 0, 0"
+    assert state.get("sensor.basement_palette") == "my_1"
+    assert state.get("pyscript.basement_theme_editor") == "off"
+
+    # A reload reads it back from the file
+    basement.CUSTOM_THEMES = {}
+    basement.load_theme_library()
+    assert "my_1" in basement.CUSTOM_THEMES
+    basement.select_theme_tab("mine")
+    assert _slot_ids() == ["my_1"]
+
+    spy.clear()
+    basement.select_palette("my_1")
+    on = {c["kwargs"]["entity_id"]: c["kwargs"] for c in _light_calls()}
+    assert on["light.bar_light_1"]["hs_color"] == [0, 100]
+    assert on["light.bar_light_2"]["color_temp_kelvin"] == 2700
+    assert on["light.stairlight_1"]["hs_color"] == [120, 100]
+    assert spy.was_called("light", "turn_off", "light.lounge_light_1"), "FAIL: Saved-off bulb not turned off!"
+
+    # Edit it, save as new: a copy, original untouched
+    basement.edit_theme_slot(1)
+    assert state.get("pyscript.basement_theme_editor") == "mine"
+    basement.save_theme(as_new=True)
+    assert disk["themes"]["my_2"]["name"] == "Movie Night (copy)"
+
+    # Delete the copy
+    basement.select_theme_tab("mine")
+    slot = _slot_ids().index("my_2") + 1
+    basement.edit_theme_slot(slot)
+    basement.delete_theme()
+    assert "my_2" not in disk["themes"] and "my_1" in disk["themes"]
+    assert basement.CURRENT_PALETTE == "normal"
+    print("  ✓ [Themes] test_new_theme_saved_and_recalled PASSED")
+
+
+def test_edit_builtin_then_reset_to_original():
+    """Editing Christmas saves an edited copy under the same id; Reset brings the original back."""
+    setup_clean_environment()
+    disk = _fake_themes_file()
+    basement.select_theme_tab("holidays")
+    basement.edit_theme_slot(1)  # Christmas
+    assert state.get("pyscript.basement_theme_editor") == "builtin"
+    _set_bulbs_for_save()  # changed by hand
+    basement.save_theme()
+    assert disk["themes"]["christmas"]["name"] == "Christmas"
+    assert disk["themes"]["christmas"]["icon"] == "mdi:pine-tree"
+    assert state.getattr("pyscript.basement_theme_slot_1")["edited"] is True
+    spy.clear()
+    basement.select_palette("christmas")
+    on = {c["kwargs"]["entity_id"]: c["kwargs"] for c in _light_calls()}
+    assert on["light.bar_light_2"].get("color_temp_kelvin") == 2700, "FAIL: Edited Christmas not used!"
+
+    basement.edit_theme_slot(1)
+    assert state.get("pyscript.basement_theme_editor") == "edited"
+    spy.clear()
+    basement.delete_theme()
+    assert "christmas" not in disk["themes"]
+    hues = {c["kwargs"]["entity_id"]: c["kwargs"].get("hs_color") for c in _light_calls()}
+    assert hues["light.bar_light_2"] == [120, 100], "FAIL: Reset didn't repaint the original Christmas!"
+    print("  ✓ [Themes] test_edit_builtin_then_reset_to_original PASSED")
+
+
+def test_save_theme_needs_lights_and_survives_write_failure():
+    setup_clean_environment()
+    _fake_themes_file()
+    basement.new_theme()
+    basement.save_theme()
+    assert spy.was_called("persistent_notification", "create"), "FAIL: Saved with every light off!"
+    assert basement.CUSTOM_THEMES == {}
+
+    def broken(path, themes):
+        raise OSError("disk full")
+    broken.test_fake = True
+    basement.write_themes_file = broken
+    _set_bulbs_for_save()
+    spy.clear()
+    basement.save_theme()
+    assert basement.CUSTOM_THEMES == {}, "FAIL: Kept a theme the file never got!"
+    assert spy.was_called("persistent_notification", "create")
+    print("  ✓ [Themes] test_save_theme_needs_lights_and_survives_write_failure PASSED")
+
+
+def test_toast_puts_bar_back_as_it_was():
+    """With no palette (lights set by hand), the toast restores the bar and stairs."""
+    setup_clean_environment()
+    basement.CURRENT_PALETTE = "normal"
+    state.set("light.bar_light_1", "on", {"color_mode": "hs", "hs_color": [0, 100], "brightness": 255})
+    state.set("light.bar_light_2", "on", {"color_mode": "hs", "hs_color": [120, 100], "brightness": 255})
+    spy.clear()
+    basement.effect_bar_toast()
+    last = {}
+    for c in _light_calls():
+        last[c["kwargs"]["entity_id"] if isinstance(c["kwargs"]["entity_id"], str) else "group"] = c["kwargs"]
+    assert last["light.bar_light_1"]["hs_color"] == [0, 100], "FAIL: Bar bulb 1 left amber after toast!"
+    assert last["light.bar_light_2"]["hs_color"] == [120, 100], "FAIL: Bar bulb 2 left amber after toast!"
+    print("  ✓ [Palettes] test_toast_puts_bar_back_as_it_was PASSED")
+
+
+def test_every_palette_paints():
+    """Every palette in the table produces commands and a dashboard swatch."""
+    from basement_palettes import PALETTES, room_plan, stair_plan, swatch
+    for pid, pal in PALETTES.items():
+        assert room_plan(pal), f"FAIL: {pid} paints no room lights"
+        assert stair_plan(pal), f"FAIL: {pid} has no stair color"
+        assert swatch(pal), f"FAIL: {pid} has no swatch"
+        assert pal["group"] in ("moods", "holidays"), f"FAIL: {pid} has no tab"
+    print("  ✓ [Palettes] test_every_palette_paints PASSED")
+
+
 def test_sports_keeps_palette_picked_mid_game():
     """Team green lands once; a palette picked during the game survives later theater updates."""
     setup_clean_environment()
@@ -4089,6 +4314,15 @@ if __name__ == "__main__":
         test_theater_survives_missing_interlocks,
         test_onn_launch_falls_back_to_adb_when_remote_down,
         test_sports_keeps_palette_picked_mid_game,
+        test_social_door_leaves_lit_stairs_alone,
+        test_no_palette_after_reload_means_white_stairs,
+        test_christmas_alternates_bulb_by_bulb,
+        test_theme_library_search_tabs_and_pages,
+        test_new_theme_saved_and_recalled,
+        test_edit_builtin_then_reset_to_original,
+        test_save_theme_needs_lights_and_survives_write_failure,
+        test_toast_puts_bar_back_as_it_was,
+        test_every_palette_paints,
         test_pc_discord_window_does_not_black_out_game_mode,
         test_pc_desktop_does_not_force_game_mode_over_bluetooth,
         test_prime_video_brand_art_is_not_netflix,
@@ -4151,7 +4385,7 @@ if __name__ == "__main__":
         test_score_during_movie_mode_ignored_for_eagles,
         test_per_team_options_celebrate_false_and_gate_override,
         test_manual_celebrate_service_uses_featured_color,
-        # Suite 12: Sports, Hardware Sync & Drift Engine (9)
+        # Suite 12: Sports & Hardware Sync
         test_play_sports_orchestration,
         test_telemetry_hdmi1_sports_app_resolves_to_sports_mode,
         test_projector_cooldown_aborts_on_sports_active,
@@ -4161,7 +4395,6 @@ if __name__ == "__main__":
         test_announcer_volume_slider_ignored_outside_sports,
         test_announcer_slider_does_not_snap_to_preset,
         test_session_end_restores_adaptive_lighting_and_clears_party,
-        test_toggle_ambient_drift_service,
         test_theater_volume_up_down_fine_step,
         test_theater_announcer_up_down_mute,
         test_theater_announcer_3way_toggle,
@@ -4203,7 +4436,6 @@ if __name__ == "__main__":
         test_libretro_boxart_system_mapping_and_encoding,
         test_is_booting_suppression,
         test_media_search_candidate_sanitization_matrix,
-        test_ambient_drift_state_machine,
         test_packages_theater_yaml_template_contracts,
         test_post_power_restoration_sweep_vacant,
         test_post_power_restoration_sweep_occupied_suppressed,

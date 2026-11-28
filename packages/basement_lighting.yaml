@@ -7,3 +7,15 @@ template:
       - name: "Basement Automation Allowed"
         unique_id: basement_automation_allowed
         state: "{{ is_state('binary_sensor.theater_in_use', 'on') }}"
+# Theme library pop-up on the basement dashboard (basement.py THEME LIBRARY).
+input_text:
+  basement_theme_search:
+    name: Search themes
+    max: 24
+    initial: ""
+    icon: mdi:magnify
+  basement_theme_name:
+    name: Theme name
+    max: 24
+    initial: ""
+    icon: mdi:rename-outline

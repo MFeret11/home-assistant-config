@@ -146,7 +146,7 @@ def _conditions_met(team):
 
 
 def _lights_on():
-    return any(_state(e) == "on" for e in LIGHTS)
+    return any([_state(e) == "on" for e in LIGHTS])
 
 
 def _live(team):

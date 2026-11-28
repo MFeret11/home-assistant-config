@@ -46,6 +46,7 @@ recorder:
     entity_globs:
       - sensor.system_monitor_*
       - sensor.trakt_*   # big episode lists in attributes, no history needed
+      - pyscript.basement_theme_*   # theme library pop-up pills, rewritten on every search
       - sensor.office_creality_printer_*
       - sensor.avr_*
       - sensor.*_linkquality

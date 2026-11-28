@@ -371,8 +371,6 @@ views:
             entities:
               - entity: sensor.basement_palette
                 name: Active Spatial Palette
-              - entity: sensor.basement_effect
-                name: Active Lighting Modifier
               - entity: binary_sensor.basement_lights_active
                 name: Any Lights Active Resolver
               - entity: input_select.basement_theater_mode
@@ -873,7 +871,6 @@ views:
               - input_select.basement_lighting_mode
               - binary_sensor.basement_lights_active
               - sensor.basement_palette
-              - sensor.basement_effect
               - binary_sensor.basement_stairs_door_sensor
               - binary_sensor.bottom_stairs
               - light.theater_dimmer
