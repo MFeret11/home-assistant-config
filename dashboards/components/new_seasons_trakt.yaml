@@ -11,24 +11,35 @@ conditions:
     above: 0
 card:
   type: markdown
+  # A two-column list: the show on the left, then the season and the date
+  # (muted) on the right, so the names are easy to scan from the couch.
   content: >-
     {# The first item in "data" is the integration's display template, not a show #}
     {% set shows = (state_attr('sensor.trakt_upcoming_premieres', 'data') or [])[1:] %}
-    **NEW SEASONS**
-
-    {% for s in shows %}
-    {% set season = s.number[1:3] | int(0) if s.number else 0 %}
-    **{{ s.title }}** · {{ 'New show' if season <= 1 else 'Season ' ~ season }} · {{ as_timestamp(s.airdate) | timestamp_custom('%a %b %-d') }}
-
-    {% endfor %}
+    <div class="label">New seasons</div>
+    <table>
+    {%- for s in shows %}
+    {%- set season = s.number[1:3] | int(0) if s.number else 0 %}
+    <tr><td class="show">{{ s.title }}</td><td class="when">{{ 'New show' if season <= 1 else 'Season ' ~ season }}<br><span class="date">{{ as_timestamp(s.airdate) | timestamp_custom('%a %b %-d') }}</span></td></tr>
+    {%- endfor %}
+    </table>
   card_mod:
-    style: |
-      ha-card {
-        background: rgba(33, 150, 243, 0.08) !important;
-        border: 1px solid rgba(33, 150, 243, 0.3) !important;
-        border-radius: 24px !important;
-        backdrop-filter: blur(16px);
-        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
-        padding: 4px 8px !important;
-        font-size: 0.85rem;
-      }
+    style:
+      .: |
+        ha-card {
+          background: rgba(33, 150, 243, 0.08) !important;
+          border: 1px solid rgba(33, 150, 243, 0.3) !important;
+          border-radius: 24px !important;
+          backdrop-filter: blur(16px);
+          box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+          padding: 10px 16px !important;
+        }
+      # The list sits inside ha-markdown's shadow root.
+      ha-markdown $: |
+        .label { font-size: 0.78rem; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; opacity: 0.85; margin-bottom: 6px; }
+        table { width: 100%; border-collapse: collapse; }
+        td { border: none !important; padding: 7px 0 !important; vertical-align: middle; }
+        tr + tr td { border-top: 1px solid rgba(255, 255, 255, 0.08) !important; }
+        td.show { font-size: 1.05rem; font-weight: 600; line-height: 1.25; padding-right: 12px !important; }
+        td.when { text-align: right; white-space: nowrap; font-size: 0.9rem; line-height: 1.3; opacity: 0.85; }
+        td.when .date { font-size: 0.8rem; opacity: 0.7; }

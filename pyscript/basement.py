@@ -86,6 +86,8 @@ from basement_palettes import (
     swatch,
     library_entries,
     filter_entries,
+    team_palettes,
+    TEAM_THEME_PREFIX,
     new_theme_id,
     read_themes_file,
     write_themes_file,
@@ -94,13 +96,20 @@ from basement_palettes import (
 # "normal" means no palette: Daily Driver, or Social Mode entered from the header chip.
 NO_PALETTE = "normal"
 
+# Sports themes come from the teams the Team Lights app publishes
+# (pyscript/apps/team_lights.py). Picking one tells the app which team's scores
+# flash the lights; after a flash, the theme is painted back.
+TEAM_LIGHTS_TEAMS = "pyscript.team_lights_teams"
+TEAM_LIGHTS_PICKED = "pyscript.team_lights_picked"
+TEAM_LIGHTS_CELEBRATION = "pyscript.team_lights_celebration"
+
 # THEME LIBRARY (the dashboard's Themes pop-up). Themes saved or edited on the
 # dashboard live in this file, {theme id: theme}; see basement_palettes.py.
 THEMES_FILE = "/config/basement_themes.json"
 CUSTOM_THEMES = {}
 LIBRARY_SLOTS = 12          # theme pills per page in the pop-up
 LIBRARY_PAGE = 0
-LIBRARY_TAB = "pyscript.basement_theme_tab"          # all, moods, holidays, mine
+LIBRARY_TAB = "pyscript.basement_theme_tab"          # all, moods, holidays, sports, mine
 LIBRARY_STATUS = "pyscript.basement_theme_library"   # "results" or "none"
 LIBRARY_PAGER = "pyscript.basement_theme_pager"      # "on" when there's more than one page
 THEME_SEARCH_INPUT = "input_text.basement_theme_search"
@@ -108,6 +117,19 @@ THEME_NAME_INPUT = "input_text.basement_theme_name"
 # The editor: "off", or what is being edited: "new", "mine" (one of ours),
 # "builtin" (an unedited built-in) or "edited" (an edited built-in).
 THEME_EDITOR = "pyscript.basement_theme_editor"
+# Editor "Copy a color" tool: off, pick (tap the bulb whose color to copy) or
+# paint (each tapped bulb or group gets that color). `settings` = the copied color.
+COPY_TOOL = "pyscript.basement_theme_copy"
+# What the editor can paint: every bulb, plus these groups.
+EDITOR_GROUPS = [
+    "light.zigbee_basement_lights",  # all room bulbs
+    "light.zigbee_bar_lights",
+    "light.zigbee_lounge_lights",
+    "light.zigbee_lounge_lights_1",  # lounge bulbs 1-2
+    "light.zigbee_lounge_lights_2",  # lounge bulbs 3-5
+    "light.zigbee_lounge_lights_3",  # lounge bulbs 6-7
+    "light.stairlights",
+]
 
 # Gap between bulb commands when painting, so the Zigbee mesh isn't flooded.
 PAINT_STEP_S = 0.25
@@ -325,11 +347,28 @@ def _theme_slot_entity(slot):
     return f"pyscript.basement_theme_slot_{slot}"
 
 
+def _team_themes():
+    """{theme id: palette} for the Sports tab, one per Team Lights team."""
+    return team_palettes(safe_state_getattr(TEAM_LIGHTS_TEAMS, "teams") or [])
+
+
 def _get_palette(palette_id):
-    """A theme to paint: our own or an edited copy first, then the built-in. None if unknown."""
+    """A theme to paint: our own or an edited copy first, then the built-in or team
+    theme. None if unknown."""
     if palette_id in CUSTOM_THEMES:
         return CUSTOM_THEMES[palette_id]
-    return PALETTES.get(palette_id)
+    return PALETTES.get(palette_id) or _team_themes().get(palette_id)
+
+
+def _sync_team_pick(palette_id):
+    """Tell Team Lights which team the theme in use belongs to ("" for none)."""
+    themes = _team_themes()
+    if palette_id.startswith(TEAM_THEME_PREFIX) and palette_id not in themes:
+        return  # Team Lights hasn't published its teams yet (startup); keep the pick
+    team = (themes.get(palette_id) or {}).get("team", "")
+    picked = safe_state_get(TEAM_LIGHTS_PICKED, "none")
+    if (team or "none") != picked:
+        pyscript.team_lights_pick(team=team)
 
 
 def _palette_label(palette_id):
@@ -351,6 +390,7 @@ def _publish_palette_sensor(palette_id):
             "swatch": (theme.get("swatch") or swatch(theme)) if theme else [],
         },
     )
+    _sync_team_pick(palette_id)
 
 
 def _send_light(entity_id, settings, transition):
@@ -392,8 +432,10 @@ def apply_static_palette(palette_id: str, transition: int = 2):
 def restore_current_palette():
     """At load: pick up the palette the sensor says is painted, if it still exists."""
     global CURRENT_PALETTE
-    restored = safe_state_get(SENSOR_PALETTE)
-    CURRENT_PALETTE = restored if _get_palette(restored) else NO_PALETTE
+    restored = safe_state_get(SENSOR_PALETTE) or NO_PALETTE
+    # A team theme counts even before Team Lights has published its teams.
+    known = _get_palette(restored) or restored.startswith(TEAM_THEME_PREFIX)
+    CURRENT_PALETTE = restored if known else NO_PALETTE
 
 
 restore_current_palette()
@@ -1135,6 +1177,7 @@ def initialize_basement_telemetry(**kwargs):
     so a palette added to basement_palettes.py shows in the theme library right away."""
     load_theme_library()
     _publish_palette_sensor(CURRENT_PALETTE)
+    _set_copy_tool("off")
 
 
 # ------------------------------------------------------------------------------
@@ -1153,6 +1196,21 @@ def select_palette(palette: str):
     set_lighting_mode(MODE_SOCIAL)
     task.unique(PAINT_TASK)
     apply_static_palette(palette, transition=2)
+
+
+@state_trigger(TEAM_LIGHTS_TEAMS)
+def team_list_changed():
+    """Team Lights published its teams (at load): show their themes in the library."""
+    _refresh_library()
+    _publish_palette_sensor(CURRENT_PALETTE)
+
+
+@state_trigger(f"{TEAM_LIGHTS_CELEBRATION} == 'off'")
+def team_celebration_done():
+    """A score flash ends in solid team color; put the team's theme back."""
+    if CURRENT_PALETTE in _team_themes() and get_lighting_mode() == MODE_SOCIAL:
+        task.unique(PAINT_TASK)
+        apply_static_palette(CURRENT_PALETTE, transition=2)
 
 
 # ------------------------------------------------------------------------------
@@ -1174,7 +1232,7 @@ def _refresh_library():
     if tab not in LIBRARY_TABS:
         tab = TAB_ALL
     query = _clean_text(safe_state_get(THEME_SEARCH_INPUT, ""))
-    found = filter_entries(library_entries(CUSTOM_THEMES), tab, query)
+    found = filter_entries(library_entries(CUSTOM_THEMES, _team_themes()), tab, query)
     pages = max(1, (len(found) + LIBRARY_SLOTS - 1) // LIBRARY_SLOTS)
     LIBRARY_PAGE = max(0, min(LIBRARY_PAGE, pages - 1))
     shown = found[LIBRARY_PAGE * LIBRARY_SLOTS:(LIBRARY_PAGE + 1) * LIBRARY_SLOTS]
@@ -1245,6 +1303,7 @@ def _slot_palette_id(slot):
 
 
 def _open_editor(kind, palette_id, name):
+    _set_copy_tool("off")
     state.set(
         THEME_EDITOR,
         value=kind,
@@ -1271,7 +1330,7 @@ def select_theme_slot(slot: int):
 
 @service
 def select_theme_tab(tab: str):
-    """Library filter: all, moods, holidays or mine."""
+    """Library filter: all, moods, holidays, sports or mine."""
     global LIBRARY_PAGE
     if tab in LIBRARY_TABS:
         state.set(LIBRARY_TAB, value=tab)
@@ -1302,7 +1361,7 @@ def edit_theme_slot(slot: int):
     if not palette_id:
         return
     select_palette(palette_id)
-    if palette_id not in PALETTES:
+    if palette_id not in PALETTES and palette_id not in _team_themes():
         kind = "mine"
     elif palette_id in CUSTOM_THEMES:
         kind = "edited"
@@ -1319,8 +1378,71 @@ def new_theme():
 
 @service
 def close_theme_editor():
+    _set_copy_tool("off")
     state.set(THEME_EDITOR, value="off", new_attributes={"palette_id": "", "name": ""})
     safe_service(input_text.set_value, entity_id=THEME_NAME_INPUT, value="")
+
+
+# ------------------------------------------------------------------------------
+# EDITOR TOOLS: copy one bulb's color to others, and repeat a pattern
+# ------------------------------------------------------------------------------
+def _set_copy_tool(mode, source="", settings=None):
+    state.set(COPY_TOOL, value=mode, new_attributes={
+        "friendly_name": "Basement theme copy tool",
+        "source": source,
+        "source_name": state.getattr(source).get("friendly_name", source) if source else "",
+        "settings": settings or {},
+    })
+
+
+@service
+def theme_copy_start():
+    """Editor "Copy a color": next, tap the bulb whose color to copy."""
+    _set_copy_tool("pick")
+
+
+@service
+def theme_copy_stop():
+    _set_copy_tool("off")
+
+
+@service
+def theme_copy_tap(light: str):
+    """A bulb or group tapped while copying: the first tap picks up its color, each
+    tap after that paints the copied color on what was tapped."""
+    if light not in ROOM_BULBS + STAIR_BULBS + EDITOR_GROUPS:
+        return
+    mode = safe_state_get(COPY_TOOL, "off")
+    if mode == "pick":
+        settings = settings_from_state(safe_state_get(light), state.getattr(light))
+        if not settings:
+            _theme_notice("That light isn't responding; pick another one to copy.")
+            return
+        _set_copy_tool("paint", source=light, settings=settings)
+    elif mode == "paint":
+        settings = safe_state_getattr(COPY_TOOL, "settings") or {}
+        if settings:
+            _send_light(light, settings, 1)
+
+
+# How many colors "Repeat pattern" can repeat (the first N room bulbs).
+REPEAT_MAX = 3
+
+
+@service
+def theme_repeat_pattern(count: int = 2):
+    """Editor "Repeat pattern": the colors of the first `count` room bulbs, in
+    ROOM_BULBS order (Bar 1, Bar 2, Lounge 1...), repeated along the rest of the
+    room, the way the holiday themes alternate."""
+    count = max(2, min(int(count), REPEAT_MAX))
+    first = [settings_from_state(safe_state_get(b), state.getattr(b)) for b in ROOM_BULBS[:count]]
+    if None in first:
+        _theme_notice("One of the first bulbs isn't responding, so there's no pattern to repeat.")
+        return
+    task.unique(PAINT_TASK)
+    for i in range(count, len(ROOM_BULBS)):
+        _send_light(ROOM_BULBS[i], first[i % count], 1)
+        task.sleep(PAINT_STEP_S)
 
 
 def _snapshot(bulbs):
@@ -1358,7 +1480,8 @@ def save_theme(as_new: bool = False):
             name = f"{name} (copy)"
     else:
         theme_id = editing_id
-        icon = (PALETTES.get(theme_id) or CUSTOM_THEMES.get(theme_id) or {}).get("icon") or MY_THEME_ICON
+        built_in = PALETTES.get(theme_id) or _team_themes().get(theme_id)
+        icon = (built_in or CUSTOM_THEMES.get(theme_id) or {}).get("icon") or MY_THEME_ICON
         name = name or _palette_label(theme_id)
 
     theme = {

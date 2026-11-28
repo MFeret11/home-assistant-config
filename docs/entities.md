@@ -87,6 +87,9 @@ If the entity ID itself has to change (for example, a replaced device came back 
 - `pyscript.effect_bar_toast`: "Toast" celebration effect (amber bar & stairs).
 - `pyscript.effect_eagles_chant`: Manual Eagles Kelly Green chant effect (see §4).
 - `pyscript.team_lights_celebrate`: Plays a celebration (`kind: big|small`) in the featured team's color.
+- `pyscript.theme_copy_start` / `theme_copy_tap` (`light`) / `theme_copy_stop`: the theme editor's Copy a color tool (`basement.py`); state in `pyscript.basement_theme_copy` (`off`, `pick`, `paint`; `source`, `source_name`, `settings`).
+- `pyscript.theme_repeat_pattern` (`count`: 2 or 3): repeats the first room bulbs' colors along the rest of the room.
+- `pyscript.team_lights_pick`: Picks the team whose scores flash the lights even when `only_when` doesn't hold (`team: <name>`, `""` clears it), and sets `input_select.featured_team` to match. `basement.py` calls it when a Sports theme is picked or left.
 - `pyscript.basement_all_off`: Master basement lights blackout (header chip, visible when `binary_sensor.basement_lights_active` is on).
 - `pyscript.bedroom_goodnight` (bedroom.py): Bedroom dashboard Goodnight chip. Fades the bedroom lamps off, then runs `basement_all_off` if basement lights are on and neither the theater nor Social Mode is in use.
 
@@ -94,8 +97,11 @@ If the entity ID itself has to change (for example, a replaced device came back 
 - `sensor.philadelphia_eagles`: ESPN Team Tracker (`PRE`, `IN`, `POST`; Attributes: `team_score`, `team_colors`, `opponent_name`).
 - `sensor.nba_philadelphia_76ers`, `sensor.mlb_philadelphia_phillies`, `sensor.nhl_philadelphia_flyers`: the other Team Tracker teams. Team Lights uses them for color and celebrations only while the TV is on sports (docs/team-lights.md). Excluded from the recorder.
 - `pyscript.team_lights_featured`: Team Lights' featured team (state = name; attributes `sensor`, `rgb`, `light_colors`, `sport`, `live`). Read by `basement.py` (sports paint, stairs), the theater poster and the now-playing banner.
-- `input_select.featured_team`: `Auto`, `Eagles`, `Flyers`, `76ers`, `Phillies`. Picks the featured team while its game is live; Auto = playoffs first, then that order.
-- `binary_sensor.team_games_overlap`: On when two or more `*_game_soon` sensors are on; shows the Featured Team picker on the home dashboard.
+- `pyscript.team_lights_teams`: Team Lights' teams (state = count; `teams` = `[{name, rgb, theme_colors, solid_theme, light_colors, icon}]`). `basement.py` builds the Sports themes from it.
+- `pyscript.team_lights_picked`: The team picked by a Sports theme, or `none`.
+- `pyscript.team_lights_celebration`: `on` while a score celebration plays, then `off`; `basement.py` paints the Sports theme back when it turns `off`.
+- `input_boolean.team_lights_flashes`: Score flashes (Team Lights `celebrate_entity`): off = no sport flashes, on = each sport's own rule. Switch in the basement Themes pop-up, Sports tab.
+- `input_select.featured_team`: `Auto`, `Eagles`, `Flyers`, `76ers`, `Phillies`. Picks the featured team while its game is live; Auto = playoffs first, then that order. Set by `pyscript.team_lights_pick` (the basement's Sports themes); not shown on a dashboard.
 - `binary_sensor.eagles_game_soon`, `binary_sensor.sixers_game_soon`, `binary_sensor.phillies_game_soon`, `binary_sensor.flyers_game_soon`: Template (`packages/sports.yaml`, macro in `custom_templates/sports.jinja`). On while that team's game is live, starts within 24 hours, or started less than 12 hours ago. Each one gates its team's card on the home dashboard.
 - `binary_sensor.basement_automation_allowed`: Master safety gate; if `off`, suppresses automated sports flashes and macros.
 - `binary_sensor.theater_in_use`: High when `media_player.theater_receiver == 'on'`.
@@ -138,7 +144,7 @@ Template sensors that hold logic the dashboards used to repeat inline. Cards rea
 ### Work schedule (`packages/private_work_schedule.yaml`)
 - `schedule.partner_office_days` / `schedule.me_office_days`: on all day on each person's office days. The only place the days are set. The train windows (`binary_sensor.septa_display_window`, `septa_am_window`, `septa_pm_window`) and location sharing with the transit service follow the partner's; `binary_sensor.drive_display_window` follows mine. Reload with `schedule.reload`.
 - `sensor.house_attention` (`packages/house_status.yaml`): number of chips in the attention row on Home and the kitchen tablet; `items` holds `{icon, text}` for each. The rules are `house_attention()` in `custom_templates/house_status.jinja`: the Maintenance items without chores, a camera unreachable for 15+ minutes, the basement stair door open for 10+ minutes.
-- `binary_sensor.house_quiet` (`packages/house_status.yaml`): on when Home's Live Activity column has nothing to show and there's no weather alert or attention chip; drives the "All quiet" card. A new Live Activity card's entity goes in its list too.
+- `binary_sensor.house_quiet` (`packages/house_status.yaml`): on when Home's Live Activity column (trains, theater, vacuum, 3D printer) has nothing to show and there's no weather alert or attention chip; drives the "All quiet" card. A new Live Activity card's entity goes in its list too.
 - `sensor.kitchen_today_events` (`packages/kitchen_display.yaml`): today's events for the morning card; `countdowns` lists events in the next 30 days whose description holds `countdown:N`, while they are N days away or less.
 - `binary_sensor.kitchen_morning_wake` (`packages/kitchen_display.yaml`): kitchen tablet screen in the morning, 6-9 AM on weekdays whether or not anyone commutes, 8-11 AM on weekends.
 - `binary_sensor.kitchen_evening_wake` (`packages/kitchen_display.yaml`): kitchen tablet screen on, 4-8 PM every day.

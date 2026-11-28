@@ -3,7 +3,7 @@
 # pills with whatever matches the search box and filter, a page at a time, so this
 # file never lists themes: they come from pyscript/modules/basement_palettes.py and
 # from themes saved here (/config/basement_themes.json).
-# Above the library: the Moments row (Toast, Eagles chant).
+# Above the library: the Moments row (Toast).
 # Hold a theme to edit it: the editor replaces the library until Save or Cancel.
 type: custom:bubble-card
 card_type: pop-up
@@ -31,10 +31,10 @@ cards:
       type: vertical-stack
       cards:
         # Moments: one-tap flashes over whatever theme is on (Toast puts the bar
-        # and stairs back after; Eagles ends on Eagles green). Eagles is also Guide-hold on the remote.
+        # and stairs back after).
         - type: grid
           square: false
-          columns: 2
+          columns: 1
           card_mod:
             style: |
               :host {
@@ -53,20 +53,6 @@ cards:
                 - idle_bg: "rgba(245, 158, 11, 0.15)"
                 - idle_border: "rgba(245, 158, 11, 0.5)"
                 - text_color: "#fbbf24"
-            - type: custom:decluttering-card
-              template: effect_pill
-              variables:
-                - name: Eagles
-                - icon: mdi:football
-                - color: green
-                - action: pyscript.effect_eagles_chant
-                - active_expr: "is_state('sensor.philadelphia_eagles', 'IN') or (is_state('sensor.theater_mode', 'sports') and is_state('input_select.basement_lighting_mode', 'Social Mode'))"
-                - idle_bg: "rgba(0, 170, 35, 0.15)"
-                - idle_border: "rgba(0, 170, 35, 0.45)"
-                - active_bg: "linear-gradient(135deg, rgba(0, 170, 35, 0.45), rgba(0, 95, 20, 0.25))"
-                - active_border: "rgba(0, 170, 35, 0.95)"
-                - glow: "rgba(0, 170, 35, 0.5)"
-                - text_color: "#4ade80"
 
         - type: entities
           entities:
@@ -99,7 +85,7 @@ cards:
 
         - type: grid
           square: false
-          columns: 4
+          columns: 5
           card_mod:
             style: &tight_grid_style |
               :host { margin: 2px 0 4px 0 !important; display: block !important; }
@@ -108,7 +94,42 @@ cards:
             - {type: custom:decluttering-card, template: theme_tab_button, variables: [{name: All}, {tab: all}]}
             - {type: custom:decluttering-card, template: theme_tab_button, variables: [{name: Moods}, {tab: moods}]}
             - {type: custom:decluttering-card, template: theme_tab_button, variables: [{name: Holidays}, {tab: holidays}]}
-            - {type: custom:decluttering-card, template: theme_tab_button, variables: [{name: Mine}, {tab: mine}]}
+            # One theme per Team Lights team; picking one also makes its scores flash the lights.
+            - {type: custom:decluttering-card, template: theme_tab_button, variables: [{name: Sports}, {tab: sports}]}
+            - {type: custom:decluttering-card, template: theme_tab_button, variables: [{name: Custom}, {tab: mine}]}
+
+        # Sports tab: one switch for score flashes. Off = no sport flashes;
+        # on = each sport's own rule (Team Lights `celebrate_entity`).
+        - type: conditional
+          conditions:
+            - entity: pyscript.basement_theme_tab
+              state: sports
+          card:
+            type: custom:mushroom-template-card
+            entity: input_boolean.team_lights_flashes
+            primary: Score flashes
+            secondary: >-
+              {{ 'On: touchdowns, goals, home runs, threes' if is_state('input_boolean.team_lights_flashes', 'on') else 'Off: team colors only' }}
+            icon: "{{ 'mdi:flash' if is_state('input_boolean.team_lights_flashes', 'on') else 'mdi:flash-off' }}"
+            icon_color: "{{ 'amber' if is_state('input_boolean.team_lights_flashes', 'on') else 'grey' }}"
+            layout: horizontal
+            tap_action:
+              action: toggle
+              haptic: light
+            card_mod:
+              style: |
+                {% set on = is_state('input_boolean.team_lights_flashes', 'on') %}
+                ha-card {
+                  margin: 0 0 4px 0 !important;
+                  padding: 6px 10px !important;
+                  border-radius: 12px !important;
+                  background: {{ 'rgba(255, 193, 7, 0.12)' if on else 'transparent' }} !important;
+                  border: 1px solid {{ 'rgba(255, 193, 7, 0.45)' if on else 'rgba(255, 255, 255, 0.08)' }} !important;
+                  box-shadow: none !important;
+                }
+                ha-card .primary { font-size: 0.8rem !important; }
+                ha-card .secondary { font-size: 0.7rem !important; opacity: 0.7 !important; }
+                ha-card mushroom-shape-icon { --shape-size: 28px !important; --icon-size: 18px !important; }
 
         - type: grid
           square: false
@@ -238,7 +259,7 @@ cards:
           primary: >-
             {% set n = state_attr('pyscript.basement_theme_editor', 'name') %}
             {{ 'Editing ' ~ n if n else 'New theme' }}
-          secondary: Tap a bulb to change its color. Save keeps every bulb as it looks now.
+          secondary: Tap any light to set its color. Then Save.
           icon: mdi:pencil
           icon_color: amber
           layout: horizontal
@@ -248,33 +269,105 @@ cards:
               ha-card .primary { font-size: 0.85rem !important; font-weight: 700 !important; }
               ha-card .secondary { font-size: 0.68rem !important; opacity: 0.65 !important; white-space: normal !important; }
 
-        # Whole groups at once, then each bulb
-        - type: grid
-          square: false
-          columns: 2
-          card_mod:
-            style: *tight_grid_style
-          cards:
-            - {type: custom:decluttering-card, template: theme_bulb_button, variables: [{entity: light.zigbee_basement_lights}, {name: "All room bulbs"}, {icon: "mdi:lightbulb-group"}]}
-            - {type: custom:decluttering-card, template: theme_bulb_button, variables: [{entity: light.stairlights}, {name: "All stairs"}, {icon: "mdi:stairs"}]}
+        # Copy a color: what to tap next. Tap the banner to stop.
+        - type: conditional
+          conditions:
+            - entity: pyscript.basement_theme_copy
+              state_not: "off"
+          card:
+            type: custom:mushroom-template-card
+            primary: >-
+              {{ 'Tap the light to copy' if is_state('pyscript.basement_theme_copy', 'pick')
+                 else 'Copying ' ~ state_attr('pyscript.basement_theme_copy', 'source_name') }}
+            secondary: >-
+              {{ 'Then tap the lights to give its color.' if is_state('pyscript.basement_theme_copy', 'pick')
+                 else 'Tap lights or groups to give them this color. Tap here when done.' }}
+            icon: mdi:eyedropper-variant
+            icon_color: amber
+            layout: horizontal
+            tap_action: {action: perform-action, perform_action: pyscript.theme_copy_stop, haptic: light}
+            card_mod:
+              style: |
+                ha-card { margin: 6px 0 0 0 !important; padding: 8px 10px !important; border-radius: 14px !important; background: rgba(255, 193, 7, 0.14) !important; border: 1px solid rgba(255, 193, 7, 0.55) !important; box-shadow: none !important; }
+                ha-card .primary { font-size: 0.8rem !important; font-weight: 700 !important; }
+                ha-card .secondary { font-size: 0.7rem !important; opacity: 0.75 !important; white-space: normal !important; }
+
+        # Every light (components/decluttering_templates.yaml theme_editor_lights).
+        # Tap: its color picker; while matching, give it the matched color.
+        - type: conditional
+          conditions:
+            - entity: pyscript.basement_theme_copy
+              state: "off"
+          card: {type: custom:decluttering-card, template: theme_editor_lights, variables: [{tap: more-info}]}
+        - type: conditional
+          conditions:
+            - entity: pyscript.basement_theme_copy
+              state_not: "off"
+          card: {type: custom:decluttering-card, template: theme_editor_lights, variables: [{tap: perform-action}]}
+
+        # Tools in one row: Match a light (eyedropper; tap one light, then the
+        # lights to match it), and Alternate 2 / 3 (repeat the first 2 or 3 room
+        # bulbs' colors, Bar 1, Bar 2, Lounge 1, along the room).
         - type: grid
           square: false
           columns: 3
           card_mod:
-            style: *tight_grid_style
+            style: |
+              :host { display: block !important; margin: 0 0 10px 0 !important; }
+              #root { gap: 6px !important; }
           cards:
-            - {type: custom:decluttering-card, template: theme_bulb_button, variables: [{entity: light.bar_light_1}, {name: "Bar L"}, {icon: "mdi:glass-cocktail"}]}
-            - {type: custom:decluttering-card, template: theme_bulb_button, variables: [{entity: light.bar_light_2}, {name: "Bar R"}, {icon: "mdi:glass-cocktail"}]}
-            - {type: custom:decluttering-card, template: theme_bulb_button, variables: [{entity: light.lounge_light_1}, {name: "Lounge 1"}, {icon: "mdi:sofa"}]}
-            - {type: custom:decluttering-card, template: theme_bulb_button, variables: [{entity: light.lounge_light_2}, {name: "Lounge 2"}, {icon: "mdi:sofa"}]}
-            - {type: custom:decluttering-card, template: theme_bulb_button, variables: [{entity: light.lounge_light_3}, {name: "Lounge 3"}, {icon: "mdi:sofa"}]}
-            - {type: custom:decluttering-card, template: theme_bulb_button, variables: [{entity: light.lounge_light_4}, {name: "Lounge 4"}, {icon: "mdi:sofa"}]}
-            - {type: custom:decluttering-card, template: theme_bulb_button, variables: [{entity: light.lounge_light_5}, {name: "Lounge 5"}, {icon: "mdi:sofa"}]}
-            - {type: custom:decluttering-card, template: theme_bulb_button, variables: [{entity: light.lounge_light_6}, {name: "Lounge 6"}, {icon: "mdi:sofa"}]}
-            - {type: custom:decluttering-card, template: theme_bulb_button, variables: [{entity: light.lounge_light_7}, {name: "Lounge 7"}, {icon: "mdi:sofa"}]}
-            - {type: custom:decluttering-card, template: theme_bulb_button, variables: [{entity: light.stairlight_1}, {name: "Stair 1"}, {icon: "mdi:stairs"}]}
-            - {type: custom:decluttering-card, template: theme_bulb_button, variables: [{entity: light.stairlight_2}, {name: "Stair 2"}, {icon: "mdi:stairs"}]}
-            - {type: custom:decluttering-card, template: theme_bulb_button, variables: [{entity: light.stairlight_3}, {name: "Stair 3"}, {icon: "mdi:stairs"}]}
+            - type: custom:mushroom-template-card
+              icon: mdi:eyedropper-variant
+              icon_color: amber
+              layout: vertical
+              tap_action: {action: perform-action, perform_action: pyscript.theme_copy_start, haptic: light}
+              card_mod:
+                style: &editor_tool_style |
+                  ha-card {
+                    height: 44px !important;
+                    min-height: 44px !important;
+                    padding: 0 8px !important;
+                    display: flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                    --spacing: 0px;
+                    border-radius: 16px !important;
+                    background: linear-gradient(135deg, rgba(255, 193, 7, 0.10), rgba(255, 193, 7, 0.03)) !important;
+                    border: 1px solid rgba(255, 193, 7, 0.25) !important;
+                    box-shadow: none !important;
+                  }
+                  ha-card:active { transform: scale(0.95); }
+                  ha-card mushroom-shape-icon { --shape-size: 28px !important; --icon-size: 18px !important; --shape-color: transparent !important; }
+            - type: custom:mushroom-template-card
+              primary: Alternate 2
+              layout: horizontal
+              tap_action: {action: perform-action, perform_action: pyscript.theme_repeat_pattern, data: {count: 2}, haptic: light}
+              card_mod:
+                style: &editor_tool_text_style |
+                  ha-card {
+                    height: 44px !important;
+                    min-height: 44px !important;
+                    padding: 0 8px !important;
+                    display: flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                    --spacing: 0px;
+                    border-radius: 16px !important;
+                    background: linear-gradient(135deg, rgba(255, 193, 7, 0.10), rgba(255, 193, 7, 0.03)) !important;
+                    border: 1px solid rgba(255, 193, 7, 0.25) !important;
+                    box-shadow: none !important;
+                  }
+                  ha-card:active { transform: scale(0.95); }
+                  ha-card .container { justify-content: center !important; }
+                  ha-card mushroom-shape-icon { display: none !important; }
+                  ha-card mushroom-state-info { flex: 0 1 auto !important; }
+                  ha-card .primary { font-size: 0.8rem !important; font-weight: 600 !important; white-space: nowrap !important; }
+            - type: custom:mushroom-template-card
+              primary: Alternate 3
+              layout: horizontal
+              tap_action: {action: perform-action, perform_action: pyscript.theme_repeat_pattern, data: {count: 3}, haptic: light}
+              card_mod:
+                style: *editor_tool_text_style
 
         - type: entities
           entities:

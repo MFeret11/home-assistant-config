@@ -186,6 +186,7 @@ def setup_baseline():
     mock_task.clear()
     mock_state._states.clear()
     mock_state._attrs.clear()
+    mock_state.set("input_boolean.team_lights_flashes", "on")  # Score flashes switch
 
     theater.BOOT_TIMESTAMP = 0
     interlocks.BOOT_TIMESTAMP = 0

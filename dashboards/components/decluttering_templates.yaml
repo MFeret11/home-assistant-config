@@ -226,7 +226,7 @@ theme_slot_pill:
           text-overflow: ellipsis !important;
         }
 
-# Filter button above the theme pills: All, Moods, Holidays, Mine.
+# Filter button above the theme pills: All, Moods, Holidays, Sports, Custom (tab id "mine").
 theme_tab_button:
   card:
     type: custom:mushroom-template-card
@@ -266,42 +266,184 @@ theme_tab_button:
           white-space: nowrap !important;
         }
 
-# One bulb in the theme editor: shows the bulb's own color, tap to change it.
-theme_bulb_button:
+# THEME EDITOR LIGHTS (Themes pop-up editor), styled like the Lighting card's
+# zone rows: each button tinted in its light's own color (amber when on without
+# a color, neutral when off). Tap: `tap` is more-info (the color picker, with
+# brightness) or perform-action (the Match a light tool: pyscript.theme_copy_tap).
+# The light being matched is outlined in white.
+
+# A group's row: All room, Bar, Lounge, Stairs.
+theme_editor_group:
+  default:
+    - tap: more-info
   card:
-    type: custom:mushroom-template-card
+    type: custom:bubble-card
+    card_type: button
+    button_type: name
     entity: "[[entity]]"
-    primary: "[[name]]"
+    name: "[[name]]"
     icon: "[[icon]]"
-    icon_color: >-
-      {% set rgb = state_attr('[[entity]]', 'rgb_color') %}
-      {{ (rgb | join(', ')) if is_state('[[entity]]', 'on') and rgb else 'disabled' }}
-    layout: horizontal
-    tap_action:
-      action: more-info
+    show_state: true
+    tap_action: &editor_tap
+      action: "[[tap]]"
+      perform_action: pyscript.theme_copy_tap
+      data:
+        light: "[[entity]]"
       haptic: light
+    button_action:
+      tap_action: *editor_tap
+      hold_action: *editor_tap
+    hold_action: *editor_tap
+    card_mod: &editor_group_style
+      style: |
+        {% set on = is_state('[[entity]]', 'on') %}
+        {% set rgb = state_attr('[[entity]]', 'rgb_color') %}
+        {% set c = (rgb | join(', ')) if (on and rgb) else ('255, 193, 7' if on else '255, 255, 255') %}
+        {% set source = state_attr('pyscript.basement_theme_copy', 'source') == '[[entity]]' %}
+        ha-card { border: none !important; background: none !important; }
+        .bubble-container {
+          border: {{ '2px solid rgba(255, 255, 255, 0.95)' if source else '1px solid rgba(' ~ c ~ ', ' ~ (0.5 if on else 0.12) ~ ')' }} !important;
+          border-radius: 20px !important;
+          background: linear-gradient(135deg, rgba({{ c }}, {{ 0.20 if on else 0.05 }}), rgba({{ c }}, {{ 0.07 if on else 0.03 }})) !important;
+          transition: background 0.4s ease, border-color 0.4s ease !important;
+        }
+
+# A group with few bulbs (Bar, Stairs) as one row, like the Lighting card: the
+# group on the left, its bulbs as buttons on the right (`bulbN` / `nameN`), each
+# tinted in its bulb's color. Tap the row or a button for its color picker.
+theme_editor_row2:
+  default:
+    - tap: more-info
+  card:
+    type: custom:bubble-card
+    card_type: button
+    button_type: name
+    entity: "[[entity]]"
+    name: "[[name]]"
+    icon: "[[icon]]"
+    show_state: true
+    tap_action: *editor_tap
+    button_action:
+      tap_action: *editor_tap
+      hold_action: *editor_tap
+    hold_action: *editor_tap
+    sub_button:
+      - entity: "[[bulb1]]"
+        name: "[[name1]]"
+        show_name: true
+        show_icon: false
+        show_state: false
+        show_background: true
+        tap_action:
+          action: "[[tap]]"
+          perform_action: pyscript.theme_copy_tap
+          data:
+            light: "[[bulb1]]"
+          haptic: light
+      - entity: "[[bulb2]]"
+        name: "[[name2]]"
+        show_name: true
+        show_icon: false
+        show_state: false
+        show_background: true
+        tap_action:
+          action: "[[tap]]"
+          perform_action: pyscript.theme_copy_tap
+          data:
+            light: "[[bulb2]]"
+          haptic: light
+    card_mod: *editor_group_style
+
+theme_editor_row3:
+  default:
+    - tap: more-info
+  card:
+    type: custom:bubble-card
+    card_type: button
+    button_type: name
+    entity: "[[entity]]"
+    name: "[[name]]"
+    icon: "[[icon]]"
+    show_state: true
+    tap_action: *editor_tap
+    button_action:
+      tap_action: *editor_tap
+      hold_action: *editor_tap
+    hold_action: *editor_tap
+    sub_button:
+      - entity: "[[bulb1]]"
+        name: "[[name1]]"
+        show_name: true
+        show_icon: false
+        show_state: false
+        show_background: true
+        tap_action:
+          action: "[[tap]]"
+          perform_action: pyscript.theme_copy_tap
+          data:
+            light: "[[bulb1]]"
+          haptic: light
+      - entity: "[[bulb2]]"
+        name: "[[name2]]"
+        show_name: true
+        show_icon: false
+        show_state: false
+        show_background: true
+        tap_action:
+          action: "[[tap]]"
+          perform_action: pyscript.theme_copy_tap
+          data:
+            light: "[[bulb2]]"
+          haptic: light
+      - entity: "[[bulb3]]"
+        name: "[[name3]]"
+        show_name: true
+        show_icon: false
+        show_state: false
+        show_background: true
+        tap_action:
+          action: "[[tap]]"
+          perform_action: pyscript.theme_copy_tap
+          data:
+            light: "[[bulb3]]"
+          haptic: light
+    card_mod: *editor_group_style
+
+# Every light in the editor: All room, the Bar row (its 2 bulbs on the right),
+# the Lounge box (the whole lounge on top, then its three Zigbee groups as rows:
+# bulbs 1-2, 3-5, 6-7) and the Stairs row (3 bulbs).
+theme_editor_lights:
+  default:
+    - tap: more-info
+  card:
+    type: vertical-stack
     card_mod:
       style: |
-        {% set rgb = state_attr('[[entity]]', 'rgb_color') %}
-        {% set c = (rgb | join(', ')) if is_state('[[entity]]', 'on') and rgb else '255, 255, 255' %}
-        ha-card {
-          height: 34px !important;
-          min-height: 34px !important;
-          padding: 0 6px !important;
-          --spacing: 0px !important;
-          --mush-spacing: 0px !important;
-          border-radius: 12px !important;
-          display: flex !important;
-          align-items: center !important;
-          background: rgba({{ c }}, {{ 0.14 if is_state('[[entity]]', 'on') else 0.03 }}) !important;
-          border: 1px solid rgba({{ c }}, {{ 0.5 if is_state('[[entity]]', 'on') else 0.1 }}) !important;
-          box-shadow: none !important;
-        }
-        ha-card:active { transform: scale(0.94); }
-        ha-card .container { padding: 0 !important; gap: 4px !important; }
-        ha-card mushroom-shape-icon { --shape-size: 22px !important; --icon-size: 14px !important; }
-        ha-card mushroom-state-info { min-width: 0 !important; padding: 0 !important; }
-        ha-card .primary { font-size: 0.68rem !important; font-weight: 600 !important; white-space: nowrap !important; }
+        #root { display: flex !important; flex-direction: column !important; gap: 10px !important; margin-bottom: 10px !important; }
+        #root > * { margin: 0 !important; }
+    cards:
+      - {type: custom:decluttering-card, template: theme_editor_group, variables: [{entity: light.zigbee_basement_lights}, {name: "All room"}, {icon: "mdi:lightbulb-group"}, {tap: "[[tap]]"}]}
+      - {type: custom:decluttering-card, template: theme_editor_row2, variables: [{entity: light.zigbee_bar_lights}, {name: "Bar"}, {icon: "mdi:glass-cocktail"}, {bulb1: light.bar_light_1}, {name1: "1"}, {bulb2: light.bar_light_2}, {name2: "2"}, {tap: "[[tap]]"}]}
+      # Lounge: the whole lounge on top, then its three groups with their bulbs, in one box.
+      - type: vertical-stack
+        card_mod:
+          style: |
+            #root {
+              padding: 8px !important;
+              border-radius: 24px !important;
+              background: rgba(255, 255, 255, 0.03) !important;
+              border: 1px solid rgba(255, 255, 255, 0.08) !important;
+              display: flex !important;
+              flex-direction: column !important;
+              gap: 6px !important;
+            }
+            #root > * { margin: 0 !important; }
+        cards:
+          - {type: custom:decluttering-card, template: theme_editor_group, variables: [{entity: light.zigbee_lounge_lights}, {name: "Lounge"}, {icon: "mdi:sofa"}, {tap: "[[tap]]"}]}
+          - {type: custom:decluttering-card, template: theme_editor_row2, variables: [{entity: light.zigbee_lounge_lights_1}, {name: "Group 1"}, {icon: "mdi:sofa-single"}, {bulb1: light.lounge_light_1}, {name1: "1"}, {bulb2: light.lounge_light_2}, {name2: "2"}, {tap: "[[tap]]"}]}
+          - {type: custom:decluttering-card, template: theme_editor_row3, variables: [{entity: light.zigbee_lounge_lights_2}, {name: "Group 2"}, {icon: "mdi:sofa-single"}, {bulb1: light.lounge_light_3}, {name1: "3"}, {bulb2: light.lounge_light_4}, {name2: "4"}, {bulb3: light.lounge_light_5}, {name3: "5"}, {tap: "[[tap]]"}]}
+          - {type: custom:decluttering-card, template: theme_editor_row2, variables: [{entity: light.zigbee_lounge_lights_3}, {name: "Group 3"}, {icon: "mdi:sofa-single"}, {bulb1: light.lounge_light_6}, {name1: "6"}, {bulb2: light.lounge_light_7}, {name2: "7"}, {tap: "[[tap]]"}]}
+      - {type: custom:decluttering-card, template: theme_editor_row3, variables: [{entity: light.stairlights}, {name: "Stairs"}, {icon: "mdi:stairs"}, {bulb1: light.stairlight_1}, {name1: "1"}, {bulb2: light.stairlight_2}, {name2: "2"}, {bulb3: light.stairlight_3}, {name3: "3"}, {tap: "[[tap]]"}]}
 
 # Clean Remote Transport Button
 # (default replaces the unsupported [[haptic|light]] pipe syntax)

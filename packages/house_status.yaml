@@ -64,16 +64,14 @@ template:
 
   - binary_sensor:
       # Home's "All quiet" card. Off while any Live Activity card is showing
-      # (a game soon, a train card, the theater, the vacuum or the 3D printer
-      # running) or while there's a weather alert or an attention chip.
+      # (a train card, the theater, the vacuum or the 3D printer running) or
+      # while there's a weather alert or an attention chip.
       # A new Live Activity card should be added to this list too.
       - name: "House Quiet"
         unique_id: house_quiet
         icon: mdi:shield-check
         state: >-
           {% set busy_when_on = [
-            'binary_sensor.eagles_game_soon', 'binary_sensor.sixers_game_soon',
-            'binary_sensor.phillies_game_soon', 'binary_sensor.flyers_game_soon',
             'binary_sensor.septa_am_window', 'binary_sensor.kitchen_show_pm_commute',
             'binary_sensor.in_center_city', 'binary_sensor.theater_in_use',
             'binary_sensor.weather_alert_showing'

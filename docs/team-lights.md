@@ -11,6 +11,7 @@ The code has nothing specific to this house in it. Your teams, lights and house 
   Set `color` when ESPN's color isn't the one you want. The color might be too dark for a bulb, or your team might be known for a different color. The Eagles here use Kelly green `[0, 170, 35]` instead of ESPN's midnight green, which shows as teal on a bulb. If a particular bulb shows the color wrong, give it its own setting with `light_colors`, for example a hue/saturation value for a bulb whose green LED runs blue.
 - **Featured team.** When two games are on at once, one team controls the lights. Playoff games go first, then the order of `teams`. If you set `featured_select`, picking a team there overrides that choice while the team's game is live. The featured team is published to `pyscript.team_lights_featured` (state = team name; attributes `sensor`, `rgb`, `light_colors`, `sport`, `live`) for dashboards and other scripts.
 - **Kickoff.** The featured team's color goes on lights that are already on, if the `only_when` conditions are met. The app never turns lights on or changes modes.
+- **Picked team.** Another script or a dashboard can pick a team with `pyscript.team_lights_pick` (`team: Eagles`; `""` clears it). The picked team is featured while its game is live, and it celebrates even when `only_when` doesn't hold. Kickoff doesn't repaint for it, because whatever picked it (a light theme, say) already shows its colors. The pick is published to `pyscript.team_lights_picked`.
 - **Scores.** Only the featured team celebrates. Lights that are off stay off. Celebrations change brightness only, between 100% and `dim_floor_pct`, and never the color, so a Zigbee mesh can keep up. Each one ends at 100% in the team color.
 
 | Sport | Celebrates on | Celebration |
@@ -21,9 +22,9 @@ The code has nothing specific to this house in it. Your teams, lights and house 
 | Hockey, soccer | every goal | big |
 | Baseball | home run | big |
 | Baseball | other runs | small |
-| Anything else | any score | small |
+| Any other sport | never, until it gets its own rule | none |
 
-The big celebration is six pulses, a short pause, then two more. The small one is three pulses. To change the rules, edit `_celebration()`.
+The big celebration is six pulses, a short pause, then two more. The small one is three pulses. Each sport has its own rule; to change one or add a sport, edit `_celebration()`.
 
 Team Tracker checks for updates every 5 seconds during a game, so one update can include more than one score. In basketball, a 3-point increase counts as a three. A bigger increase counts only if ESPN's last play mentions a made three-pointer.
 
@@ -54,6 +55,7 @@ pyscript:
 | `lights_if_on` | no | Lights that are recolored only while they're already on. |
 | `teams` | yes | Your teams, highest priority first (see below). |
 | `enabled_entity` | no | Master switch: the app does nothing unless this entity is `on`. |
+| `celebrate_entity` | no | One switch for score flashes (an `input_boolean`, say). Off: no sport flashes. On: each sport's rule above applies. Team colors still paint either way, and the dashboard button `pyscript.team_lights_celebrate` ignores it. |
 | `featured_select` | no | An `input_select` with `Auto` plus your team names, for choosing the featured team manually. |
 | `only_when` | no | `entity_id: state` (or a list of states). Every entry must match before any team recolors or celebrates, e.g. `media_player.tv: playing`. |
 | `dim_floor_pct` | no | Lowest brightness during a celebration (default 15; very low levels can flicker). |
@@ -68,9 +70,14 @@ Per team:
 | `light_colors` | no | Settings for particular lights in place of the RGB, e.g. `light.hallway: {hs_color: [125, 100]}` for a bulb whose LEDs need a different hue to match. |
 | `only_when` | no | Replaces the top-level `only_when` for this team (`{}` = always). |
 | `celebrate` | no | `false` turns score celebrations off for this team. |
+| `icon` | no | An mdi icon for the team, for dashboards and light themes. |
+| `solid_theme` | no | `true`: a team light theme is solid `color` on every bulb. |
+| `theme_colors` | no | Colors for a team light theme (`[[r, g, b], ...]` or `"#rrggbb"`), alternated bulb by bulb. Without it (and without `solid_theme`), a theme alternates `color` and white. The app only publishes these. |
 
 Dashboard button: `pyscript.team_lights_celebrate` (`kind: big` or `small`) plays a celebration in the featured team's color.
 
+Published for other code: `pyscript.team_lights_featured` (above), `pyscript.team_lights_teams` (state = team count; `teams` = `[{name, rgb, theme_colors, solid_theme, light_colors, icon}]`), `pyscript.team_lights_picked` (the picked team or `none`) and `pyscript.team_lights_celebration` (`on` while a celebration plays).
+
 ## This house
 
-The config lives in `packages/sports.yaml`. All four teams share `only_when: {sensor.theater_mode: sports}`, so they recolor and celebrate only while the basement TV is on sports. Switching the TV to sports is what puts the basement in Social Mode and paints the featured team's color (`basement.py`). `input_select.featured_team` appears on the home dashboard when two teams have games the same day (`binary_sensor.team_games_overlap`). `basement.py`, the theater poster and the now-playing banner all follow `pyscript.team_lights_featured`.
+The config lives in `packages/sports.yaml`. All four teams share `only_when: {sensor.theater_mode: sports}`, so they recolor and celebrate only while the basement TV is on sports. Switching the TV to sports is what puts the basement in Social Mode and paints the featured team's color (`basement.py`). The basement Themes pop-up has a Sports tab with one theme per team, built from `pyscript.team_lights_teams`: picking one paints the team's colors and picks the team, so its scores flash the lights whatever the TV is on. A score flash ends in solid team color, and `basement.py` then paints the theme back. Picking any other theme clears the pick, which also sets `input_select.featured_team` back to Auto. The Sports tab also shows the Score flashes switch (`input_boolean.team_lights_flashes`, the app's `celebrate_entity`): off means no sport flashes, on means each sport's own rule applies. `basement.py`, the theater poster and the now-playing banner all follow `pyscript.team_lights_featured`.

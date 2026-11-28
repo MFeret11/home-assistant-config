@@ -4,7 +4,7 @@
 type: markdown
 content: >-
   {% from 'sports.jinja' import games_panel %}{{ games_panel() }}
-# Used on Kitchen and Home. On Kitchen the chores line (same column) gives way
+# Kitchen tablet only. The chores line (same column) gives way
 # to this card, so the page stays on one screen.
 visibility:
   - condition: or

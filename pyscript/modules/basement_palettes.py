@@ -7,6 +7,8 @@
 #
 # Adding a palette: add an entry to PALETTES below. The dashboard's theme library
 # lists, searches and colors it from this table; nothing else needs changing.
+# The Sports themes aren't in the table: team_palettes() builds one per Team
+# Lights team (see SPORTS THEMES below).
 #
 # Each palette has a name, a library group (moods or holidays) and an mdi icon.
 # A palette is one of two shapes:
@@ -19,6 +21,7 @@
 # each with a brightness in percent. The stair bulbs only do 2700-6500 K white.
 # ==============================================================================
 import colorsys
+import re
 
 try:
     pyscript_compile
@@ -59,9 +62,10 @@ STAIR_WHITE_PCT = 35
 # dashboard (kept in /config/basement_themes.json, see basement.py).
 GROUP_MOODS = "moods"
 GROUP_HOLIDAYS = "holidays"
+GROUP_SPORTS = "sports"
 GROUP_MINE = "mine"
 TAB_ALL = "all"
-LIBRARY_TABS = [TAB_ALL, GROUP_MOODS, GROUP_HOLIDAYS, GROUP_MINE]
+LIBRARY_TABS = [TAB_ALL, GROUP_MOODS, GROUP_HOLIDAYS, GROUP_SPORTS, GROUP_MINE]
 
 # Ids of themes made on the dashboard: my_1, my_2...
 MY_THEME_PREFIX = "my_"
@@ -76,6 +80,11 @@ def hs(hue, sat, pct):
 def white(kelvin, pct):
     """A white: color temperature in Kelvin, brightness in percent."""
     return {"color_temp_kelvin": kelvin, "brightness_pct": pct}
+
+
+def rgb_setting(color, pct):
+    """A color as [r, g, b] (the way Team Lights writes team colors), brightness in percent."""
+    return {"rgb_color": list(color), "brightness_pct": pct}
 
 
 def stair_hs(hue, sat):
@@ -136,17 +145,62 @@ PALETTES = {
         "pattern": [hs(350, 100, 70), hs(330, 55, 55)],
         "stairs": stair_hs(330, 55),
     },
-    "st_patricks": {
-        "name": "St. Patrick's", "group": GROUP_HOLIDAYS, "icon": "mdi:clover",
-        "pattern": [GREEN, hs(95, 75, 60)],
-        "stairs": stair_hs(120, 100),
-    },
     "easter": {
         "name": "Easter", "group": GROUP_HOLIDAYS, "icon": "mdi:egg-easter",
         "pattern": [hs(330, 35, 55), hs(270, 35, 55), hs(150, 35, 55), hs(55, 40, 55)],
         "stairs": stair_hs(270, 35),
     },
 }
+
+
+# ------------------------------------------------------------------------------
+# SPORTS THEMES: one per team in the Team Lights app
+# The app publishes its teams to pyscript.team_lights_teams (pyscript/apps/
+# team_lights.py, config in packages/sports.yaml), so adding or changing a team
+# there changes its theme here. A team theme is solid team color with
+# `solid_theme`; otherwise it alternates the team's `theme_colors` bulb by bulb,
+# or the team color with white without them. The stairs get the
+# team's stair setting from `light_colors`, else the team color.
+# Picking a team theme also makes that team the one whose scores flash the
+# lights (basement.py tells Team Lights).
+# ------------------------------------------------------------------------------
+TEAM_THEME_PREFIX = "team_"
+TEAM_THEME_PCT = 80
+# The white between team-color bulbs (a team without `theme_colors`). White LEDs
+# are far brighter than red ones at the same percent, so it's kept very dim: at
+# 70% and then 25% it outshone the Phillies red (80%).
+TEAM_ACCENT = white(3500, 8)
+TEAM_ICON = "mdi:trophy"      # for a team without an `icon`
+
+
+def team_theme_id(team_name):
+    """The theme id for a team: "76ers" -> "team_76ers"."""
+    return TEAM_THEME_PREFIX + re.sub(r"[^a-z0-9]+", "_", team_name.lower()).strip("_")
+
+
+def team_palettes(teams):
+    """{theme id: palette} for the teams Team Lights publishes. Each team is
+    {name, rgb, theme_colors, solid_theme, light_colors, icon}; teams without a color are skipped."""
+    palettes = {}
+    for team in teams or []:
+        name = team.get("name")
+        color = team.get("rgb")
+        if not name or not color:
+            continue
+        theme_colors = team.get("theme_colors")
+        if team.get("solid_theme"):
+            pattern = [rgb_setting(color, TEAM_THEME_PCT)]
+        elif theme_colors:
+            pattern = [rgb_setting(c, TEAM_THEME_PCT) for c in theme_colors]
+        else:
+            pattern = [rgb_setting(color, TEAM_THEME_PCT), TEAM_ACCENT]
+        stair = (team.get("light_colors") or {}).get(STAIRLIGHTS)
+        stairs = dict(stair, brightness_pct=STAIR_COLOR_PCT) if stair else rgb_setting(color, STAIR_COLOR_PCT)
+        palettes[team_theme_id(name)] = {
+            "name": name, "group": GROUP_SPORTS, "icon": team.get("icon") or TEAM_ICON,
+            "pattern": pattern, "stairs": stairs, "team": name,
+        }
+    return palettes
 
 
 # ------------------------------------------------------------------------------
@@ -235,6 +289,8 @@ def settings_rgb(settings):
         hue, sat = settings["hs_color"]
         r, g, b = colorsys.hsv_to_rgb(hue / 360.0, sat / 100.0, 1.0)
         rgb = [int(r * 255), int(g * 255), int(b * 255)]
+    elif "rgb_color" in settings:
+        rgb = list(settings["rgb_color"])
     elif "color_temp_kelvin" in settings:
         rgb = _kelvin_to_rgb(settings["color_temp_kelvin"])
     else:
@@ -264,12 +320,15 @@ def swatch(palette, limit=4):
 # under a my_N id it is a theme of our own. Custom themes hold "bulbs" and
 # "stair_bulbs" (see room_plan), plus name, icon and swatch.
 # ------------------------------------------------------------------------------
-def library_entries(custom):
-    """Every theme for the library, built-ins first (table order), then ours by name.
+def library_entries(custom, teams=None):
+    """Every theme for the library: built-ins first (table order), then the team
+    themes (`teams`, from team_palettes()), then ours by name.
     Each is {id, name, icon, group, swatch, edited}."""
     custom = custom or {}
+    built_in = dict(PALETTES)
+    built_in.update(teams or {})
     entries = []
-    for pid, pal in PALETTES.items():
+    for pid, pal in built_in.items():
         mine = custom.get(pid)
         entries.append({
             "id": pid,
@@ -279,7 +338,7 @@ def library_entries(custom):
             "swatch": (mine or {}).get("swatch") or swatch(pal),
             "edited": bool(mine),
         })
-    own = sorted([((t.get("name") or "").lower(), tid) for tid, t in custom.items() if tid not in PALETTES])
+    own = sorted([((t.get("name") or "").lower(), tid) for tid, t in custom.items() if tid not in built_in])
     for _, tid in own:
         theme = custom[tid]
         entries.append({
@@ -301,7 +360,7 @@ def filter_entries(entries, tab, query):
     for entry in entries:
         if tab == GROUP_MINE and not (entry["group"] == GROUP_MINE or entry["edited"]):
             continue
-        if tab in (GROUP_MOODS, GROUP_HOLIDAYS) and entry["group"] != tab:
+        if tab in (GROUP_MOODS, GROUP_HOLIDAYS, GROUP_SPORTS) and entry["group"] != tab:
             continue
         if query and query not in entry["name"].lower():
             continue

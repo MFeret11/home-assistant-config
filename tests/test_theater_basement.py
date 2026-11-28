@@ -228,6 +228,7 @@ def _wire_pyscript_service(name, func, deferred=False):
 _wire_pyscript_service("safe_projector_cooldown", interlocks.safe_projector_cooldown, deferred=True)
 _wire_pyscript_service("cancel_projector_cooldown", interlocks.cancel_projector_cooldown)
 _wire_pyscript_service("shutdown_batocera", interlocks.shutdown_batocera)
+_wire_pyscript_service("team_lights_pick", team_lights.team_lights_pick)
 
 # ==============================================================================
 # 2. ENVIRONMENT RESET
@@ -280,7 +281,11 @@ def setup_clean_environment():
             "team_score": None, "last_play": None,
         })
     state.set("input_select.featured_team", "Auto")
+    state.set("input_boolean.team_lights_flashes", "on")
+    state.set("pyscript.team_lights_picked", "none")
+    state.set("pyscript.team_lights_celebration", "off")
     team_lights._espn_colors.clear()
+    team_lights.publish_teams()
     team_lights.publish_featured()
 
 
@@ -1697,6 +1702,32 @@ def test_sixers_and_one_three_counts_from_last_play():
     print("  ✓ [TeamLights] test_sixers_and_one_three_counts_from_last_play PASSED")
 
 
+def test_sport_without_a_rule_does_not_flash():
+    """Each sport needs its own rule; an unknown sport doesn't fall back to flashing."""
+    assert team_lights._celebration("lacrosse", 1) is None
+    print("  ✓ [TeamLights] test_sport_without_a_rule_does_not_flash PASSED")
+
+
+def test_score_flashes_switch_off_stops_every_flash():
+    """Score flashes off: a touchdown with the TV on sports, or for the picked team, doesn't flash."""
+    setup_clean_environment()
+    state.set("input_boolean.team_lights_flashes", "off")
+    state.set("sensor.theater_mode", "sports")
+    state.set("light.zigbee_basement_lights", "on")
+    _go_live(EAGLES)
+    team_lights.publish_featured()
+    team_lights.on_score(EAGLES, "7", "0")
+    assert not _room_calls(), "FAIL: touchdown flashed with Score flashes off!"
+    basement.select_palette("team_eagles")
+    spy.clear()
+    team_lights.on_score(EAGLES, "14", "7")
+    assert not _room_calls(), "FAIL: picked team flashed with Score flashes off!"
+    state.set("input_boolean.team_lights_flashes", "on")
+    team_lights.on_score(EAGLES, "21", "14")
+    assert _room_calls(), "FAIL: switch back on didn't bring flashes back"
+    print("  ✓ [TeamLights] test_score_flashes_switch_off_stops_every_flash PASSED")
+
+
 def test_flyers_goal_needs_tv_on_sports():
     """Teams stay quiet unless the theater is on sports."""
     setup_clean_environment()
@@ -1752,10 +1783,10 @@ def test_only_featured_team_celebrates():
     state.set("sensor.theater_mode", "sports")
     state.set("light.zigbee_basement_lights", "on")
     _go_live(FLYERS)
-    _go_live(SIXERS)
+    _go_live(PHILLIES)
     team_lights.publish_featured()
-    team_lights.on_score(SIXERS, "3", "0")
-    assert not _room_calls(), "FAIL: Non-featured Sixers three flashed the room!"
+    team_lights.on_score(PHILLIES, "1", "0")
+    assert not _room_calls(), "FAIL: Non-featured Phillies run flashed the room!"
     print("  ✓ [TeamLights] test_only_featured_team_celebrates PASSED")
 
 
@@ -1820,7 +1851,7 @@ def test_config_contract_four_teams_share_tv_gate():
     assert team_lights.ONLY_WHEN == {"sensor.theater_mode": "sports"}
     for t in team_lights.TEAMS:
         assert "only_when" not in t, f"FAIL: {t['name']} has its own gate"
-        assert set(t) <= {"name", "sensor", "color", "light_colors", "index"}, f"FAIL: {t['name']} has extra options {set(t)}"
+        assert set(t) <= {"name", "sensor", "color", "light_colors", "icon", "theme_colors", "solid_theme", "index"}, f"FAIL: {t['name']} has extra options {set(t)}"
     assert EAGLES["color"] == [0, 170, 35], "FAIL: Eagles lost Kelly green"
     print("  ✓ [TeamLights] test_config_contract_four_teams_share_tv_gate PASSED")
 
@@ -4014,7 +4045,8 @@ def test_theme_library_search_tabs_and_pages():
     state.set("pyscript.basement_theme_tab", "all")
     basement._refresh_library()
     from basement_palettes import PALETTES
-    every = list(PALETTES.keys()) + [f"my_{n}" for n in range(1, 7)]
+    teams = ["team_eagles", "team_flyers", "team_76ers", "team_phillies"]
+    every = list(PALETTES.keys()) + teams + [f"my_{n}" for n in range(1, 7)]
     assert _slot_ids() == every[:12], "FAIL: First page isn't the first 12 themes!"
     assert state.get("pyscript.basement_theme_pager") == "on"
     basement.theme_page(1)
@@ -4167,6 +4199,194 @@ def test_every_palette_paints():
         assert swatch(pal), f"FAIL: {pid} has no swatch"
         assert pal["group"] in ("moods", "holidays"), f"FAIL: {pid} has no tab"
     print("  ✓ [Palettes] test_every_palette_paints PASSED")
+
+
+# ==============================================================================
+# SPORTS THEMES (team themes from Team Lights)
+# ==============================================================================
+def _room_bulb_calls():
+    from basement_palettes import ROOM_BULBS
+    return [c for c in spy.calls if c["domain"] == "light" and c["service"] == "turn_on"
+            and c["kwargs"].get("entity_id") in ROOM_BULBS]
+
+
+def test_sports_themes_built_from_team_lights():
+    """One Sports theme per team in sports.yaml: its colors bulb by bulb, the Eagles' stair hue."""
+    setup_clean_environment()
+    from basement_palettes import room_plan, stair_plan, swatch
+    themes = basement._team_themes()
+    assert list(themes) == ["team_eagles", "team_flyers", "team_76ers", "team_phillies"], list(themes)
+    for pid, pal in themes.items():
+        assert room_plan(pal) and stair_plan(pal) and swatch(pal), f"FAIL: {pid} doesn't paint"
+        assert pal["group"] == "sports"
+    eagles = room_plan(themes["team_eagles"])
+    assert all(s["rgb_color"] == EAGLES["color"] for _, s in eagles), "FAIL: Eagles theme isn't solid Kelly green"
+    assert all(s["rgb_color"] == FLYERS["color"] for _, s in room_plan(themes["team_flyers"])), "FAIL: Flyers not solid"
+    phillies = room_plan(themes["team_phillies"])
+    assert phillies[0][1]["rgb_color"] == PHILLIES["color"] and "color_temp_kelvin" in phillies[1][1], \
+        "FAIL: team without theme_colors should alternate its color with white"
+    sixers = room_plan(themes["team_76ers"])
+    assert sixers[1][1]["rgb_color"] == [255, 20, 40], "FAIL: 76ers theme_colors not used"
+    assert stair_plan(themes["team_eagles"])[0][1]["hs_color"] == [125, 100], "FAIL: Eagles stair hue lost"
+    assert swatch(themes["team_eagles"])[0] == "0, 170, 35", "FAIL: swatch can't read rgb_color"
+
+    state.set("pyscript.basement_theme_tab", "sports")
+    basement._refresh_library()
+    assert _slot_ids() == list(themes), f"FAIL: Sports tab shows {_slot_ids()}"
+    print("  ✓ [SportsThemes] test_sports_themes_built_from_team_lights PASSED")
+
+
+def test_sports_theme_picks_team_and_flashes_without_tv():
+    """Picking the Eagles theme paints it, picks the Eagles, lets a touchdown flash
+    with the TV off, and paints the theme back after."""
+    setup_clean_environment()
+    basement.select_palette("team_eagles")
+    assert state.get("pyscript.team_lights_picked") == "Eagles", "FAIL: theme didn't pick the Eagles"
+    assert state.get("input_select.featured_team") == "Eagles", "FAIL: featured_select not set"
+    assert len(_room_bulb_calls()) == 9, "FAIL: theme didn't paint the room"
+
+    state.set("sensor.theater_mode", "off")           # only_when fails...
+    state.set("sensor.philadelphia_eagles", "IN")
+    state.set("light.zigbee_basement_lights", "on")
+    team_lights.publish_featured()
+    spy.clear()
+    team_lights.on_score(EAGLES, "7", "0")             # ...but the picked team still celebrates
+    green = [c for c in spy.calls if c["kwargs"].get("rgb_color") == EAGLES["color"]
+             and c["kwargs"].get("entity_id") == "light.zigbee_basement_lights"]
+    assert len(green) >= 12, f"FAIL: picked team didn't celebrate ({len(green)} pulses)"
+    assert state.get("pyscript.team_lights_celebration") == "off"
+
+    spy.clear()
+    basement.team_celebration_done()
+    assert len(_room_bulb_calls()) == 9, "FAIL: theme not painted back after the flash"
+    print("  ✓ [SportsThemes] test_sports_theme_picks_team_and_flashes_without_tv PASSED")
+
+
+def test_other_team_not_picked_still_needs_tv():
+    """With the Eagles picked, a Flyers goal with the TV off doesn't flash."""
+    setup_clean_environment()
+    basement.select_palette("team_eagles")
+    state.set("sensor.theater_mode", "off")
+    state.set("sensor.nhl_philadelphia_flyers", "IN")
+    state.set("light.zigbee_basement_lights", "on")
+    team_lights.publish_featured()
+    spy.clear()
+    team_lights.on_score(FLYERS, "1", "0")
+    assert not spy.was_called("light", "turn_on"), "FAIL: unpicked team flashed without the TV on sports"
+    print("  ✓ [SportsThemes] test_other_team_not_picked_still_needs_tv PASSED")
+
+
+def test_kickoff_does_not_repaint_picked_theme():
+    """Kickoff for the picked team leaves its two-color theme alone."""
+    setup_clean_environment()
+    basement.select_palette("team_eagles")
+    state.set("sensor.theater_mode", "sports")
+    state.set("light.zigbee_basement_lights", "on")
+    spy.clear()
+    state.set("sensor.philadelphia_eagles", "IN")
+    team_lights.on_game_state(EAGLES, "IN", "PRE")
+    assert not spy.was_called("light", "turn_on", "light.zigbee_basement_lights"), \
+        "FAIL: kickoff painted solid green over the Eagles theme"
+    print("  ✓ [SportsThemes] test_kickoff_does_not_repaint_picked_theme PASSED")
+
+
+def test_other_theme_or_reset_clears_team_pick():
+    """Leaving a Sports theme clears the pick and puts the featured team back to Auto."""
+    setup_clean_environment()
+    basement.select_palette("team_76ers")
+    assert state.get("pyscript.team_lights_picked") == "76ers"
+    basement.select_palette("speakeasy")
+    assert state.get("pyscript.team_lights_picked") == "none", "FAIL: other theme kept the pick"
+    assert state.get("input_select.featured_team") == "Auto"
+
+    basement.select_palette("team_phillies")
+    basement.mood_reset_normal()
+    assert state.get("pyscript.team_lights_picked") == "none", "FAIL: reset kept the pick"
+
+    # Not a team theme: a score flash ending changes nothing.
+    spy.clear()
+    basement.team_celebration_done()
+    assert not _room_bulb_calls(), "FAIL: repainted with no team theme on"
+    print("  ✓ [SportsThemes] test_other_theme_or_reset_clears_team_pick PASSED")
+
+
+def _bulb_calls(entity_id):
+    return [c for c in spy.calls if c["domain"] == "light" and c["kwargs"].get("entity_id") == entity_id]
+
+
+def test_editor_copy_a_color():
+    """Copy a color: the first tap picks up a bulb's color; later taps paint it on
+    bulbs and groups; Done (or closing the editor) stops it."""
+    setup_clean_environment()
+    basement.new_theme()
+    state.set("light.bar_light_1", "on", {"color_mode": "hs", "hs_color": [300, 90], "brightness": 255})
+    basement.theme_copy_start()
+    assert state.get("pyscript.basement_theme_copy") == "pick"
+    spy.clear()
+    basement.theme_copy_tap(light="light.bar_light_1")
+    assert state.get("pyscript.basement_theme_copy") == "paint"
+    assert not _bulb_calls("light.bar_light_1"), "FAIL: picking a color changed the bulb"
+    basement.theme_copy_tap(light="light.lounge_light_4")
+    basement.theme_copy_tap(light="light.stairlights")
+    for target in ("light.lounge_light_4", "light.stairlights"):
+        call = _bulb_calls(target)[-1]
+        assert call["kwargs"].get("hs_color") == [300, 90] and call["kwargs"].get("brightness_pct") == 100, \
+            f"FAIL: {target} didn't get the copied color: {call}"
+    spy.clear()
+    basement.theme_copy_tap(light="light.theater_dimmer")
+    assert not spy.calls, "FAIL: copy tool painted a light outside the basement themes"
+    basement.close_theme_editor()
+    assert state.get("pyscript.basement_theme_copy") == "off", "FAIL: closing the editor left the copy tool on"
+    print("  ✓ [Themes] test_editor_copy_a_color PASSED")
+
+
+def test_editor_repeat_pattern():
+    """Repeat 2: Bar L and Bar R's colors alternate along the rest of the room."""
+    setup_clean_environment()
+    from basement_palettes import ROOM_BULBS
+    state.set("light.bar_light_1", "on", {"color_mode": "hs", "hs_color": [0, 100], "brightness": 255})
+    state.set("light.bar_light_2", "on", {"color_mode": "color_temp", "color_temp_kelvin": 3000, "brightness": 51})
+    spy.clear()
+    basement.theme_repeat_pattern(count=2)
+    for i, bulb in enumerate(ROOM_BULBS[2:], start=2):
+        call = _bulb_calls(bulb)[-1]["kwargs"]
+        if i % 2 == 0:
+            assert call.get("hs_color") == [0, 100], f"FAIL: {bulb} should be Bar L's red"
+        else:
+            assert call.get("color_temp_kelvin") == 3000 and call.get("brightness_pct") == 20, f"FAIL: {bulb} should be Bar R's white"
+    assert not _bulb_calls("light.bar_light_1"), "FAIL: repeat changed the pattern's own bulbs"
+    print("  ✓ [Themes] test_editor_repeat_pattern PASSED")
+
+
+def test_editing_sports_theme_is_builtin():
+    """Holding a Sports theme opens it as a built-in (Reset to original, not Delete)."""
+    setup_clean_environment()
+    _fake_themes_file()
+    state.set("pyscript.basement_theme_tab", "sports")
+    basement._refresh_library()
+    basement.edit_theme_slot(1)
+    assert state.get("pyscript.basement_theme_editor") == "builtin", state.get("pyscript.basement_theme_editor")
+    print("  ✓ [Themes] test_editing_sports_theme_is_builtin PASSED")
+
+
+def test_team_theme_survives_load_before_team_lights():
+    """At startup basement.py may load before Team Lights publishes: the team theme
+    and the pick are kept until the teams arrive."""
+    setup_clean_environment()
+    basement.select_palette("team_flyers")
+    state._states.pop("pyscript.team_lights_teams", None)
+    state._attrs.pop("pyscript.team_lights_teams", None)
+    spy.clear()
+    basement.restore_current_palette()
+    basement._publish_palette_sensor(basement.CURRENT_PALETTE)
+    assert basement.CURRENT_PALETTE == "team_flyers", "FAIL: team theme dropped at load"
+    assert not spy.was_called("pyscript", "team_lights_pick"), "FAIL: pick cleared before teams arrived"
+    assert state.get("pyscript.team_lights_picked") == "Flyers"
+
+    team_lights.publish_teams()
+    basement.team_list_changed()
+    assert state.getattr("sensor.basement_palette").get("label") == "Flyers", "FAIL: label not filled in"
+    print("  ✓ [SportsThemes] test_team_theme_survives_load_before_team_lights PASSED")
 
 
 def test_sports_keeps_palette_picked_mid_game():
@@ -4323,6 +4543,15 @@ if __name__ == "__main__":
         test_save_theme_needs_lights_and_survives_write_failure,
         test_toast_puts_bar_back_as_it_was,
         test_every_palette_paints,
+        test_sports_themes_built_from_team_lights,
+        test_sports_theme_picks_team_and_flashes_without_tv,
+        test_other_team_not_picked_still_needs_tv,
+        test_kickoff_does_not_repaint_picked_theme,
+        test_other_theme_or_reset_clears_team_pick,
+        test_team_theme_survives_load_before_team_lights,
+        test_editor_copy_a_color,
+        test_editor_repeat_pattern,
+        test_editing_sports_theme_is_builtin,
         test_pc_discord_window_does_not_black_out_game_mode,
         test_pc_desktop_does_not_force_game_mode_over_bluetooth,
         test_prime_video_brand_art_is_not_netflix,
@@ -4368,6 +4597,8 @@ if __name__ == "__main__":
         # Suite 11b: Team Lights - other teams, featured team, per-sport rules (19)
         test_sixers_flash_only_on_threes,
         test_sixers_and_one_three_counts_from_last_play,
+        test_sport_without_a_rule_does_not_flash,
+        test_score_flashes_switch_off_stops_every_flash,
         test_flyers_goal_needs_tv_on_sports,
         test_flyers_kickoff_never_turns_lights_on,
         test_featured_team_priority_playoffs_and_override,
