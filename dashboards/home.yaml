@@ -11,9 +11,6 @@ views:
     sections:
       - type: grid
         cards:
-          - type: heading
-            heading: Now
-            icon: mdi:clock-outline
           - type: custom:mushroom-title-card
             title: "{{ now().strftime('%-I:%M %p') }}"
             # Date, then the outdoor temp and what to wear (sensor.commute_weather).
@@ -75,6 +72,9 @@ views:
           # Weather Service watch/warning banner, shared with the kitchen tablet;
           # hidden when there's none.
           - !include components/shared/weather_alert.yaml
+          # Things that need doing (maintenance, offline cameras, stair door left
+          # open): the kitchen tablet's attention row. Hidden when there's none.
+          - !include components/shared/attention.yaml
 
           # --- QUICK ACTION COMMAND BAR ---
           - type: horizontal-stack
@@ -102,7 +102,7 @@ views:
               - type: custom:mushroom-template-card
                 primary: Social
                 secondary: >-
-                  {{ 'Active' if is_state('input_select.basement_lighting_mode', 'Social Mode') else 'Off' }}
+                  {{ 'On' if is_state('input_select.basement_lighting_mode', 'Social Mode') else 'Off' }}
                 icon: mdi:party-popper
                 icon_color: >-
                   {{ 'purple' if is_state('input_select.basement_lighting_mode', 'Social Mode') else 'grey' }}
@@ -126,8 +126,8 @@ views:
                     state: "on"
                 card:
                   type: custom:mushroom-template-card
-                  primary: Lights
-                  secondary: Kill
+                  primary: Lights off
+                  secondary: Basement
                   icon: mdi:lightbulb-multiple-off
                   icon_color: red
                   layout: vertical
@@ -183,78 +183,13 @@ views:
               features:
                 - type: select-options
 
-          # 2. SEPTA Commute Window
-          - type: conditional
-            conditions:
-              - condition: state
-                entity: binary_sensor.septa_am_window
-                state: "on"
-            card:
-              type: custom:mushroom-template-card
-              primary: >-
-                {{ '🚨 LEAVE NOW' if state_attr('sensor.septa_commute', 'leave_now') else ('Train left ' ~ (state_attr('sensor.septa_commute', 'origin_actual_departure_time') | default('—', true)) if state_attr('sensor.septa_commute', 'already_departed') else 'Leave by ' ~ (state_attr('sensor.septa_commute', 'leave_by_time') | default('—', true))) }}
-              secondary: >-
-                {{ states('sensor.commute_weather') | default('Check transit schedule', true) }}
-              icon: mdi:train-car
-              icon_color: >-
-                {{ 'red' if state_attr('sensor.septa_commute', 'leave_now') else 'blue' }}
-              layout: horizontal
-              tap_action:
-                action: navigate
-                navigation_path: /kitchen-kiosk
-              card_mod:
-                style: |
-                  ha-card {
-                    background: rgba(33, 150, 243, 0.1) !important;
-                    border: 1px solid rgba(33, 150, 243, 0.3) !important;
-                    margin-bottom: 6px;
-                  }
+          # 2. Train cards, the same ones as the kitchen tablet: the morning train
+          # (weekday commute window), then the train home once the commuter
+          # leaves work, until they're home.
+          - !include components/shared/commute_am.yaml
+          - !include components/shared/commute_pm.yaml
 
-          # 2b. Evening commute: the train home, until the commuter is home.
-          # The full card is on the kitchen kiosk (components/shared/commute_pm.yaml).
-          - type: conditional
-            conditions:
-              - condition: state
-                entity: binary_sensor.septa_pm_window
-                state: "on"
-              - condition: state
-                entity: sensor.partner_location
-                state_not: home
-            card:
-              type: custom:mushroom-template-card
-              primary: >-
-                {%- set c = states.sensor.septa_commute.attributes if states.sensor.septa_commute is not none else {} -%}
-                {%- if c.get('is_cancelled') or c.get('connection_cancelled') -%}❌ Train cancelled
-                {%- elif c.get('missed_connection') -%}🚨 Missed connection
-                {%- elif c.get('rider_on_train') -%}On train {{ c.get('rider_on_train') }}
-                {%- elif c.get('origin_train') -%}Train {{ c.get('origin_train') }} at {{ c.get('origin_actual_departure_time') or '—' }}
-                {%- else -%}Train times unavailable
-                {%- endif -%}
-              secondary: >-
-                {%- set c = states.sensor.septa_commute.attributes if states.sensor.septa_commute is not none else {} -%}
-                {%- set delay = c.get('total_delay_minutes', 0) or 0 -%}
-                {%- if c.get('is_cancelled') or c.get('connection_cancelled') -%}Next train {{ c.get('backup_train_departure') or '— check SEPTA' }}
-                {%- elif c.get('actual_arrival_time') -%}Home by {{ c.get('actual_arrival_time') }}{{ ' · ' ~ delay ~ ' min late' if delay > 0 else '' }}
-                {%- else -%}Evening commute
-                {%- endif -%}
-              icon: mdi:train-car
-              icon_color: >-
-                {%- set c = states.sensor.septa_commute.attributes if states.sensor.septa_commute is not none else {} -%}
-                {{ 'red' if c.get('is_cancelled') or c.get('connection_cancelled') or c.get('missed_connection')
-                   else ('amber' if (c.get('total_delay_minutes', 0) or 0) > 0 else 'blue') }}
-              layout: horizontal
-              tap_action:
-                action: navigate
-                navigation_path: /kitchen-kiosk
-              card_mod:
-                style: |
-                  ha-card {
-                    background: rgba(33, 150, 243, 0.1) !important;
-                    border: 1px solid rgba(33, 150, 243, 0.3) !important;
-                    margin-bottom: 6px;
-                  }
-
-          # 3. Cinema / Theater In Use
+          # 3. Theater in use
           - type: conditional
             conditions:
               - condition: state
@@ -268,7 +203,8 @@ views:
                 {{ state_attr('sensor.theater_current_poster', 'title') or 'Theater in use' }}
               secondary: >-
                 {%- set sub = state_attr('sensor.theater_current_poster', 'subtitle') -%}
-                {{ states('sensor.theater_mode') | title }}{{ ' · ' ~ sub if sub else '' }}
+                {%- from 'house_status.jinja' import theater_mode_name -%}
+                {{ theater_mode_name() }}{{ ' · ' ~ sub if sub else '' }}
               icon: >-
                 {{ {'movie': 'mdi:movie-open', 'sports': 'mdi:football', 'game': 'mdi:gamepad-variant',
                     'music': 'mdi:music'}.get(states('sensor.theater_mode'), 'mdi:theater') }}
@@ -312,50 +248,13 @@ views:
                     margin-bottom: 6px !important;
                   }
 
-          # 5. Nominal Resting State
+          # 5. All quiet: nothing running and nothing needs doing
+          # (binary_sensor.house_quiet, packages/house_status.yaml).
           - type: conditional
             conditions:
-              # Same sensors as the game cards above, so the two never show together.
               - condition: state
-                entity: binary_sensor.eagles_game_soon
-                state: "off"
-              - condition: state
-                entity: binary_sensor.sixers_game_soon
-                state: "off"
-              - condition: state
-                entity: binary_sensor.phillies_game_soon
-                state: "off"
-              - condition: state
-                entity: binary_sensor.flyers_game_soon
-                state: "off"
-              - condition: state
-                entity: binary_sensor.septa_am_window
-                state: "off"
-              - condition: state
-                entity: binary_sensor.septa_pm_window
-                state: "off"
-              - condition: state
-                entity: binary_sensor.theater_in_use
-                state: "off"
-              # Not "quiet" while the vacuum is running; the Vacuum tile in the
-              # command bar shows that state.
-              - condition: state
-                entity: vacuum.vaculina
-                state_not:
-                  - cleaning
-                  - returning
-                  - paused
-                  - error
-              - condition: state
-                entity: sensor.office_creality_printer_print_status
-                state:
-                  - unavailable
-                  - unknown
-                  - "off"
-                  - standby
-              - condition: state
-                entity: binary_sensor.weather_alert_showing
-                state_not: "on"
+                entity: binary_sensor.house_quiet
+                state: "on"
             card:
               type: custom:mushroom-template-card
               primary: All quiet
@@ -393,7 +292,7 @@ views:
       - type: grid
         cards:
           - type: heading
-            heading: Areas & Systems
+            heading: Around the house
             icon: mdi:compass-outline
           - type: horizontal-stack
             cards:
@@ -402,11 +301,12 @@ views:
                 primary: Basement
                 secondary: >-
                   {% if is_state('binary_sensor.theater_in_use', 'on') %}
-                    Cinema • {{ states('sensor.theater_mode') | title }}
+                    {%- from 'house_status.jinja' import theater_mode_name %}
+                    Theater · {{ theater_mode_name() }}
                   {% elif is_state('binary_sensor.basement_lights_active', 'on') %}
-                    Lights On • Active
+                    Lights on
                   {% else %}
-                    Dormant
+                    Lights off
                   {% endif %}
                 icon: >-
                   {% if is_state('binary_sensor.theater_in_use', 'on') %}
@@ -447,7 +347,7 @@ views:
                 layout: horizontal
                 tap_action:
                   action: navigate
-                  navigation_path: /dashboard-home2/bedroom
+                  navigation_path: /dashboard-bedroom/bedroom
                   haptic: light
                 card_mod:
                   class: glass-tile row
@@ -460,38 +360,9 @@ views:
           - type: horizontal-stack
             cards:
               - type: custom:mushroom-template-card
-                primary: History
-                secondary: 48h Activity
-                icon: mdi:chart-timeline-variant-shimmer
-                icon_color: purple
-                layout: horizontal
-                tap_action:
-                  action: navigate
-                  navigation_path: /dashboard-diagnostics/activity-log
-                  haptic: light
-                card_mod:
-                  class: glass-tile row
-
-              - type: custom:mushroom-template-card
-                primary: Telemetry
+                primary: Cameras
                 secondary: >-
-                  {{ states('sensor.system_monitor_processor_use') | round(0, default='—') }}% CPU
-                icon: mdi:server-network
-                icon_color: teal
-                layout: horizontal
-                tap_action:
-                  action: navigate
-                  navigation_path: /dashboard-diagnostics
-                  haptic: light
-                card_mod:
-                  class: glass-tile row
-
-          - type: horizontal-stack
-            cards:
-              - type: custom:mushroom-template-card
-                primary: Security
-                secondary: >-
-                  {{ states('sensor.cameras_online') }}/{{ state_attr('sensor.cameras_online', 'total') }} cameras online
+                  {{ states('sensor.cameras_online') }}/{{ state_attr('sensor.cameras_online', 'total') }} online
                 icon: mdi:cctv
                 icon_color: >-
                   {{ 'red' if state_attr('sensor.cameras_online', 'offline') else 'cyan' }}
@@ -557,16 +428,49 @@ views:
             card_mod:
               class: glass-tile row
 
+          # Behind-the-scenes pages (activity log, Pi health), so they sit last.
+          - type: horizontal-stack
+            cards:
+              - type: custom:mushroom-template-card
+                primary: History
+                secondary: Last 48 hours
+                icon: mdi:chart-timeline-variant-shimmer
+                icon_color: purple
+                layout: horizontal
+                tap_action:
+                  action: navigate
+                  navigation_path: /dashboard-diagnostics/activity-log
+                  haptic: light
+                card_mod:
+                  class: glass-tile row
+
+              - type: custom:mushroom-template-card
+                primary: Pi status
+                secondary: >-
+                  {{ states('sensor.system_monitor_processor_use') | round(0, default='—') }}% CPU
+                icon: mdi:server-network
+                icon_color: teal
+                layout: horizontal
+                tap_action:
+                  action: navigate
+                  navigation_path: /dashboard-diagnostics
+                  haptic: light
+                card_mod:
+                  class: glass-tile row
+
           # --- WHERE IS EVERYONE POP-UP (opened from the Partner tile) ---
           - type: custom:bubble-card
             card_type: pop-up
             hash: '#where'
             name: Where
             icon: mdi:map-marker-account
-            show_header: true
-            bg_color: rgba(10, 15, 26, 0.96)
-            bg_blur: 24
-            shadow_opacity: 0.8
+            # Pop-up look, shared by every pop-up below (and matching the
+            # vacuum pop-up and the basement's).
+            <<: &popup_look
+              show_header: true
+              bg_color: rgba(10, 15, 26, 0.96)
+              bg_blur: 24
+              shadow_opacity: 0.8
             cards:
               - type: map
                 entities:
@@ -581,12 +485,9 @@ views:
           - type: custom:bubble-card
             card_type: pop-up
             hash: '#security-cams'
-            name: Perimeter Security
+            name: Cameras
             icon: mdi:cctv
-            show_header: true
-            bg_color: rgba(10, 15, 26, 0.96)
-            bg_blur: 24
-            shadow_opacity: 0.8
+            <<: *popup_look
             cards:
               # All three cams in a grid by default; tap one to enlarge it, or use
               # the menu for fullscreen or single-camera view.
@@ -618,10 +519,7 @@ views:
             hash: '#printer-3d'
             name: 3D Printer
             icon: mdi:printer-3d
-            show_header: true
-            bg_color: rgba(10, 15, 26, 0.96)
-            bg_blur: 24
-            shadow_opacity: 0.8
+            <<: *popup_look
             cards:
               - type: picture-entity
                 entity: image.office_creality_printer_current_print_preview
@@ -687,16 +585,5 @@ views:
                 ha-card {
                   overflow: hidden;
                 }
-          - type: weather-forecast
-            # Same NWS source as the kitchen kiosk. NWS has no "daily" forecast, only day/night pairs.
-            entity: weather.whole_house_national_weather_service_kphl
-            forecast_type: twice_daily
-            forecast_slots: 6
-            show_current: true
-            show_forecast: true
-            card_mod:
-              style: |
-                ha-card {
-                  border-radius: 24px !important;
-                  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
-                }
+          # Same NWS card as the kitchen tablet (custom_templates/kitchen.jinja).
+          - !include components/shared/weather_full.yaml

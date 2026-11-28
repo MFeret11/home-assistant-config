@@ -28,7 +28,7 @@ views:
         column_span: 2
         visibility:
           - condition: numeric_state
-            entity: sensor.kitchen_attention
+            entity: sensor.house_attention
             above: 0
         cards:
           - !include components/shared/attention.yaml

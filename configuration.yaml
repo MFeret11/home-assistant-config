@@ -87,11 +87,12 @@ recorder:
       - sensor.next_calendar_event
       - binary_sensor.theater_media_playing
       - sensor.cameras_online
+      - sensor.house_attention
+      - binary_sensor.house_quiet
       # Kitchen dashboard data (packages/kitchen_display.yaml); refreshed on timers.
       - sensor.kitchen_display_mode
       - sensor.kitchen_weather
       - sensor.kitchen_today_events
-      - sensor.kitchen_attention
       # Neutral copies of the location trackers (private package); the
       # coordinates are not kept in history.
       - sensor.partner_location
@@ -132,7 +133,7 @@ lovelace:
       icon: mdi:home
       show_in_sidebar: true
       filename: dashboards/home.yaml
-    dashboard-home2:
+    dashboard-bedroom:
       mode: yaml
       title: Bedroom
       icon: mdi:bed

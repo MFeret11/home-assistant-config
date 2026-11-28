@@ -23,22 +23,6 @@ template:
           key: >-
             {{ (states('sensor.weather_alert') ~ ' | ' ~ states('sensor.weather_alert_count'))[:255] }}
 
-  # Attention row across the top of the kitchen page: chips for things that
-  # need doing (worn vacuum or printer parts, low batteries, a camera offline,
-  # the basement stair door left open). State is the count; the row is hidden
-  # at 0. Rules: kitchen_attention() in custom_templates/house_status.jinja.
-  - sensor:
-      - name: Kitchen Attention
-        unique_id: kitchen_attention
-        icon: mdi:alert-circle-outline
-        state: >-
-          {% from 'house_status.jinja' import kitchen_attention %}
-          {{ kitchen_attention() | from_json | count }}
-        attributes:
-          items: >-
-            {% from 'house_status.jinja' import kitchen_attention %}
-            {{ kitchen_attention() | from_json }}
-
   # morning: weekdays 6-9 AM, only commute, weather and today's events.
   # day: everything else.
   - sensor:

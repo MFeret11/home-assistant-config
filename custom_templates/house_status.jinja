@@ -75,7 +75,7 @@
     the basement stair door left open. Chores stay out: they have their own
     line on the kitchen page and there are usually some due, so the row
     would never empty. Returns a JSON list of {icon, text}. -#}
-{%- macro kitchen_attention() -%}
+{%- macro house_attention() -%}
   {%- set CAMERA_OFFLINE_MINUTES = 15 -%}
   {%- set DOOR_OPEN_MINUTES = 10 -%}
   {%- set cameras = {
@@ -123,4 +123,12 @@
   {%- endfor -%}
   {%- set when = ns.ts | timestamp_custom('%a %b %-d' ~ ('' if ns.all_day else ' • %-I:%M %p')) if ns.ts is not none else '' -%}
   {{- {'message': ns.msg, 'when': when} | to_json -}}
+{%- endmacro -%}
+
+{#- Display name for a theater mode (sensor.theater_mode). The same four
+    names label the mode buttons in the basement and the theater remote. -#}
+{%- set THEATER_MODE_NAMES = {'movie': 'Movie', 'sports': 'Sports', 'game': 'Games', 'music': 'Music'} -%}
+{%- macro theater_mode_name(mode=none) -%}
+  {%- set m = mode if mode is not none else states('sensor.theater_mode') -%}
+  {{- THEATER_MODE_NAMES.get(m, m | title) -}}
 {%- endmacro -%}

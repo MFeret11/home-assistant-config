@@ -30,20 +30,20 @@ cards:
           perform_action: pyscript.play_sports
           haptic: light
       - type: template
+        icon: mdi:gamepad-variant
+        content: Games
+        icon_color: green
+        tap_action:
+          action: perform-action
+          perform_action: pyscript.play_game
+          haptic: light
+      - type: template
         icon: mdi:music
         content: Music
         icon_color: purple
         tap_action:
           action: perform-action
           perform_action: pyscript.play_music
-          haptic: light
-      - type: template
-        icon: mdi:gamepad-variant
-        content: Arcade
-        icon_color: green
-        tap_action:
-          action: perform-action
-          perform_action: pyscript.play_game
           haptic: light
       - type: template
         icon: mdi:power

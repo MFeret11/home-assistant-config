@@ -16,7 +16,7 @@ cards:
   - type: custom:mushroom-template-card
     primary: Theater
     secondary: >-
-      {% if is_state('binary_sensor.theater_in_use', 'on') %}{{ states('sensor.theater_mode') | title }} active{% else %}Off{% endif %}
+      {% if is_state('binary_sensor.theater_in_use', 'on') %}{% from 'house_status.jinja' import theater_mode_name %}{{ theater_mode_name() }} active{% else %}Off{% endif %}
     icon: mdi:theater
     icon_color: blue
     layout: horizontal
@@ -55,7 +55,7 @@ cards:
       - type: custom:decluttering-card
         template: theater_mode_button
         variables:
-          - primary: Cinema
+          - primary: Movie
           - icon: mdi:movie-open
           - icon_color: blue
           - action: pyscript.play_movie
@@ -75,7 +75,7 @@ cards:
       - type: custom:decluttering-card
         template: theater_mode_button
         variables:
-          - primary: Arcade
+          - primary: Games
           - icon: mdi:gamepad-variant
           - icon_color: green
           - action: pyscript.play_game
@@ -85,7 +85,7 @@ cards:
       - type: custom:decluttering-card
         template: theater_mode_button
         variables:
-          - primary: Hi-Fi
+          - primary: Music
           - icon: mdi:music-note-eighth
           - icon_color: purple
           - action: pyscript.play_music

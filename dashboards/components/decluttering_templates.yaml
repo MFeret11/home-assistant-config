@@ -37,7 +37,7 @@ avr_volume_slider:
           border: 1px solid rgba(66, 165, 245, 0.3) !important;
         }
 
-# Theater mode pill: four sit in one row (Cinema, Sports, Arcade, Hi-Fi)
+# Theater mode pill: four sit in one row (Movie, Sports, Games, Music)
 theater_mode_button:
   card:
     type: custom:mushroom-template-card

@@ -112,6 +112,8 @@ card_mod:
         border: {{ '2px solid rgba(244, 67, 54, 0.8)' if is_danger else ('1.5px solid rgba(255, 179, 0, 0.7)' if is_warn else '1px solid rgba(255, 255, 255, 0.1)') }} !important;
         color: var(--primary-text-color);
       }
+      /* Tablet size; House Glass pages shrink it (scripts/build_house_theme.py). */
+      ha-markdown { zoom: var(--shared-card-scale, 1); }
     # Headings sit inside ha-markdown's shadow root.
     ha-markdown $: |
       :host { text-align: center; }

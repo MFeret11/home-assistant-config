@@ -1,12 +1,12 @@
-# Attention row across the top of the kitchen page: one chip per thing that
-# needs doing (sensor.kitchen_attention, rules in
-# custom_templates/house_status.jinja kitchen_attention()). Hidden when there
+# Attention row across the top of the kitchen page and Home: one chip per
+# thing that needs doing (sensor.house_attention, rules in
+# custom_templates/house_status.jinja house_attention()). Hidden when there
 # is nothing, so on a normal day it takes no space. Markup: kitchen.jinja
 # attention_chips().
 type: markdown
 visibility:
   - condition: numeric_state
-    entity: sensor.kitchen_attention
+    entity: sensor.house_attention
     above: 0
 content: >-
   {% from 'kitchen.jinja' import attention_chips %}{{ attention_chips() }}
@@ -21,6 +21,8 @@ card_mod:
         box-shadow: none !important;
         padding: 0 4px;
       }
+      /* Tablet size; House Glass pages shrink it (scripts/build_house_theme.py). */
+      ha-markdown { zoom: var(--shared-card-scale, 1); }
     # Chips sit inside ha-markdown's shadow root.
     ha-markdown $: |
       p { margin: 0 !important; display: flex; flex-wrap: wrap; gap: 10px; }

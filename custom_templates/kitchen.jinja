@@ -120,10 +120,10 @@
   {%- endfor -%}
 {%- endmacro -%}
 
-{#- Attention chips for the top of the kitchen page (sensor.kitchen_attention).
+{#- Attention chips for the top of Home and the kitchen page (sensor.house_attention).
     The card styles .chip (dashboards/components/shared/attention.yaml). -#}
 {%- macro attention_chips() -%}
-  {%- for i in state_attr('sensor.kitchen_attention', 'items') or [] -%}
+  {%- for i in state_attr('sensor.house_attention', 'items') or [] -%}
 <span class="chip"><ha-icon icon="{{ i.icon }}"></ha-icon> {{ i.text }}</span>
   {%- endfor -%}
 {%- endmacro -%}

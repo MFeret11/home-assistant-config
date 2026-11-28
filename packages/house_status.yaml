@@ -35,6 +35,21 @@ template:
             {% set cams = ['camera.front_porch_cam', 'camera.back_deck_cam', 'camera.back_yard_cam'] %}
             {{ cams | select('is_state', ['unavailable', 'unknown']) | list }}
 
+      # Attention chips across the top of Home and the kitchen tablet: things
+      # that need doing (worn vacuum or printer parts, low batteries, a camera
+      # offline, the basement stair door left open). State is the count; the
+      # row is hidden at 0. `items` holds {icon, text} for each chip.
+      - name: "House Attention"
+        unique_id: house_attention
+        icon: mdi:alert-circle-outline
+        state: >-
+          {% from 'house_status.jinja' import house_attention %}
+          {{ house_attention() | from_json | count }}
+        attributes:
+          items: >-
+            {% from 'house_status.jinja' import house_attention %}
+            {{ house_attention() | from_json }}
+
       # Soonest event across the household calendars (Home "Live Activity").
       - name: "Next Calendar Event"
         unique_id: next_calendar_event
@@ -46,3 +61,26 @@ template:
           when: >-
             {% from 'house_status.jinja' import next_calendar_event %}
             {{ (next_calendar_event() | from_json)['when'] }}
+
+  - binary_sensor:
+      # Home's "All quiet" card. Off while any Live Activity card is showing
+      # (a game soon, a train card, the theater, the vacuum or the 3D printer
+      # running) or while there's a weather alert or an attention chip.
+      # A new Live Activity card should be added to this list too.
+      - name: "House Quiet"
+        unique_id: house_quiet
+        icon: mdi:shield-check
+        state: >-
+          {% set busy_when_on = [
+            'binary_sensor.eagles_game_soon', 'binary_sensor.sixers_game_soon',
+            'binary_sensor.phillies_game_soon', 'binary_sensor.flyers_game_soon',
+            'binary_sensor.septa_am_window', 'binary_sensor.kitchen_show_pm_commute',
+            'binary_sensor.in_center_city', 'binary_sensor.theater_in_use',
+            'binary_sensor.weather_alert_showing'
+          ] %}
+          {% set vacuum_busy = states('vacuum.vaculina') in ['cleaning', 'returning', 'paused', 'error'] %}
+          {% set printing = states('sensor.office_creality_printer_print_status')
+             not in ['unavailable', 'unknown', 'off', 'standby'] %}
+          {{ busy_when_on | select('is_state', 'on') | list | count == 0
+             and not vacuum_busy and not printing
+             and states('sensor.house_attention') | int(0) == 0 }}

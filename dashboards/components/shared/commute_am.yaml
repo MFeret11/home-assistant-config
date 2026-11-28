@@ -115,6 +115,8 @@ card_mod:
         box-shadow: {{ '0 6px 24px rgba(244, 67, 54, 0.35)' if is_alert else '0 6px 20px rgba(0, 0, 0, 0.2)' }};
         color: var(--primary-text-color);
       }
+      /* Tablet size; House Glass pages shrink it (scripts/build_house_theme.py). */
+      ha-markdown { zoom: var(--shared-card-scale, 1); }
     # Headings sit inside ha-markdown's shadow root.
     ha-markdown $: |
       :host { text-align: center; }

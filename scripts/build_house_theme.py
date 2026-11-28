@@ -27,6 +27,11 @@ NAME = "House Glass"
 VARIABLES = {
     # The house cards have always used 20px corners; upstream uses 18px.
     "ha-card-border-radius": "20px",
+    # The shared cards in dashboards/components/shared/ are sized for the
+    # kitchen tablet. They scale their contents by this, so on House Glass
+    # pages (phones, mostly) they come out at three quarters size. Kitchen
+    # Dark doesn't set it, so the tablet stays at full size.
+    "shared-card-scale": "0.75",
 }
 
 # Appended to the upstream card-mod-card CSS. Cards opt in with
@@ -74,6 +79,17 @@ ha-card.glass-chip {
 }
 ha-card.glass-chip:active {
   transform: scale(0.95);
+}
+
+/* Section headings (heading cards): small, bold, uppercase, the same look
+   as the basement's section labels (zone_lighting.yaml, theater_stage.yaml). */
+:host(hui-heading-card) .content {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  opacity: 0.85;
+  --mdc-icon-size: 16px;
 }
 """
 
